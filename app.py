@@ -24,11 +24,15 @@ ABA_LOGS_ACOES = "SISAFA-NAVAL-logs_acoes"
 ABA_HISTORICO = "SISAFA-NAVAL-historico"
 ABA_MENSAGENS = "SISAFA-NAVAL-mensagens"
 
+# Localiza a pasta onde o app.py está (a raiz do projeto)
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
-caminho_logo = os.path.join(pasta_projeto, "Imagens", "LOGO-SISAFA-NAVAL.png")
-caminho_mascote = os.path.join(pasta_projeto, "Imagens", "canto_inferior_direito_da_tela_de_apresentacao.png")
 
-st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="wide", page_icon="⚓")
+# Removi o "Imagens" do meio do caminho, já que os arquivos estão na raiz
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+
+st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
+
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
