@@ -1,0 +1,879 @@
+import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import os
+import base64
+import pandas as pd
+from datetime import datetime
+import time
+import smtplib
+import re # Para a limpeza do e-mail
+from email.message import EmailMessage
+import plotly.express as px
+
+
+
+# --- Codigo para executar a função: streamlit run app.py ---
+
+# --- CONFIGURAÇÕES E CAMINHOS ---
+ID_PLANILHA = "1NS9zdzNFcHjQ7zFpEysuU-udrrV1VaM7nPY7LjHk3Qk"
+ABA_USUARIOS = "SISAFA-NAVAL-Usuarios"
+ABA_TABELA_A = "SISAFA-NAVAL-Tabela-A"
+ABA_PROCESSOS = "SISAFA-NAVAL-processos"
+ABA_LOGS_ACOES = "SISAFA-NAVAL-logs_acoes"
+ABA_HISTORICO = "SISAFA-NAVAL-historico"
+ABA_MENSAGENS = "SISAFA-NAVAL-mensagens"
+
+pasta_projeto = os.path.dirname(os.path.abspath(__file__))
+caminho_logo = os.path.join(pasta_projeto, "Imagens", "LOGO-SISAFA-NAVAL.png")
+caminho_mascote = os.path.join(pasta_projeto, "Imagens", "canto_inferior_direito_da_tela_de_apresentacao.png")
+
+st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="wide", page_icon="⚓")
+
+# --- ESTILIZAÇÃO CSS ---
+st.markdown("""
+    <style>
+    [data-testid="stSidebarNav"] {display: none;} 
+    .welcome-box { background: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 8px solid #2e6b54; margin-bottom: 25px; font-size: 18px; font-weight: bold; color: #1B3129; }
+    .stButton>button { background-color: #2e6b54; color: white; border-radius: 5px; font-weight: bold; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- FUNÇÕES DE CONEXÃO ---
+def conectar_google():
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
+        return None
+
+def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
+    try:
+        client = conectar_google()
+        sh = client.open_by_key(ID_PLANILHA)
+        aba = sh.worksheet(ABA_HISTORICO)
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Colunas: timestamp, nup, fatura, origem, destino, usuario, valor, obs
+        aba.append_row([agora, nup, fatura, origem, destino, st.session_state.user_id, valor, obs])
+    except Exception as e:
+        # ISSO AQUI VAI TE DIZER O MOTIVO REAL DO ERRO:
+        st.error(f"Erro na aba HISTÓRICO: {e}")
+
+
+def registrar_acao(nup, fatura, acao, detalhes=""):
+    try:
+        client = conectar_google()
+        sh = client.open_by_key(ID_PLANILHA)
+        aba = sh.worksheet(ABA_LOGS_ACOES)
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        aba.append_row([str(datetime.now().timestamp()), nup, fatura, acao, st.session_state.user_id, agora, detalhes])
+    except: pass
+
+def mover_status(nup, novo_status, auditor_nip=None, obs_texto=None, valor_glosa=None, valor_liq=None):
+    client = conectar_google()
+    sh = client.open_by_key(ID_PLANILHA)
+    aba_p = sh.worksheet(ABA_PROCESSOS)
+    cell = aba_p.find(nup)
+    if cell:
+        dados_atuais = aba_p.row_values(cell.row)
+        status_origem = dados_atuais[10] 
+        fatura = dados_atuais[4]
+        valor_atual = valor_liq if valor_liq is not None else dados_atuais[7]
+        
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        aba_p.update_cell(cell.row, 11, novo_status)
+        aba_p.update_cell(cell.row, 14, agora)
+        if auditor_nip: aba_p.update_cell(cell.row, 12, auditor_nip)
+        if obs_texto: aba_p.update_cell(cell.row, 18, obs_texto)
+        if valor_glosa is not None: aba_p.update_cell(cell.row, 7, valor_glosa)
+        if valor_liq is not None: aba_p.update_cell(cell.row, 8, valor_liq)
+        
+        registrar_historico(nup, fatura, status_origem, novo_status, valor_atual, obs_texto or "")
+        return True
+    return False
+
+def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, nome_ose, email_auditor):
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SMTP_USER = "hnbra.execucaofinanceira@gmail.com"
+    SMTP_PASS = "wmkywghbqouuhlqc" 
+
+    msg = EmailMessage()
+    msg['Subject'] = f"Notificação de Glosa: Fatura {num_fatura} - HNBra"
+    msg['From'] = SMTP_USER
+    msg['To'] = destinatario
+    
+    # Inclusão do auditor em cópia
+    if email_auditor:
+        msg['Cc'] = email_auditor
+
+    corpo_html = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif;">
+            <p>À (ao) <b>{nome_ose}</b>,</p>
+            <p>Informamos que a auditagem da <b>Fatura nº {num_fatura}</b> resultou em uma glosa de <b>R$ {valor_glosa:,.2f}</b>.</p>
+            <p><b>Justificativa:</b> {justificativa}</p>
+            <p>O relatório de glosa seguirá formalmente assim que possível.</p>
+            <br>
+            <p>Cordialmente,</p>
+            <p><b>Equipe de Auditoria em Saúde</b><br>
+            Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília</p>
+            <hr>
+            <p><small style="color: gray;">E-mail automático gerado pelo SISAFA-NAVAL. Favor não responder.</small></p>
+        </body>
+    </html>
+    """
+    msg.set_content("Favor visualizar em modo HTML.")
+    msg.add_alternative(corpo_html, subtype='html')
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Erro no envio: {e}")
+        return False    
+
+def limpar_valor(valor):
+    """Transforma 'R$ 5.000,00' em float puro (5000.0)"""
+    if isinstance(valor, (int, float)): 
+        return float(valor)
+    limpo = str(valor).replace('R$', '').replace(' ', '').strip()
+    if ',' in limpo and '.' in limpo:
+        if limpo.find('.') < limpo.find(','): 
+            limpo = limpo.replace('.', '').replace(',', '.')
+        else: 
+            limpo = limpo.replace(',', '')
+    elif ',' in limpo:
+        limpo = limpo.replace(',', '.')
+    try:
+        return float(limpo)
+    except ValueError:
+        return 0.0
+
+  
+# --- CONTROLE DE SESSÃO ---
+if 'logged_in' not in st.session_state: st.session_state.logged_in = False
+if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
+if 'confirmar_secom' not in st.session_state: st.session_state.confirmar_secom = False
+if 'confirmar_recebimento' not in st.session_state: st.session_state.confirmar_recebimento = False
+if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_finalizacao = False
+
+
+# --- 1. TELA DE LOGIN ---
+if not st.session_state.logged_in:
+    # Inserção do Mascote no canto inferior direito
+    if os.path.exists(caminho_mascote):
+        with open(caminho_mascote, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+            st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
+        tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
+        u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
+        senha = st.text_input("Senha", type="password")
+        
+        if st.button("ACESSAR SISTEMA", use_container_width=True):
+            client = conectar_google()
+            if client:
+                aba_u = client.open_by_key(ID_PLANILHA).worksheet(ABA_USUARIOS)
+                for r in aba_u.get_all_values():
+                    if str(r[0]).strip() == u_id.strip():
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = u_id
+                        st.session_state.user_full_name = r[1].upper()
+                        st.session_state.user_perfil = r[2].upper()
+                        st.rerun()
+                st.error("Credenciais não localizadas.")
+
+# --- 2. TELA DE SELEÇÃO DE MÓDULO (SALA DE ESPERA) ---
+elif st.session_state.modulo_ativo is None:
+    col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
+    with col_l2:
+        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
+    
+    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Bem-vindo, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho abaixo para iniciar:</p><br>", unsafe_allow_html=True)
+    
+    perfis = [p.strip().upper() for p in st.session_state.user_perfil.split(',')]
+    cols = st.columns(len(perfis))
+    for i, perfil in enumerate(perfis):
+        with cols[i]:
+            if st.button(perfil, key=f"btn_{perfil}", use_container_width=True):
+                st.session_state.modulo_ativo = perfil
+                st.rerun()
+
+# --- 3. AMBIENTE DE TRABALHO (MÓDULO ATIVO) ---
+else:
+    with st.sidebar:
+        if os.path.exists(caminho_logo): st.image(caminho_logo)
+        st.markdown(f"<p style='text-align:center;'><b>ID: {st.session_state.user_id}</b><br>Módulo: {st.session_state.modulo_ativo}</p>", unsafe_allow_html=True)
+        if st.button("🔄 Trocar de Setor"):
+            st.session_state.modulo_ativo = None
+            st.rerun()
+        if st.button("❌ Terminar Sessão"):
+            st.session_state.logged_in = False
+            st.session_state.modulo_ativo = None
+            st.rerun()
+
+    st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
+    
+    client = conectar_google()
+    sh = client.open_by_key(ID_PLANILHA)
+    aba_p = sh.worksheet(ABA_PROCESSOS)
+    df = pd.DataFrame(aba_p.get_all_records())
+
+    # --- MÓDULOS ESPECÍFICOS ---
+
+   
+    if st.session_state.modulo_ativo == "SECOM" or st.session_state.modulo_ativo == "ADMIN":
+        st.header("📥 Cadastro de Faturas (SECOM)")
+        aba_a = sh.worksheet(ABA_TABELA_A)
+        oses = {r[0].strip(): r[1].strip() for r in aba_a.get_all_values()[1:] if r[0]}
+        
+        nup_in = st.text_input("NUP (Ex: 63060.000123/2026-10)")
+        
+        c1, c2 = st.columns(2)
+        sel_cnpj = c1.selectbox("Selecione o CNPJ da OSE", [""] + sorted(list(oses.keys())))
+        empresa_nome = oses.get(sel_cnpj, "")
+        c2.text_input("Empresa (OSE)", value=empresa_nome, disabled=True)
+        
+        num_fatura = st.text_input("Número da Fatura (Alfanumérico ou S/N)")
+        v_ap = st.number_input("Valor Apresentado (R$)", min_value=0.0, format="%.2f")
+
+        # --- BOTÃO DE PRÉ-CADASTRO ---
+        if st.button("CADASTRAR FATURA"):
+            if nup_in and sel_cnpj and num_fatura and v_ap > 0:
+                st.session_state.confirmar_secom = True
+            else:
+                st.warning("⚠️ Preencha todos os campos obrigatórios antes de cadastrar.")
+
+        # --- CAIXA DE CONFIRMAÇÃO ---
+        if st.session_state.confirmar_secom:
+            st.markdown("---")
+            st.warning(f"**⚠️ CONFIRMAÇÃO:** Tem certeza de que os dados da fatura **{num_fatura}** estão corretos?")
+            col_sim, col_nao = st.columns(2)
+            
+            if col_sim.button("✅ SIM, confirmar dados"):
+                dt_hoje = datetime.now().strftime("%d/%m/%Y")
+                
+                # 1. Alimenta aba PROCESSOS (Snapshot)
+                nova_linha = [
+                    str(datetime.now().timestamp()), nup_in, sel_cnpj, empresa_nome, 
+                    num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
+                    1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
+                ]
+                aba_p.append_row(nova_linha)
+                
+                # 2. Alimenta aba HISTORICO (Macro - PM4PY)
+                # IMPORTANTE: Verifique se na sua planilha o nome é 'Historico' ou 'historico'
+                registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
+                
+                # 3. Alimenta aba LOGS_ACOES (Micro - Produtividade)
+                registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
+                
+                # Feedback Visual
+                st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida no sistema.")
+                st.session_state.confirmar_secom = False # Reseta a confirmação
+                
+                # Pequena pausa para o usuário ver o aviso antes de recarregar
+                import time
+                time.sleep(2)
+                st.rerun()
+
+            if col_nao.button("❌ NÃO, voltar e corrigir"):
+                st.session_state.confirmar_secom = False
+                st.rerun()
+                
+
+
+
+
+
+
+
+    elif st.session_state.modulo_ativo == "AUDITORIA" or st.session_state.modulo_ativo == "ADMIN":
+        st.header("⚖️ Divisão de Auditoria em Saúde ⚕️")
+        
+        # Criação das 6 abas solicitadas
+        t_fila, t_mesa, t_auditadas, t_busca, t_stats, t_rel = st.tabs([
+            "📥 Fila de Espera", "🩺 Em Auditagem", "✅ Auditadas", 
+            "🔍 Consultas", "📊 Produtividade", "💬 Relacionamento"
+        ])
+
+        # 1. ABA: FILA DE ESPERA
+        with t_fila:
+            # --- CÁLCULO DOS INDICADORES ---
+            df_fila = df[df['status'] == 1].copy()
+            
+            if not df_fila.empty:
+                # 1. Preparação dos dados: Limpeza de valores e conversão de datas
+                df_fila['valor_limpo'] = df_fila['valor_apresentado'].apply(limpar_valor)
+                df_fila['dt_entrada'] = pd.to_datetime(df_fila['data_entrada'], dayfirst=True, errors='coerce')
+                
+                hoje = datetime.now()
+                df_fila['dias_fila'] = (hoje - df_fila['dt_entrada']).dt.days
+                
+                # 2. Cálculos de Temporalidade
+                aceitavel = len(df_fila[df_fila['dias_fila'] <= 7])
+                atencao = len(df_fila[(df_fila['dias_fila'] >= 8) & (df_fila['dias_fila'] <= 10)])
+                atraso = len(df_fila[df_fila['dias_fila'] > 10])
+                
+                # 3. Valor Total na Fila
+                valor_total_fila = df_fila['valor_limpo'].sum()
+
+                # --- INTERFACE DE INDICADORES (KPIs) ---
+                st.markdown("### 📊 Situação da fila de faturas cadastradas pela SECOM")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Total de Faturas", f"{len(df_fila)}")
+                c2.metric("🟢 Aceitável (até 7d)", f"{aceitavel}")
+                c3.metric("🟡 Atenção (8-10d)", f"{atencao}")
+                c4.metric("🔴 Em Atraso (>10d)", f"{atraso}")
+
+                # Exibição do Valor por Competência
+                with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
+                    resumo_comp = df_fila.groupby(['mes_competencia', 'ano_competencia'])['valor_limpo'].sum().reset_index()
+                    resumo_comp.columns = ['Mês', 'Ano', 'Total Apresentado (R$)']
+                    st.table(resumo_comp.style.format({'Total Apresentado (R$)': 'R$ {:,.2f}'}))
+                
+                st.divider()
+
+            # --- TABELA DE PROCESSOS ---
+            st.subheader("📥 Processos aguardando Auditoria")
+            
+            if df_fila.empty:
+                st.info("Não há faturas na fila no momento.")
+            else:
+                # Adicionamos a coluna de Dias na Fila para facilitar a visão do auditor
+                st.dataframe(
+                    df_fila[['nup', 'ose', 'valor_apresentado', 'mes_competencia', 'ano_competencia', 'dias_fila']], 
+                    use_container_width=True,
+                    column_config={
+                        "dias_fila": st.column_config.NumberColumn("Dias na Fila", help="Dias desde a entrada na SECOM")
+                    }
+                )
+                
+                # Seleção múltipla para recebimento em lote
+                nups_selecionados = st.multiselect("Selecione os NUPs para trazer para sua mesa:", df_fila['nup'].tolist())
+                
+                if st.button("📥 RECEBER FATURA(S)"):
+                    if nups_selecionados:
+                        st.session_state.confirmar_recebimento = True
+                    else:
+                        st.warning("⚠️ Selecione ao menos uma fatura para receber.")
+
+                # --- INTERFACE DE CONFIRMAÇÃO ---
+                if st.session_state.confirmar_recebimento:
+                    st.markdown("---")
+                    st.warning(f"⚖️ **CONFIRMAÇÃO:** Você está prestes a assumir a responsabilidade por **{len(nups_selecionados)}** processo(s). Confirmar recebimento?")
+                    
+                    col_sim, col_nao = st.columns(2)
+                    
+                    if col_sim.button("✅ SIM, desejo receber"):
+                        with st.spinner("Movimentando processos..."):
+                            for n in nups_selecionados:
+                                mover_status(n, 2, auditor_nip=st.session_state.user_id)
+                                fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                registrar_acao(n, fatura_n, "RECEBIMENTO_AUDITORIA", f"Auditor {st.session_state.user_id} puxou para a mesa.")
+
+                        st.toast(f"✅ {len(nups_selecionados)} processos movidos!", icon="⚓")
+                        st.session_state.confirmar_recebimento = False
+                        time.sleep(1)
+                        st.rerun()
+
+                    if col_nao.button("❌ NÃO, cancelar"):
+                        st.session_state.confirmar_recebimento = False
+                        st.rerun()
+
+        # 2. ABA: EM AUDITAGEM
+        with t_mesa:
+            # --- CÁLCULO DOS INDICADORES TÉCNICOS (Status 2) ---
+            # Filtramos todos os processos em auditagem no sistema para os KPIs
+            df_total_auditagem = df[df['status'] == 2].copy()
+            
+            if not df_total_auditagem.empty:
+                # 1. Preparação dos dados
+                df_total_auditagem['valor_limpo'] = df_total_auditagem['valor_apresentado'].apply(limpar_valor)
+                
+                # Usamos a coluna 14 (índice 13) que registra a data da entrada na auditoria
+                # Caso sua planilha tenha um nome de cabeçalho específico, substitua .iloc[:, 13]
+                df_total_auditagem['dt_mov'] = pd.to_datetime(df_total_auditagem.iloc[:, 13], dayfirst=True, errors='coerce')
+                
+                hoje = datetime.now()
+                df_total_auditagem['dias_auditoria'] = (hoje - df_total_auditagem['dt_mov']).dt.days
+                
+                # 2. Cálculos de Temporalidade (Prazos da Auditoria)
+                aceitavel_aud = len(df_total_auditagem[df_total_auditagem['dias_auditoria'] <= 10])
+                atencao_aud = len(df_total_auditagem[(df_total_auditagem['dias_auditoria'] > 10) & (df_total_auditagem['dias_auditoria'] <= 15)])
+                atraso_aud = len(df_total_auditagem[df_total_auditagem['dias_auditoria'] > 15])
+                
+                # --- INTERFACE DE INDICADORES (KPIs) ---
+                st.markdown("### 📊 Situação Geral das Faturas em Auditagem")
+                st.write("⚠️ **O número de dias é contado a partir do recebimento da fatura na Divisão de Auditoria** ⚠️")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Total em Auditagem", f"{len(df_total_auditagem)}")
+                c2.metric("🟢 Aceitável (até 10d)", f"{aceitavel_aud}")
+                c3.metric("🟡 Atenção (11-15d)", f"{atencao_aud}")
+                c4.metric("🔴 Em Atraso (>15d)", f"{atraso_aud}")
+
+                # Detalhamento Financeiro em Status 2
+                with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
+                    resumo_comp_aud = df_total_auditagem.groupby(['mes_competencia', 'ano_competencia'])['valor_limpo'].sum().reset_index()
+                    resumo_comp_aud.columns = ['Mês', 'Ano', 'Total em Análise (R$)']
+                    st.table(resumo_comp_aud.style.format({'Total em Análise (R$)': 'R$ {:,.2f}'}))
+                
+                st.divider()
+
+            # --- MINHA MESA DE TRABALHO (VISÃO INDIVIDUAL) ---
+            st.subheader("🩺 Minha Mesa de Trabalho")
+            
+            df['status'] = pd.to_numeric(df['status'], errors='coerce')
+            user_logado = str(st.session_state.user_id).strip()
+            df_mesa = df[(df['status'] == 2) & (df['responsavel_atual'].astype(str).str.strip() == user_logado)].copy()
+
+            if df_mesa.empty:
+                st.info(f"Sua mesa está vazia (ID: {user_logado}). Puxe processos da Fila de Espera.")
+            else:
+                st.write("**Faturas sob sua responsabilidade:**")
+                # Incluímos a coluna de dias em auditoria para sua gestão pessoal
+                if not df_total_auditagem.empty:
+                    df_mesa['dias_auditoria'] = (hoje - pd.to_datetime(df_mesa.iloc[:, 13], dayfirst=True, errors='coerce')).dt.days
+                
+                st.dataframe(df_mesa[['nup', 'ose', 'valor_apresentado', 'mes_competencia', 'ano_competencia', 'obs']], use_container_width=True)
+                
+                st.divider()
+                
+                nup_audit = st.selectbox(
+                    "Selecione o NUP para realizar a análise técnica:", 
+                    [""] + df_mesa['nup'].tolist(),
+                    key="sb_nup_analise_mesa_final"
+                )
+                
+                if nup_audit:
+                    dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
+                    num_fat = dados_nup['Numero_da_fatura']
+                    v_apres = limpar_valor(dados_nup['valor_apresentado'])
+                    
+                    st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        glosa_input = st.number_input("Valor da Glosa (R$)", min_value=0.0, max_value=v_apres, step=0.01, format="%.2f", key="val_glosa_mesa")
+                        just_glosa = st.text_area("Justificativa Técnica da Glosa", height=150, key="txt_just_mesa")
+                    
+                    with c2:
+                        v_liquido = v_apres - glosa_input
+                        st.metric("Valor Apresentado", f"R$ {v_apres:,.2f}")
+                        st.metric("Valor Líquido Final", f"R$ {v_liquido:,.2f}", delta=f"- R$ {glosa_input:,.2f}" if glosa_input > 0 else None, delta_color="inverse")
+
+                    # --- PAINEL DE CONFERÊNCIA DE SEGURANÇA ---
+                    st.markdown("### 🛡️ Conferência de Dados e Destino")
+                    with st.container(border=True):
+                        try:
+                            # 1. Busca dados da OSE na Tabela-A
+                            cnpj_fatura = str(dados_nup['cnpj']).strip().split('.')[0]
+                            df_ose_info = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                            linha_ose = df_ose_info[df_ose_info['CNPJ'].astype(str).str.contains(cnpj_fatura)]
+                            
+                            # 2. Busca e-mail do Auditor logado
+                            df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
+                            match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_logado]
+                            
+                            if not match_user.empty:
+                                col_email = 'Email' if 'Email' in match_user.columns else 'E-mail'
+                                email_auditor = match_user[col_email].values[0]
+                            else:
+                                email_auditor = None
+                                st.error(f"⚠️ Seu NIP ({user_logado}) não foi encontrado na aba Usuários.")
+
+                            if not linha_ose.empty and email_auditor:
+                                email_destino = linha_ose['E-mail Principal da OSE'].values[0]
+                                nome_ose_oficial = linha_ose['Razão Social'].values[0]
+                                
+                                st.write(f"🏢 **Organização de Saúde:** {nome_ose_oficial}")
+                                st.write(f"📩 **E-mail de Destino:** {email_destino}")
+                                st.write(f"📎 **Em Cópia (CC):** {email_auditor}")
+                                
+                                trava_confirmacao = st.checkbox("Confirmo que a OSE e os valores de glosa estão corretos.")
+                            else:
+                                if linha_ose.empty: st.error(f"⚠️ CNPJ {cnpj_fatura} não localizado na Tabela-A.")
+                                trava_confirmacao = False
+                        except Exception as e:
+                            st.error(f"Erro ao carregar dados: {e}")
+                            trava_confirmacao = False
+
+                    st.divider()
+                    
+                    col_fin, col_mail = st.columns(2)
+                    
+                    if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, key="btn_fin_mesa"):
+                        if glosa_input > 0 and not just_glosa:
+                            st.error("⚠️ Preencha a justificativa para aplicar a glosa.")
+                        else:
+                            st.session_state.confirmar_finalizacao = True
+
+                    if col_mail.button("📧 ENCAMINHAR GLOSA P/ OSE", use_container_width=True, key="btn_mail_mesa", disabled=not trava_confirmacao):
+                        with st.spinner("Enviando comunicado..."):
+                            sucesso = disparar_email_glosa(
+                                destinatario=email_destino,
+                                num_fatura=num_fat,
+                                valor_glosa=glosa_input,
+                                justificativa=just_glosa,
+                                nome_ose=nome_ose_oficial,
+                                email_auditor=email_auditor
+                            )
+                            if sucesso:
+                                registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Para: {email_destino} | CC: {email_auditor}")
+                                st.toast(f"E-mail enviado com sucesso!", icon="✅")
+
+                    # --- INTERFACE DE CONFIRMAÇÃO DE FINALIZAÇÃO ---
+                    if st.session_state.confirmar_finalizacao:
+                        st.markdown("---")
+                        st.warning(f"🛡️ **CONFIRMAÇÃO:** Finalizar NUP **{nup_audit}** com Líquido de **R$ {v_liquido:,.2f}**?")
+                        b_sim, b_nao = st.columns(2)
+                        
+                        if b_sim.button("👍 SIM, Finalizar", key="ok_fin_final"):
+                            mover_status(nup_audit, 3, valor_glosa=glosa_input, valor_liq=v_liquido, obs_texto=just_glosa)
+                            registrar_acao(nup_audit, num_fat, "AUDITORIA_CONCLUIDA", f"Glosa: {glosa_input}")
+                            st.success("Auditoria concluída!")
+                            st.session_state.confirmar_finalizacao = False
+                            time.sleep(1.5)
+                            st.rerun()
+
+                        if b_nao.button("🔙 Voltar", key="no_fin_final"):
+                            st.session_state.confirmar_finalizacao = False
+                            st.rerun()
+
+
+        # 3. ABA: FATURAS AUDITADAS
+        with t_auditadas:
+            # --- CÁLCULO DOS INDICADORES DE CONCLUSÃO (Status 3) ---
+            user_logado = str(st.session_state.user_id).strip()
+            df_auditadas = df[(df['status'] == 3) & (df['responsavel_atual'].astype(str).str.strip() == user_logado)].copy()
+            
+            if not df_auditadas.empty:
+                # 1. Preparação dos dados técnicos
+                df_auditadas['v_apres_limpo'] = df_auditadas['valor_apresentado'].apply(limpar_valor)
+                df_auditadas['glosa_limpo'] = df_auditadas['glosa'].apply(limpar_valor)
+                df_auditadas['v_liq_limpo'] = df_auditadas['valor_liquido'].apply(limpar_valor)
+                
+                # Data da conclusão (Coluna 14)
+                df_auditadas['dt_conclusao'] = pd.to_datetime(df_auditadas.iloc[:, 13], dayfirst=True, errors='coerce')
+                
+                hoje = datetime.now()
+                df_auditadas['dias_concluido'] = (hoje - df_auditadas['dt_conclusao']).dt.days
+                
+                # 2. Cálculos de Temporalidade para Faturas Auditadas
+                aceitavel_aud = len(df_auditadas[df_auditadas['dias_concluido'] <= 7])
+                atencao_aud = len(df_auditadas[(df_auditadas['dias_concluido'] >= 8) & (df_auditadas['dias_concluido'] <= 10)])
+                atraso_aud = len(df_auditadas[df_auditadas['dias_concluido'] > 10])
+
+                # --- INTERFACE DE INDICADORES (KPIs) ---
+                st.markdown("### 📊 Faturas Auditadas aguardando encaminhamento para a Seção de Exexução Financeira")
+                st.write("⚠️ **Os prazos abaixos são contados desde a finalização da auditoria** ⚠️")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Total Concluído", f"{len(df_auditadas)}")
+                c2.metric("🟢 No Prazo (até 7d)", f"{aceitavel_aud}")
+                c3.metric("🟡 Atenção (8-10d)", f"{atencao_aud}")
+                c4.metric("🔴 Em Atraso (>10d)", f"{atraso_aud}")
+
+                # Detalhamento de Valores Auditados
+                with st.expander("💰 Resumo Financeiro da Produção", expanded=False):
+                    total_ap = df_auditadas['v_apres_limpo'].sum()
+                    total_gl = df_auditadas['glosa_limpo'].sum()
+                    total_lq = df_auditadas['v_liq_limpo'].sum()
+                    
+                    st.write(f"**Valor Apresentado:** R$ {total_ap:,.2f}")
+                    st.write(f"**Economia Gerada (Glosas):** R$ {total_gl:,.2f}")
+                    st.write(f"**Líquido a Pagar:** R$ {total_lq:,.2f}")
+                
+                st.divider()
+
+            # --- LISTAGEM E AÇÕES ---
+            st.subheader("✅ Minhas Faturas Auditadas")
+            
+            if df_auditadas.empty:
+                st.info("Nenhuma fatura auditada pendente de encaminhamento.")
+            else:
+                # Tabela com as colunas solicitadas
+                st.dataframe(
+                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'dias_concluido']], 
+                    use_container_width=True
+                )
+                
+                # Seleção múltipla para despacho
+                lote_exec = st.multiselect("Selecionar faturas para informar a Execução Financeira:", df_auditadas['nup'].tolist())
+                
+                if st.button("📤 ENCAMINHAR PARA EXECUÇÃO FINANCEIRA"):
+                    if lote_exec:
+                        with st.spinner("Registrando encaminhamento..."):
+                            for n in lote_exec:
+                                # Conforme solicitado: O STATUS PERMANECE 3!
+                                # Apenas registramos a ação para controle no log e histórico
+                                fatura_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
+                                registrar_acao(n, fatura_n, "ENCAMINHADO_PARA_FINANCEIRO", f"Auditor {st.session_state.user_id} enviou para conferência da Execução Financeira.")
+                        
+                        st.success(f"✅ {len(lote_exec)} processos notificados à Execução Financeira. Eles permanecem em sua lista até o aceite final.")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Selecione ao menos uma fatura para encaminhar.")
+
+
+
+
+        # 4. ABA: CONSULTAS (BUSCA GLOBAL)
+        with t_busca:
+            st.subheader("🔍 Localizar e Rastrear Processo")
+            
+            # Atualizamos o placeholder para incluir "Fatura"
+            termo_busca = st.text_input(
+                "Pesquise por NUP, Empresa (OSE), CNPJ ou Número da Fatura:", 
+                placeholder="Ex: HFA, 63060, 123/2026..."
+            )
+
+            if termo_busca:
+                # Filtragem flexível expandida para incluir a coluna 'Numero_da_fatura'
+                mask = (
+                    df['nup'].astype(str).str.contains(termo_busca, case=False, na=False) |
+                    df['ose'].astype(str).str.contains(termo_busca, case=False, na=False) |
+                    df['cnpj'].astype(str).str.contains(termo_busca, case=False, na=False) |
+                    df['Numero_da_fatura'].astype(str).str.contains(termo_busca, case=False, na=False)
+                )
+                df_resultados = df[mask]
+
+                if df_resultados.empty:
+                    st.warning("Nenhum processo localizado com esse termo.")
+                else:
+                    st.write(f"📂 **{len(df_resultados)}** processo(s) encontrado(s):")
+                    # Exibição resumida para conferência
+                    st.dataframe(
+                        df_resultados[['nup', 'ose', 'Numero_da_fatura', 'valor_apresentado', 'status']], 
+                        use_container_width=True
+                    )
+                    
+                    st.divider()
+                    
+                    # Seleção do NUP específico para ver o detalhamento completo
+                    lista_nups = df_resultados['nup'].tolist()
+                    nup_selecionado = st.selectbox("Selecione o NUP para ver a Linha do Tempo detalhada:", [""] + lista_nups)
+
+                    if nup_selecionado:
+                        # --- 1. SNAPSHOT ATUAL ---
+                        res = df[df['nup'] == nup_selecionado].iloc[0]
+                        
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("Status Atual", f"Fase {res['status']}")
+                        c2.metric("Responsável", res['responsavel_atual'])
+                        c3.metric("Valor Líquido", f"R$ {limpar_valor(res['valor_liquido']):,.2f}")
+
+                        # --- 2. TRILHA DE AUDITORIA (HISTÓRICO MACRO) ---
+                        st.markdown("### 👣 Trilha de Auditoria (Status)")
+                        try:
+                            aba_h = sh.worksheet(ABA_HISTORICO)
+                            hist_df = pd.DataFrame(aba_h.get_all_records())
+                            track = hist_df[hist_df['nup'] == nup_selecionado].sort_values(by='timestamp')
+                            
+                            if not track.empty:
+                                for _, row in track.iterrows():
+                                    st.caption(f"🕒 {row['timestamp']} | De: **{row['status_origem']}** ⮕ Para: **{row['status_destino']}** | Usuário: {row['usuario']}")
+                            else:
+                                st.info("Sem histórico de movimentação registrado.")
+                        except:
+                            st.error("Erro ao carregar histórico.")
+
+                        # --- 3. AÇÕES E TRÂMITES (LOGS MICRO) ---
+                        st.markdown("### 📧 Ações, E-mails e Trâmites")
+                        try:
+                            aba_l = sh.worksheet(ABA_LOGS_ACOES)
+                            logs_df = pd.DataFrame(aba_l.get_all_records())
+                            acoes = logs_df[logs_df['nup'] == nup_selecionado].sort_values(by='data_hora', ascending=False)
+                            
+                            if not acoes.empty:
+                                st.table(acoes[['data_hora', 'acao', 'militar_nip', 'detalhes']])
+                            else:
+                                st.info("Nenhuma ação específica registrada para este NUP.")
+                        except:
+                            st.error("Erro ao carregar logs de ações.")
+
+
+
+    # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
+        with t_stats:
+            st.header("📈 Inteligência de Dados e Produtividade")
+
+            # --- FILTROS DE COMPETÊNCIA ---
+            col_f1, col_f2 = st.columns(2)
+            anos_disp = sorted(df['ano_competencia'].unique(), reverse=True)
+            ano_sel = col_f1.selectbox("Filtrar por Ano:", ["Todos"] + list(anos_disp))
+            
+            meses_disp = sorted(df['mes_competencia'].unique())
+            mes_sel = col_f2.selectbox("Filtrar por Mês:", ["Todos"] + list(meses_disp))
+
+            # Filtragem dinâmica
+            df_p = df.copy()
+            if ano_sel != "Todos": df_p = df_p[df_p['ano_competencia'] == ano_sel]
+            if mes_sel != "Todos": df_p = df_p[df_p['mes_competencia'] == mes_sel]
+
+            df_p['v_ap_num'] = df_p['valor_apresentado'].apply(limpar_valor)
+            df_p['glosa_num'] = df_p['glosa'].apply(limpar_valor)
+
+            # --- 1. SEÇÃO: PIZZAS E VOLUMES ---
+            st.subheader("📌 Visão Geral do Volume")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Processos", len(df_p))
+            c2.metric("Total Apresentado", f"R$ {df_p['v_ap_num'].sum():,.2f}")
+            c3.metric("Total Glosado", f"R$ {df_p['glosa_num'].sum():,.2f}")
+
+            cp1, cp2, cp3 = st.columns(3)
+            # Pizza 1: Auditoria vs Auditadas
+            st_counts = df_p[df_p['status'].isin([2, 3])]['status'].map({2:'Em Mesa', 3:'Concluídas'}).value_counts().reset_index()
+            if not st_counts.empty:
+                cp1.plotly_chart(px.pie(st_counts, values='count', names='status', title="Mesa vs. Concluídas", hole=0.4), use_container_width=True)
+            
+            # Pizza 2: Impacto Financeiro
+            v_t = df_p['v_ap_num'].sum()
+            v_g = df_p['glosa_num'].sum()
+            if v_t > 0:
+                cp2.plotly_chart(px.pie(values=[v_t - v_g, v_g], names=['Líquido', 'Glosa'], title="Impacto da Glosa", color_discrete_sequence=['#2e6b54', '#d32f2f']), use_container_width=True)
+            
+            # Pizza 3: Top 10 OSEs
+            top_ose = df_p.groupby('ose')['v_ap_num'].sum().sort_values(ascending=False).head(10).reset_index()
+            if not top_ose.empty:
+                cp3.plotly_chart(px.pie(top_ose, values='v_ap_num', names='ose', title="Top 10 OSEs (Valor)"), use_container_width=True)
+
+            # --- 2. SEÇÃO: TERMÔMETRO E SAÚDE ---
+            st.divider()
+            st.subheader("🌡️ Termômetro de Saúde do Processo (Global)")
+            
+            hoje = datetime.now()
+            df_p['dt_ent'] = pd.to_datetime(df_p['data_entrada'], dayfirst=True, errors='coerce')
+            df_p['dias_hoje'] = (hoje - df_p['dt_ent']).dt.days
+
+            def classificar_global(d):
+                if pd.isna(d): return "Desconhecido"
+                if d <= 15: return "🟢 Aceitável"
+                if d <= 25: return "🟡 Atenção"
+                return "🔴 Em Atraso"
+
+            df_p['situacao'] = df_p['dias_hoje'].apply(classificar_global)
+            
+            # Gráfico de barras de saúde
+            saude_counts = df_p['situacao'].value_counts().reset_index()
+            if not saude_counts.empty:
+                fig_saude = px.bar(saude_counts, x='situacao', y='count', color='situacao', 
+                                   title="Saúde do Passivo (Desde o Cadastro)",
+                                   color_discrete_map={"🟢 Aceitável": "#2e6b54", "🟡 Atenção": "#f1c40f", "🔴 Em Atraso": "#e74c3c"})
+                st.plotly_chart(fig_saude, use_container_width=True)
+
+    # 6. ABA: RELACIONAMENTO
+        with t_rel:
+            st.subheader("💬 Central de Relacionamento (Inbox OSE)")
+            
+            try:
+                # 1. Carregamos as mensagens da aba correspondente
+                aba_msg = sh.worksheet(ABA_MENSAGENS)
+                df_msg = pd.DataFrame(aba_msg.get_all_records())
+                
+                if df_msg.empty:
+                    st.info("Nenhuma mensagem ou questionamento pendente no momento.")
+                else:
+                    # 2. Métricas Rápidas
+                    pendentes = len(df_msg[df_msg['status_resposta'] == 'PENDENTE'])
+                    media_reserva = "2.4 dias" # Placeholder para cálculo futuro
+                    
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Total de Mensagens", len(df_msg))
+                    c2.metric("📩 Pendentes", pendentes, delta=f"{pendentes} aguardando", delta_color="inverse")
+                    c3.metric("⏱️ Tempo Médio de Resposta", media_reserva)
+                    
+                    st.divider()
+
+                    # 3. Inbox de Mensagens
+                    st.write("**📥 Mensagens Recebidas:**")
+                    # Filtramos para mostrar primeiro o que não foi respondido
+                    df_exibir = df_msg.sort_values(by='status_resposta', ascending=False)
+                    st.dataframe(
+                        df_exibir[['nup', 'cnpj_ose', 'assunto', 'data_envio', 'status_resposta']], 
+                        use_container_width=True
+                    )
+
+                    # 4. Área de Resposta Técnica
+                    st.markdown("### ✍️ Responder Questionamento")
+                    nup_alvo = st.selectbox("Selecione o NUP para responder:", [""] + df_msg['nup'].unique().tolist())
+                    
+                    if nup_alvo:
+                        msg_data = df_msg[df_msg['nup'] == nup_alvo].iloc[0]
+                        
+                        with st.container(border=True):
+                            st.write(f"**De (OSE):** {msg_data['cnpj_ose']}")
+                            st.write(f"**Assunto:** {msg_data['assunto']}")
+                            st.info(f"**Mensagem da OSE:** {msg_data['mensagem_corpo']}")
+                            
+                            resposta_texto = st.text_area("Resposta Oficial do Auditor:", height=150, placeholder="Digite aqui o parecer técnico...")
+                            
+                            col_env, _ = st.columns([1, 2])
+                            if col_env.button("📤 ENVIAR RESPOSTA OFICIAL", use_container_width=True):
+                                if resposta_texto:
+                                    # Lógica futura: Gravar resposta na planilha e disparar e-mail
+                                    registrar_acao(nup_alvo, "N/A", "RESPOSTA_OSE", f"Auditor respondeu questionamento via sistema.")
+                                    st.success("Resposta enviada com sucesso para o Portal da OSE!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                else:
+                                    st.warning("Escreva uma resposta antes de enviar.")
+
+            except Exception as e:
+                st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
+
+
+
+
+
+        # --- AQUI TERMINA A ABA 5. O PRÓXIMO ELIF DEVE VIR EXATAMENTE NESTA LINHA ABAIXO ---
+
+
+    elif "EXECUÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
+        st.header("💰 Execução")
+        f_ex = df[df['status'] == 4]
+        st.dataframe(f_ex[['nup', 'ose', 'valor_liquido']])
+        n_ex = st.selectbox("NUP p/ NE", [""] + f_ex['nup'].tolist())
+        cod_ne = st.text_input("Final da NE")
+        if st.button("Gerar NE"):
+            ne_full = f"78770000001{datetime.now().year}{cod_ne}"
+            cell = aba_p.find(n_ex)
+            aba_p.update_cell(cell.row, 14, ne_full)
+            mover_status(n_ex, 6)
+            st.rerun()
+
+    elif "FISCALIZAÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
+        st.header("📋 Fiscalização")
+        fisc_df = df[df['status'] == 6]
+        if st.session_state.user_full_name != "ROSILENE RIBEIRO":
+            fisc_df = fisc_df[fisc_df['responsavel_atual'] == st.session_state.user_id]
+        st.dataframe(fisc_df[['nup', 'ose', 'ne']])
+        n_nf = st.selectbox("NF para", fisc_df['nup'].tolist())
+        nf_v = st.text_input("Nº Nota Fiscal")
+        if st.button("Enviar p/ Liquidação"):
+            cell = aba_p.find(n_nf)
+            aba_p.update_cell(cell.row, 15, nf_v)
+            mover_status(n_nf, 7)
+            st.rerun()
+
+    elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
+        st.header("📈 Dashboard")
+        st.metric("Economia", f"R$ {pd.to_numeric(df['glosa']).sum():,.2f}")
+        st.bar_chart(df['status'].value_counts())
+
+    elif st.session_state.modulo_ativo == "OSE":
+        st.header("🏥 Portal OSE")
+        st.dataframe(df[df['cnpj'] == st.session_state.user_id][['nup', 'status']])
