@@ -47,7 +47,16 @@ st.markdown("""
 def conectar_google():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        
+        # 1. Tenta primeiro ler das Secrets do Streamlit (Para quando estiver na internet)
+        if "gcp_service_account" in st.secrets:
+            creds_dict = st.secrets["gcp_service_account"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        
+        # 2. Se não encontrar as Secrets, tenta ler o arquivo local (Para você programar agora)
+        else:
+            creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+            
         return gspread.authorize(creds)
     except Exception as e:
         st.error(f"Erro de conexão: {e}")
@@ -159,7 +168,26 @@ def limpar_valor(valor):
     except ValueError:
         return 0.0
 
-  
+# --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
+
+# 1. Conecta ao Google e abre a planilha mestra
+client = conectar_google()
+if client:
+    sh = client.open_by_key(ID_PLANILHA)
+    
+    # 2. Define as abas globalmente para o sistema todo usar
+    aba_p = sh.worksheet(ABA_PROCESSOS)
+    aba_l = sh.worksheet(ABA_LOGS_ACOES)
+    aba_u = sh.worksheet(ABA_USUARIOS)
+    # aba_h = sh.worksheet(ABA_HISTORICO) # Descomente se for usar no financeiro
+    
+    # 3. Carrega os dados principais em um DataFrame (o 'df' que o código usa)
+    dados = aba_p.get_all_records()
+    df = pd.DataFrame(dados)
+else:
+    st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
+
+
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
@@ -841,23 +869,267 @@ else:
 
 
 
-
-
-        # --- AQUI TERMINA A ABA 5. O PRÓXIMO ELIF DEVE VIR EXATAMENTE NESTA LINHA ABAIXO ---
-
+        
 
     elif "EXECUÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
-        st.header("💰 Execução")
-        f_ex = df[df['status'] == 4]
-        st.dataframe(f_ex[['nup', 'ose', 'valor_liquido']])
-        n_ex = st.selectbox("NUP p/ NE", [""] + f_ex['nup'].tolist())
-        cod_ne = st.text_input("Final da NE")
-        if st.button("Gerar NE"):
-            ne_full = f"78770000001{datetime.now().year}{cod_ne}"
-            cell = aba_p.find(n_ex)
-            aba_p.update_cell(cell.row, 14, ne_full)
-            mover_status(n_ex, 6)
-            st.rerun()
+        st.header("💰 Execução Financeira")
+
+        # Criando as abas
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📥 Fila de Espera", "📄 Gestão de NE", "💸 Gestão de Pagamentos", 
+            "📊 Estatísticas e Indicadores", "🔍 Consultas", "🤝 Relacionamento"
+        ])
+
+        # --- ABA 1: FILA DE ESPERA (Baseada no Layout da Auditoria) ---
+        with tab1:
+            # --- CÁLCULO DOS INDICADORES ---
+            df_fila_exec = df[df['status'] == 3].copy()
+            
+            # Cruzamento automático com Logs para pegar a data de encaminhamento
+            logs_raw = aba_l.get_all_records()
+            df_logs = pd.DataFrame(logs_raw)
+            df_envio = df_logs[df_logs['acao'] == "ENCAMINHADO_PARA_FINANCEIRO"].copy()
+            df_envio['dt_chegada'] = pd.to_datetime(df_envio['data_hora'], dayfirst=True, errors='coerce')
+            df_envio = df_envio.sort_values('dt_chegada', ascending=False).drop_duplicates('nup')
+            
+            # Mescla a data do log no dataframe de execução
+            df_fila_exec = df_fila_exec.merge(df_envio[['nup', 'dt_chegada']], on='nup', how='left')
+
+            if not df_fila_exec.empty:
+                # 1. Preparação dos dados: Limpeza de valores e cálculo de dias
+                # (Usando o v_num que criamos para evitar erro de string)
+                df_fila_exec['valor_limpo'] = df_fila_exec['valor_liquido'].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).str.strip()
+                df_fila_exec['valor_limpo'] = pd.to_numeric(df_fila_exec['valor_limpo'], errors='coerce').fillna(0.0)
+                
+                hoje = datetime.now()
+                df_fila_exec['dias_fila'] = (hoje - df_fila_exec['dt_chegada']).dt.days.fillna(0).astype(int)
+
+                # 2. Cálculos de Temporalidade (Padrão Execução: 2d, 3d, 4d+)
+                aceitavel = len(df_fila_exec[df_fila_exec['dias_fila'] <= 2])
+                atencao = len(df_fila_exec[df_fila_exec['dias_fila'] == 3])
+                atraso = len(df_fila_exec[df_fila_exec['dias_fila'] >= 4])
+
+                # --- INTERFACE DE INDICADORES (KPIs) ---
+                st.markdown("### 📊 Situação da fila de faturas enviadas pela Auditoria")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Total de Faturas", f"{len(df_fila_exec)}")
+                c2.metric("🟢 Aceitável (até 2d)", f"{aceitavel}")
+                c3.metric("🟡 Atenção (3d)", f"{atencao}")
+                c4.metric("🔴 Em Atraso (>= 4d)", f"{atraso}")
+
+                # Detalhamento por Competência
+                with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
+                    resumo_comp = df_fila_exec.groupby(['mes_competencia','ano_competencia'])['valor_limpo'].sum().reset_index()
+                    resumo_comp.columns = ['Mês','Ano','Total Líquido (R$)']
+                    st.table(resumo_comp.style.format({'Total Líquido (R$)':'R${:,.2f}'}))
+                
+                st.divider()
+
+            # --- TABELA DE PROCESSOS ---
+            st.subheader("📥 Processos aguardando Recebimento no Financeiro")
+            
+            if df_fila_exec.empty:
+                st.info("Não há faturas na fila no momento.")
+            else:
+                st.dataframe(
+                    df_fila_exec[['nup','ose','valor_liquido','mes_competencia','ano_competencia','dias_fila']],
+                    use_container_width=True,
+                    column_config={
+                        "dias_fila": st.column_config.NumberColumn("Dias na Fila", help="Dias desde o envio pela Auditoria")
+                    }
+                )
+                
+                # Seleção múltipla para recebimento
+                nups_sel = st.multiselect("Selecione os NUPs para receber:", df_fila_exec['nup'].tolist(), key="multi_exec")
+                
+                if st.button("📥 RECEBER FATURA(S)"):
+                    if nups_sel:
+                        st.session_state.confirma_exec = True
+                    else:
+                        st.warning("⚠️ Selecione ao menos uma fatura.")
+
+                # --- INTERFACE DE CONFIRMAÇÃO ---
+                if st.session_state.get('confirma_exec', False):
+                    st.markdown("---")
+                    st.warning(f"⚖️ **CONFIRMAÇÃO:** Você vai receber **{len(nups_sel)}** processo(s). Confirmar?")
+                    
+                    col_sim, col_nao = st.columns(2)
+                    
+                    if col_sim.button("✅ SIM, receber"):
+                        with st.spinner("Movimentando..."):
+                            for n in nups_sel:
+                                mover_status(n, 4) # Move para Aguardando emissão de NE
+                                fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                registrar_acao(n, fatura_n, "RECEBIMENTO_FINANCEIRO", f"Financeiro {st.session_state.user_id} recebeu a fatura.")
+                        
+                        st.success(f"✅ {len(nups_sel)} processos movidos!")
+                        st.session_state.confirma_exec = False
+                        time.sleep(1)
+                        st.rerun()
+
+                    if col_nao.button("❌ NÃO, cancelar"):
+                        st.session_state.confirma_exec = False
+                        st.rerun()
+
+        # --- ABA 2: GESTÃO DE NE (Status 4 -> 5 -> 6) ---
+        with tab2:
+            st.markdown("### 📝 1. Emitir Nota de Empenho (NE)")
+            
+            meses_siglas = {
+                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
+                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
+            }
+            
+            f_status_4 = df[df['status'] == 4].copy()
+            
+            if not f_status_4.empty:
+                f_status_4['mes_extenso'] = f_status_4['mes_competencia'].map(meses_siglas).fillna(f_status_4['mes_competencia'])
+
+                nups_sel = st.multiselect(
+                    "Selecione o(s) NUP(s) para empenhar (Devem ser da mesma empresa):", 
+                    f_status_4['nup'].tolist(), 
+                    key="sel_ne_batch"
+                )
+                
+                col_input1, col_input2 = st.columns([1,1])
+                with col_input1:
+                    cod_ne_final = st.text_input("Número Final da NE (ex: 00052)", key="input_ne_num")
+                
+                if st.button("🚀 Cadastrar NE"):
+                    if not nups_sel or not cod_ne_final:
+                        st.warning("⚠️ Selecione ao menos uma fatura e digite o número da NE.")
+                    else:
+                        cnpjs_envolvidos = f_status_4[f_status_4['nup'].isin(nups_sel)]['cnpj'].unique()
+                        
+                        if len(cnpjs_envolvidos) > 1:
+                            st.error(f"❌ **ERRO DE SEGURANÇA:** Você selecionou faturas de {len(cnpjs_envolvidos)} empresas diferentes.")
+                        else:
+                            # Formato da NE conforme seu código atual
+                            ne_completa = f"78770000001NE{datetime.now().year}{cod_ne_final}"
+                            cnpj_alvo = cnpjs_envolvidos[0]
+                            
+                            with st.spinner(f"Gravando NE {ne_completa}..."):
+                                for nup in nups_sel:
+                                    cell = aba_p.find(nup)
+                                    if cell:
+                                        # --- A CORREÇÃO ESTÁ AQUI: COLUNA 15 ---
+                                        aba_p.update_cell(cell.row, 15, ne_completa) # 15 = Coluna O (NE)
+                                        
+                                        # O mover_status vai atualizar a coluna 11 (Status) e a 14 (Data)
+                                        mover_status(nup, 5)
+                                        
+                                        fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
+                                        registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
+                            
+                            st.success(f"✅ Sucesso! NE {ne_completa} gravada na Coluna O.")
+                            time.sleep(1)
+                            st.rerun()
+
+                st.subheader("Processos Disponíveis para Empenho")
+                cols_v = ['nup','cnpj','ose','mes_extenso','ano_competencia','valor_liquido']
+                st.dataframe(f_status_4[cols_v].rename(columns={'mes_extenso':'Mês'}), use_container_width=True)
+            else:
+                st.info("Não há faturas aguardando emissão de NE.")
+
+            st.divider()
+
+            # --- SEÇÃO 2: ENVIO PARA FISCALIZAÇÃO (Status 5 -> 6) ---
+        st.markdown("### 📤 2. Encaminhar para Fiscalização")
+        
+        # Filtra apenas Status 5 (Já empenhadas)
+        f_status_5 = df[df['status'] == 5].copy()
+        
+        if not f_status_5.empty:
+            # Mapeamento de meses para visualização
+            meses_siglas = {
+                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
+                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
+            }
+            f_status_5['mes_extenso'] = f_status_5['mes_competencia'].map(meses_siglas).fillna(f_status_5['mes_competencia'])
+
+            # Seleção em lote para o fiscal
+            lote_fiscal = st.multiselect(
+                "Selecione o(s) NUP(s) para enviar ao Fiscal:", 
+                f_status_5['nup'].tolist(), 
+                key="lote_fiscal_exec"
+            )
+
+            if st.button("📧 Enviar em Lote"):
+                if lote_fiscal:
+                    with st.spinner("Movimentando processos para Fiscalização..."):
+                        for n in lote_fiscal:
+                            # Evolui para Status 6 (Em Fiscalização)
+                            mover_status(n, 6)
+                            
+                            # Log da ação
+                            fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                            registrar_acao(n, fatura_n, "ENVIO_FISCALIZACAO", "Encaminhado para conferência do Fiscal (PJS/Fiscais).")
+                    
+                    st.success(f"✅ {len(lote_fiscal)} faturas encaminhadas para fiscalização com sucesso!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Selecione ao menos um NUP da lista abaixo.")
+
+            # --- TABELA ORGANIZADA POR EMPENHO ---
+            st.subheader("Processos Empenhados (Aguardando Envio)")
+            
+            # Colunas solicitadas: NUP, CNPJ, OSE, Valor, Mês, Ano e NE
+            cols_v = ['nup', 'cnpj', 'ose', 'valor_liquido', 'mes_extenso', 'ano_competencia', 'ne']
+            
+            # Ordenamos pela coluna 'ne' para agrupar visualmente as faturas do mesmo empenho
+            df_exibir_fiscal = f_status_5[cols_v].sort_values(by='ne').rename(columns={'mes_extenso': 'Mês', 'ne': 'Nota de Empenho'})
+            
+            st.dataframe(df_exibir_fiscal, use_container_width=True)
+            
+        else:
+            st.info("Nenhuma fatura empenhada (Status 5) aguardando envio.")
+
+        # --- ABA 3: GESTÃO DE PAGAMENTOS (Status 7 -> 8 -> 9) ---
+        with tab3:
+            st.subheader("💰 Ciclo Final de Pagamento")
+            
+            # Seção 1: Liquidação (Status 7 -> 8)
+            st.markdown("#### ⚖️ 1. Faturas em Liquidação (Retorno do Fiscal)")
+            f_status_7 = df[df['status'] == 7].copy()
+            if not f_status_7.empty:
+                lote_liq = st.multiselect("Selecionar para LIQUIDAR:", f_status_7['nup'].tolist(), key="liq_lote")
+                if st.button("✅ Confirmar Liquidação"):
+                    for n in lote_liq:
+                        mover_status(n, 8)
+                        fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                        registrar_acao(n, fatura_n, "LIQUIDADO", "Fatura liquidada e pronta para pagamento.")
+                    st.rerun()
+                st.dataframe(f_status_7[['nup', 'ose', 'valor_liquido']], use_container_width=True)
+            else:
+                st.info("Nenhuma fatura aguardando liquidação.")
+
+            st.divider()
+
+            # Seção 2: Pagamento (Status 8 -> 9)
+            st.markdown("#### 💸 2. Faturas Liquidadas (Prontas para Pagar)")
+            f_status_8 = df[df['status'] == 8].copy()
+            if not f_status_8.empty:
+                lote_pag = st.multiselect("Selecionar para PAGAR (Encerrar):", f_status_8['nup'].tolist(), key="pag_lote")
+                if st.button("🏁 Confirmar Pagamento Efetuado"):
+                    for n in lote_pag:
+                        mover_status(n, 9) # Status 9: Encerrado/Pago
+                        fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                        registrar_acao(n, fatura_n, "PAGAMENTO_EFETUADO", "Processo encerrado. Pagamento realizado.")
+                    st.success("Missão cumprida! Faturas pagas.")
+                    time.sleep(1)
+                    st.rerun()
+                st.dataframe(f_status_8[['nup', 'ose', 'valor_liquido']], use_container_width=True)
+            else:
+                st.info("Nenhuma fatura pronta para pagamento.")
+
+
+
+
+
+
+
 
     elif "FISCALIZAÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
         st.header("📋 Fiscalização")
