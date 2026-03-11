@@ -180,6 +180,21 @@ def limpar_valor(valor):
     except ValueError:
         return 0.0
 
+# --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
+pasta_projeto = os.path.dirname(os.path.abspath(__file__))
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+
+# Função para carregar imagem sem quebrar o app
+def carregar_imagem(caminho):
+    if os.path.exists(caminho):
+        return caminho
+    return None # Retorna nada se o arquivo não existir
+
+logo_final = carregar_imagem(caminho_logo)
+if logo_final:
+    st.image(logo_final, width=200)
+
 # --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
 
 # 1. Conecta ao Google e abre a planilha mestra
