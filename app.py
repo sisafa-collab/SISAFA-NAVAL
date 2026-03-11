@@ -176,16 +176,20 @@ else:
 # --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
 
 # 1. Conecta ao Google e abre a planilha mestra
+# --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
 client = conectar_google()
 if client:
     try:
         sh = client.open_by_key(ID_PLANILHA)
         aba_p = sh.worksheet(ABA_PROCESSOS)
+        # O df que o restante do código usa
         df = pd.DataFrame(aba_p.get_all_records())
     except Exception as e:
-        st.error(f"Erro ao carregar dados da planilha: {e}")
-        df = pd.DataFrame() # Cria vazio para não quebrar o app
+        st.error(f"Erro ao abrir a planilha: {e}")
+        df = pd.DataFrame() 
 else:
+    # Este else tem que estar na mesma coluna do 'if client:'
+    st.error("Falha na conexão com o Google Sheets.")
     df = pd.DataFrame()
     
     # 2. Define as abas globalmente para o sistema todo usar
