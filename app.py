@@ -17,6 +17,7 @@ ABA_USUARIOS = "SISAFA-NAVAL-Usuarios"
 ABA_PROCESSOS = "SISAFA-NAVAL-processos"
 ABA_LOGS_ACOES = "SISAFA-NAVAL-logs_acoes"
 ABA_HISTORICO = "SISAFA-NAVAL-historico"
+ABA_TABELA_A = "SISAFA-NAVAL-Tabela-A"
 
 # Localiza a pasta do projeto
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
