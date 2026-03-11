@@ -163,16 +163,6 @@ pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 
-# Função para carregar imagem sem quebrar o app
-def carregar_imagem(caminho):
-    return caminho if os.path.exists(caminho) else None
-
-logo_final = carregar_imagem(caminho_logo)
-if logo_final:
-    st.image(logo_final, width=250)
-else:
-    st.title("⚓ SISAFA-NAVAL")
-
 # --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
 
 # 1. Conecta ao Google e abre a planilha mestra
