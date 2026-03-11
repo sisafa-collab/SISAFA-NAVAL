@@ -1,6 +1,6 @@
 import streamlit as st
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account 
 import os
 import base64
 import pandas as pd
@@ -11,10 +11,6 @@ import re # Para a limpeza do e-mail
 from email.message import EmailMessage
 import plotly.express as px
 
-
-
-# --- Codigo para executar a função: streamlit run app.py ---
-
 # --- CONFIGURAÇÕES E CAMINHOS ---
 ID_PLANILHA = "1NS9zdzNFcHjQ7zFpEysuU-udrrV1VaM7nPY7LjHk3Qk"
 ABA_USUARIOS = "SISAFA-NAVAL-Usuarios"
@@ -24,15 +20,12 @@ ABA_LOGS_ACOES = "SISAFA-NAVAL-logs_acoes"
 ABA_HISTORICO = "SISAFA-NAVAL-historico"
 ABA_MENSAGENS = "SISAFA-NAVAL-mensagens"
 
-# Localiza a pasta onde o app.py está (a raiz do projeto)
+# Localiza a pasta onde o app.py está
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
-
-# Removi o "Imagens" do meio do caminho, já que os arquivos estão na raiz
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 
 st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
-
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -46,22 +39,42 @@ st.markdown("""
 # --- FUNÇÕES DE CONEXÃO ---
 def conectar_google():
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # Escopos necessários para ler/escrever planilhas e acessar o Drive
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         
-        # Como o app será público, confiamos EXCLUSIVAMENTE nos Secrets do Streamlit
         if "gcp_service_account" in st.secrets:
             creds_info = st.secrets["gcp_service_account"]
+            
+            # Se vier como string do Streamlit, converte para dicionário
             if isinstance(creds_info, str):
                 import json
                 creds_info = json.loads(creds_info)
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
+            
+            # Ajuste técnico: garante que as quebras de linha da chave privada sejam lidas corretamente
+            if "private_key" in creds_info:
+                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+            
+            # Criação das credenciais usando o método moderno
+            creds = service_account.Credentials.from_service_account_info(
+                creds_info, scopes=scope
+            )
+            
             return gspread.authorize(creds)
         else:
-            st.error("Erro: Credenciais 'gcp_service_account' não configuradas nos Secrets.")
+            st.error("Chave 'gcp_service_account' não encontrada nos Secrets.")
             return None
     except Exception as e:
         st.error(f"Erro Crítico de Conexão: {e}")
         return None
+
+# --- INICIALIZAÇÃO DA CONEXÃO ---
+client = conectar_google()
+if client:
+    try:
+        sh = client.open_by_key(ID_PLANILHA)
+        # Se chegou aqui, a conexão foi um sucesso!
+    except Exception as e:
+        st.error(f"Conectado ao Google, mas erro ao abrir a planilha: {e}")
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
