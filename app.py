@@ -44,14 +44,14 @@ def conectar_google():
                 import json
                 creds_info = json.loads(creds_info.strip())
             
-            # Isso aqui é o que resolve o erro de 'Invalid Signature'
+            # Garante que a chave privada seja lida corretamente em qualquer servidor
             if "private_key" in creds_info:
                 creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
             
             creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
             return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Erro na conexão: {e}")
+        st.error(f"Erro na conexão com Google: {e}")
         return None
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
@@ -165,9 +165,7 @@ caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de
 
 # Função para carregar imagem sem quebrar o app
 def carregar_imagem(caminho):
-    if os.path.exists(caminho):
-        return caminho
-    return None
+    return caminho if os.path.exists(caminho) else None
 
 logo_final = carregar_imagem(caminho_logo)
 if logo_final:
@@ -180,7 +178,15 @@ else:
 # 1. Conecta ao Google e abre a planilha mestra
 client = conectar_google()
 if client:
-    sh = client.open_by_key(ID_PLANILHA)
+    try:
+        sh = client.open_by_key(ID_PLANILHA)
+        aba_p = sh.worksheet(ABA_PROCESSOS)
+        df = pd.DataFrame(aba_p.get_all_records())
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da planilha: {e}")
+        df = pd.DataFrame() # Cria vazio para não quebrar o app
+else:
+    df = pd.DataFrame()
     
     # 2. Define as abas globalmente para o sistema todo usar
     aba_p = sh.worksheet(ABA_PROCESSOS)
@@ -205,31 +211,40 @@ if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_f
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # Inserção do Mascote no canto inferior direito
-    if os.path.exists(caminho_mascote):
-        with open(caminho_mascote, "rb") as f:
+    # Mascote flutuante
+    mascote_path = carregar_imagem(caminho_mascote)
+    if mascote_path:
+        with open(mascote_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
+        logo_path = carregar_imagem(caminho_logo)
+        if logo_path: st.image(logo_path, use_container_width=True)
+        
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
-            client = conectar_google()
             if client:
-                aba_u = client.open_by_key(ID_PLANILHA).worksheet(ABA_USUARIOS)
-                for r in aba_u.get_all_values():
-                    if str(r[0]).strip() == u_id.strip():
-                        st.session_state.logged_in = True
-                        st.session_state.user_id = u_id
-                        st.session_state.user_full_name = r[1].upper()
-                        st.session_state.user_perfil = r[2].upper()
-                        st.rerun()
-                st.error("Credenciais não localizadas.")
+                try:
+                    aba_u = sh.worksheet(ABA_USUARIOS)
+                    usuarios = aba_u.get_all_values()
+                    encontrado = False
+                    for r in usuarios:
+                        if str(r[0]).strip() == u_id.strip():
+                            # Aqui você pode adicionar a validação de senha se tiver coluna de senha (r[3])
+                            st.session_state.logged_in = True
+                            st.session_state.user_id = u_id
+                            st.session_state.user_full_name = r[1].upper()
+                            st.session_state.user_perfil = r[2].upper()
+                            encontrado = True
+                            st.rerun()
+                    if not encontrado: st.error("Usuário não cadastrado.")
+                except Exception as e:
+                    st.error(f"Erro ao validar login: {e}")
 
 # --- 2. TELA DE SELEÇÃO DE MÓDULO (SALA DE ESPERA) ---
 elif st.session_state.modulo_ativo is None:
