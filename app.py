@@ -7,20 +7,18 @@ import pandas as pd
 from datetime import datetime
 import time
 import smtplib
-import re # Para a limpeza do e-mail
+import re
 from email.message import EmailMessage
 import plotly.express as px
 
 # --- CONFIGURAÇÕES E CAMINHOS ---
 ID_PLANILHA = "1NS9zdzNFcHjQ7zFpEysuU-udrrV1VaM7nPY7LjHk3Qk"
 ABA_USUARIOS = "SISAFA-NAVAL-Usuarios"
-ABA_TABELA_A = "SISAFA-NAVAL-Tabela-A"
 ABA_PROCESSOS = "SISAFA-NAVAL-processos"
 ABA_LOGS_ACOES = "SISAFA-NAVAL-logs_acoes"
 ABA_HISTORICO = "SISAFA-NAVAL-historico"
-ABA_MENSAGENS = "SISAFA-NAVAL-mensagens"
 
-# Localiza a pasta onde o app.py está
+# Localiza a pasta do projeto
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
@@ -39,30 +37,16 @@ st.markdown("""
 # --- FUNÇÕES DE CONEXÃO ---
 def conectar_google():
     try:
-        # Escopos necessários para ler/escrever planilhas e acessar o Drive
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        
         if "gcp_service_account" in st.secrets:
             creds_info = st.secrets["gcp_service_account"]
-            
-            # Se vier como string do Streamlit, converte para dicionário
             if isinstance(creds_info, str):
                 import json
-                creds_info = json.loads(creds_info)
-            
-            # Ajuste técnico: garante que as quebras de linha da chave privada sejam lidas corretamente
+                creds_info = json.loads(creds_info.strip())
             if "private_key" in creds_info:
-                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
-            
-            # Criação das credenciais usando o método moderno
-            creds = service_account.Credentials.from_service_account_info(
-                creds_info, scopes=scope
-            )
-            
+                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
             return gspread.authorize(creds)
-        else:
-            st.error("Chave 'gcp_service_account' não encontrada nos Secrets.")
-            return None
     except Exception as e:
         st.error(f"Erro Crítico de Conexão: {e}")
         return None
@@ -72,9 +56,17 @@ client = conectar_google()
 if client:
     try:
         sh = client.open_by_key(ID_PLANILHA)
-        # Se chegou aqui, a conexão foi um sucesso!
+        aba_p = sh.worksheet(ABA_PROCESSOS)
+        aba_u = sh.worksheet(ABA_USUARIOS)
+        
+        # Carrega os DataFrames globais
+        df = pd.DataFrame(aba_p.get_all_records())
+        df_usuarios = pd.DataFrame(aba_u.get_all_records())
+        st.success("Sincronizado com a Base Naval! ⚓")
     except Exception as e:
-        st.error(f"Conectado ao Google, mas erro ao abrir a planilha: {e}")
+        st.error(f"Erro ao acessar tabelas: {e}")
+else:
+    st.error("Falha na ponte de comando (Google Sheets).")
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
@@ -189,11 +181,13 @@ caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de
 def carregar_imagem(caminho):
     if os.path.exists(caminho):
         return caminho
-    return None # Retorna nada se o arquivo não existir
+    return None
 
 logo_final = carregar_imagem(caminho_logo)
 if logo_final:
-    st.image(logo_final, width=200)
+    st.image(logo_final, width=250)
+else:
+    st.title("⚓ SISAFA-NAVAL")
 
 # --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
 
