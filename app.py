@@ -163,35 +163,42 @@ pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 
+# Função para carregar imagem sem quebrar o app
+def carregar_imagem(caminho):
+    return caminho if os.path.exists(caminho) else None
+
+
 # --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
 
 # 1. Conecta ao Google e abre a planilha mestra
 # --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
 client = conectar_google()
-
 if client:
     try:
-        # 1. Abre a planilha mestra
         sh = client.open_by_key(ID_PLANILHA)
-        
-        # 2. Define as abas globalmente
         aba_p = sh.worksheet(ABA_PROCESSOS)
-        aba_l = sh.worksheet(ABA_LOGS_ACOES)
-        aba_u = sh.worksheet(ABA_USUARIOS)
-        # aba_h = sh.worksheet(ABA_HISTORICO) # Descomente se for usar
-        
-        # 3. Carrega os dados principais (o df que o sistema usa)
-        dados = aba_p.get_all_records()
-        df = pd.DataFrame(dados)
-        
-        # Se chegou aqui, deu tudo certo!
+        # O df que o restante do código usa
+        df = pd.DataFrame(aba_p.get_all_records())
     except Exception as e:
-        st.error(f"Conectado ao Google, mas erro ao acessar as abas: {e}")
+        st.error(f"Erro ao abrir a planilha: {e}")
         df = pd.DataFrame() 
 else:
-    # Se o 'client' for None, cai aqui
-    st.error("Não foi possível estabelecer a conexão inicial (Verifique o Secrets).")
+    # Este else tem que estar na mesma coluna do 'if client:'
+    st.error("Falha na conexão com o Google Sheets.")
     df = pd.DataFrame()
+    
+    # 2. Define as abas globalmente para o sistema todo usar
+    aba_p = sh.worksheet(ABA_PROCESSOS)
+    aba_l = sh.worksheet(ABA_LOGS_ACOES)
+    aba_u = sh.worksheet(ABA_USUARIOS)
+    # aba_h = sh.worksheet(ABA_HISTORICO) # Descomente se for usar no financeiro
+    
+    # 3. Carrega os dados principais em um DataFrame (o 'df' que o código usa)
+    dados = aba_p.get_all_records()
+    df = pd.DataFrame(dados)
+else:
+    st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
+
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -203,21 +210,27 @@ if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_f
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # Mascote flutuante
+    # 1. Primeiro a Logo lá no topo (dentro do IF de login)
+    logo_path = carregar_imagem(caminho_logo)
+    if logo_path: 
+        st.image(logo_path, width=250)
+    else:
+        st.title("⚓ SISAFA-NAVAL")
+
+    # 2. Depois o Mascote flutuante (opcional)
     mascote_path = carregar_imagem(caminho_mascote)
     if mascote_path:
         with open(mascote_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
 
+    # 3. O formulário de login que você já tem
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        logo_path = carregar_imagem(caminho_logo)
-        if logo_path: st.image(logo_path, use_container_width=True)
-        
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
+        # ... resto do código do botão de acesso
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
             if client:
