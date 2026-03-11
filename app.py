@@ -43,30 +43,16 @@ def conectar_google():
             if isinstance(creds_info, str):
                 import json
                 creds_info = json.loads(creds_info.strip())
+            
+            # Isso aqui é o que resolve o erro de 'Invalid Signature'
             if "private_key" in creds_info:
                 creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+            
             creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
             return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Erro Crítico de Conexão: {e}")
+        st.error(f"Erro na conexão: {e}")
         return None
-
-# --- INICIALIZAÇÃO DA CONEXÃO ---
-client = conectar_google()
-if client:
-    try:
-        sh = client.open_by_key(ID_PLANILHA)
-        aba_p = sh.worksheet(ABA_PROCESSOS)
-        aba_u = sh.worksheet(ABA_USUARIOS)
-        
-        # Carrega os DataFrames globais
-        df = pd.DataFrame(aba_p.get_all_records())
-        df_usuarios = pd.DataFrame(aba_u.get_all_records())
-        st.success("Sincronizado com a Base Naval! ⚓")
-    except Exception as e:
-        st.error(f"Erro ao acessar tabelas: {e}")
-else:
-    st.error("Falha na ponte de comando (Google Sheets).")
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
