@@ -48,18 +48,24 @@ def conectar_google():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # 1. Tenta primeiro ler das Secrets do Streamlit (Para quando estiver na internet)
+        # 1. Tenta primeiro ler das Secrets do Streamlit (Para o sistema online)
         if "gcp_service_account" in st.secrets:
-            creds_dict = st.secrets["gcp_service_account"]
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            creds_info = st.secrets["gcp_service_account"]
+            
+            # Se o segredo vier como texto (string), a gente transforma em dicionário
+            if isinstance(creds_info, str):
+                import json
+                creds_info = json.loads(creds_info)
+            
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         
-        # 2. Se não encontrar as Secrets, tenta ler o arquivo local (Para você programar agora)
+        # 2. Se não encontrar as Secrets, usa o arquivo local (Para você programar no Codespaces)
         else:
             creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
             
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Erro de conexão: {e}")
+        st.error(f"Erro de conexão com o Google Sheets: {e}")
         return None
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
