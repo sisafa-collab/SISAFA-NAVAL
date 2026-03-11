@@ -1,1 +1,11 @@
 credentials.json
+# Arquivos de credenciais (NÃO DELETAR DO PC, APENAS NÃO MANDAR PRO GITHUB)
+credentials.json
+
+# Pastas de ambiente virtual
+venv/
+.venv/
+__pycache__/
+
+# Outros arquivos sensíveis que podem aparecer
+.env

@@ -48,24 +48,19 @@ def conectar_google():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
-        # 1. Tenta primeiro ler das Secrets do Streamlit (Para o sistema online)
+        # Como o app será público, confiamos EXCLUSIVAMENTE nos Secrets do Streamlit
         if "gcp_service_account" in st.secrets:
             creds_info = st.secrets["gcp_service_account"]
-            
-            # Se o segredo vier como texto (string), a gente transforma em dicionário
             if isinstance(creds_info, str):
                 import json
                 creds_info = json.loads(creds_info)
-            
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
-        
-        # 2. Se não encontrar as Secrets, usa o arquivo local (Para você programar no Codespaces)
+            return gspread.authorize(creds)
         else:
-            creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-            
-        return gspread.authorize(creds)
+            st.error("Erro: Credenciais 'gcp_service_account' não configuradas nos Secrets.")
+            return None
     except Exception as e:
-        st.error(f"Erro de conexão com o Google Sheets: {e}")
+        st.error(f"Erro Crítico de Conexão: {e}")
         return None
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
@@ -74,12 +69,9 @@ def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
         sh = client.open_by_key(ID_PLANILHA)
         aba = sh.worksheet(ABA_HISTORICO)
         agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Colunas: timestamp, nup, fatura, origem, destino, usuario, valor, obs
         aba.append_row([agora, nup, fatura, origem, destino, st.session_state.user_id, valor, obs])
     except Exception as e:
-        # ISSO AQUI VAI TE DIZER O MOTIVO REAL DO ERRO:
         st.error(f"Erro na aba HISTÓRICO: {e}")
-
 
 def registrar_acao(nup, fatura, acao, detalhes=""):
     try:
@@ -117,14 +109,16 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
     SMTP_USER = "hnbra.execucaofinanceira@gmail.com"
-    SMTP_PASS = "wmkywghbqouuhlqc" 
+    
+    # --- MUDANÇA DE SEGURANÇA AQUI ---
+    # Agora ele busca a senha no "cofre" (Secrets) e não no texto plano
+    SMTP_PASS = st.secrets["smtp_password"] 
 
     msg = EmailMessage()
     msg['Subject'] = f"Notificação de Glosa: Fatura {num_fatura} - HNBra"
     msg['From'] = SMTP_USER
     msg['To'] = destinatario
     
-    # Inclusão do auditor em cópia
     if email_auditor:
         msg['Cc'] = email_auditor
 
@@ -158,7 +152,6 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
         return False    
 
 def limpar_valor(valor):
-    """Transforma 'R$ 5.000,00' em float puro (5000.0)"""
     if isinstance(valor, (int, float)): 
         return float(valor)
     limpo = str(valor).replace('R$', '').replace(' ', '').strip()
