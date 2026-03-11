@@ -172,7 +172,6 @@ def carregar_imagem(caminho):
 
 # 1. Conecta ao Google e abre a planilha mestra
 # --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
-# --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
 client = conectar_google()
 
 if client:
@@ -184,32 +183,18 @@ if client:
         aba_p = sh.worksheet(ABA_PROCESSOS)
         aba_l = sh.worksheet(ABA_LOGS_ACOES)
         aba_u = sh.worksheet(ABA_USUARIOS)
+        aba_h = sh.worksheet(ABA_HISTORICO)
         
-        # 3. Carrega os dados (o 'df' que o login usa)
+        # 3. Carrega os dados para o DataFrame principal
         dados = aba_p.get_all_records()
         df = pd.DataFrame(dados)
         
     except Exception as e:
-        st.error(f"Conectado, mas erro ao carregar abas: {e}")
+        st.error(f"Conectado ao Google, mas erro ao carregar abas: {e}")
         df = pd.DataFrame() 
 else:
-    # Este else pertence ao 'if client:' - alinhamento exato na coluna 0
     st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
     df = pd.DataFrame()
-
-# --- CONTROLE DE SESSÃO ---
-    
-    # 2. Define as abas globalmente para o sistema todo usar
-    aba_p = sh.worksheet(ABA_PROCESSOS)
-    aba_l = sh.worksheet(ABA_LOGS_ACOES)
-    aba_u = sh.worksheet(ABA_USUARIOS)
-    # aba_h = sh.worksheet(ABA_HISTORICO) # Descomente se for usar no financeiro
-    
-    # 3. Carrega os dados principais em um DataFrame (o 'df' que o código usa)
-    dados = aba_p.get_all_records()
-    df = pd.DataFrame(dados)
-else:
-    st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
@@ -218,30 +203,28 @@ if 'confirmar_secom' not in st.session_state: st.session_state.confirmar_secom =
 if 'confirmar_recebimento' not in st.session_state: st.session_state.confirmar_recebimento = False
 if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_finalizacao = False
 
-
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # 1. Primeiro a Logo lá no topo (dentro do IF de login)
+    # 1. Logo
     logo_path = carregar_imagem(caminho_logo)
     if logo_path: 
         st.image(logo_path, width=250)
     else:
         st.title("⚓ SISAFA-NAVAL")
 
-    # 2. Depois o Mascote flutuante (opcional)
+    # 2. Mascote
     mascote_path = carregar_imagem(caminho_mascote)
     if mascote_path:
         with open(mascote_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
 
-    # 3. O formulário de login que você já tem
+    # 3. Formulário
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
-        # ... resto do código do botão de acesso
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
             if client:
@@ -251,7 +234,6 @@ if not st.session_state.logged_in:
                     encontrado = False
                     for r in usuarios:
                         if str(r[0]).strip() == u_id.strip():
-                            # Aqui você pode adicionar a validação de senha se tiver coluna de senha (r[3])
                             st.session_state.logged_in = True
                             st.session_state.user_id = u_id
                             st.session_state.user_full_name = r[1].upper()
