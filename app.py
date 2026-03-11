@@ -205,23 +205,29 @@ if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_f
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # 1. Logo
-    logo_path = carregar_imagem(caminho_logo)
-    if logo_path: 
-        st.image(logo_path, width=250)
-    else:
-        st.title("⚓ SISAFA-NAVAL")
-
-    # 2. Mascote
+    # 1. Mascote (Mantido fixo no canto da tela, independente das colunas)
     mascote_path = carregar_imagem(caminho_mascote)
     if mascote_path:
         with open(mascote_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
 
-    # 3. Formulário
+    # 2. Estrutura de Colunas para Centralização
     col1, col2, col3 = st.columns([1, 1.5, 1])
+    
     with col2:
+        # --- LOGO CENTRALIZADA ---
+        # Ao colocar aqui dentro, ela segue o alinhamento da coluna central
+        logo_path = carregar_imagem(caminho_logo)
+        if logo_path: 
+            # use_container_width garante que ela se ajuste ao espaço da coluna
+            st.image(logo_path, use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True) # Pequeno espaço entre logo e campos
+
+        # --- FORMULÁRIO ---
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
@@ -240,7 +246,8 @@ if not st.session_state.logged_in:
                             st.session_state.user_perfil = r[2].upper()
                             encontrado = True
                             st.rerun()
-                    if not encontrado: st.error("Usuário não cadastrado.")
+                    if not encontrado: 
+                        st.error("Usuário não cadastrado.")
                 except Exception as e:
                     st.error(f"Erro ao validar login: {e}")
 
