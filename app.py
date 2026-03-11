@@ -172,6 +172,7 @@ def carregar_imagem(caminho):
 
 # 1. Conecta ao Google e abre a planilha mestra
 # --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
+# --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
 client = conectar_google()
 
 if client:
@@ -179,23 +180,24 @@ if client:
         # 1. Abre a planilha mestra
         sh = client.open_by_key(ID_PLANILHA)
         
-        # 2. Define as abas globalmente para o sistema todo usar
+        # 2. Define as abas globalmente
         aba_p = sh.worksheet(ABA_PROCESSOS)
         aba_l = sh.worksheet(ABA_LOGS_ACOES)
         aba_u = sh.worksheet(ABA_USUARIOS)
-        aba_h = sh.worksheet(ABA_HISTORICO)
         
-        # 3. Carrega os dados principais em um DataFrame (o 'df' que o código usa)
+        # 3. Carrega os dados (o 'df' que o login usa)
         dados = aba_p.get_all_records()
         df = pd.DataFrame(dados)
         
     except Exception as e:
-        st.error(f"Conectado ao Google, mas erro ao carregar abas: {e}")
+        st.error(f"Conectado, mas erro ao carregar abas: {e}")
         df = pd.DataFrame() 
 else:
-    # Se o 'client' for None (falha no Secrets), cai aqui
+    # Este else pertence ao 'if client:' - alinhamento exato na coluna 0
     st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
     df = pd.DataFrame()
+
+# --- CONTROLE DE SESSÃO ---
     
     # 2. Define as abas globalmente para o sistema todo usar
     aba_p = sh.worksheet(ABA_PROCESSOS)
