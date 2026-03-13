@@ -1008,11 +1008,19 @@ else:
         with tab2:
             st.markdown("### 📝 1. Emitir Nota de Empenho (NE)")
             
+            # Mapeamento para garantir que as siglas funcionem nesta aba
+            meses_siglas = {
+                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
+                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
+            }
+            
             # 1. Filtro de faturas prontas para empenho
             f_status_4 = df[df['status'] == 4].copy()
             
             if not f_status_4.empty:
-                # Usamos a coluna 'mes_sigla' que criamos no início do módulo
+                # Criamos a coluna mes_sigla para evitar o KeyError na visualização
+                f_status_4['mes_sigla'] = pd.to_numeric(f_status_4['mes_competencia'], errors='coerce').map(meses_siglas)
+
                 nups_sel = st.multiselect(
                     "Selecione o(s) NUP(s) para empenhar (Devem ser da mesma empresa):", 
                     f_status_4['nup'].tolist(), 
@@ -1068,9 +1076,7 @@ else:
                             for nup in nups_sel:
                                 cell = aba_p.find(nup)
                                 if cell:
-                                    # Grava a NE na Coluna O (15)
                                     aba_p.update_cell(cell.row, 15, ne_completa)
-                                    # Move para Status 5 (Empenhado)
                                     mover_status(nup, 5)
                                     
                                     fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
@@ -1082,6 +1088,7 @@ else:
 
                 st.divider()
                 st.subheader("📋 Processos Disponíveis para Empenho")
+                # Agora cols_v encontrará a coluna 'mes_sigla' sem erro
                 cols_v = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido']
                 st.dataframe(f_status_4[cols_v].rename(columns={'mes_sigla':'Mês'}), use_container_width=True)
             
