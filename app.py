@@ -1008,59 +1008,83 @@ else:
         with tab2:
             st.markdown("### 📝 1. Emitir Nota de Empenho (NE)")
             
-            meses_siglas = {
-                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
-                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
-            }
-            
+            # 1. Filtro de faturas prontas para empenho
             f_status_4 = df[df['status'] == 4].copy()
             
             if not f_status_4.empty:
-                f_status_4['mes_extenso'] = f_status_4['mes_competencia'].map(meses_siglas).fillna(f_status_4['mes_competencia'])
-
+                # Usamos a coluna 'mes_sigla' que criamos no início do módulo
                 nups_sel = st.multiselect(
                     "Selecione o(s) NUP(s) para empenhar (Devem ser da mesma empresa):", 
                     f_status_4['nup'].tolist(), 
                     key="sel_ne_batch"
                 )
                 
+                # --- BLOCO DE AJUDA E CONFERÊNCIA ---
+                trava_cnpj = False
+                if nups_sel:
+                    df_conf = f_status_4[f_status_4['nup'].isin(nups_sel)].copy()
+                    df_conf['v_liq_num'] = df_conf['valor_liquido'].apply(limpar_valor)
+                    
+                    # Verificação de CNPJs únicos
+                    lista_cnpjs = df_conf['cnpj'].unique()
+                    trava_cnpj = len(lista_cnpjs) > 1
+                    
+                    # Dados para o Card
+                    empresa_nome = df_conf['ose'].iloc[0]
+                    cnpj_principal = df_conf['cnpj'].iloc[0]
+                    valor_total_ne = df_conf['v_liq_num'].sum()
+                    faturas_no_lote = ", ".join(df_conf['Numero_da_fatura'].astype(str).tolist())
+
+                    with st.container(border=True):
+                        st.markdown(f"#### 🔎 Conferência de Empenho")
+                        c_aj1, c_aj2 = st.columns([2, 1])
+                        
+                        with c_aj1:
+                            st.write(f"🏢 **Empresa:** {empresa_nome}")
+                            st.write(f"🆔 **CNPJ:** {cnpj_principal}")
+                            st.write(f"📄 **Faturas:** {faturas_no_lote}")
+                            
+                            if trava_cnpj:
+                                st.error("❌ **ALERTA:** Múltiplos CNPJs detectados. Remova os NUPs intrusos.")
+                        
+                        with c_aj2:
+                            st.metric("Qtd. Faturas", len(df_conf))
+                            st.metric("Total da NE", f"R$ {valor_total_ne:,.2f}")
+
+                # --- INPUTS E CADASTRO ---
                 col_input1, col_input2 = st.columns([1,1])
                 with col_input1:
                     cod_ne_final = st.text_input("Número Final da NE (ex: 00052)", key="input_ne_num")
                 
-                if st.button("🚀 Cadastrar NE"):
-                    if not nups_sel or not cod_ne_final:
-                        st.warning("⚠️ Selecione ao menos uma fatura e digite o número da NE.")
+                # O botão fica desabilitado se houver erro de CNPJ ou nada selecionado
+                if st.button("🚀 Cadastrar NE", disabled=trava_cnpj or not nups_sel, use_container_width=True):
+                    if not cod_ne_final:
+                        st.warning("⚠️ Digite o número da NE antes de prosseguir.")
                     else:
-                        cnpjs_envolvidos = f_status_4[f_status_4['nup'].isin(nups_sel)]['cnpj'].unique()
+                        ne_completa = f"78770000001NE{datetime.now().year}{cod_ne_final}"
+                        cnpj_alvo = f_status_4[f_status_4['nup'].isin(nups_sel)]['cnpj'].iloc[0]
                         
-                        if len(cnpjs_envolvidos) > 1:
-                            st.error(f"❌ **ERRO DE SEGURANÇA:** Você selecionou faturas de {len(cnpjs_envolvidos)} empresas diferentes.")
-                        else:
-                            # Formato da NE conforme seu código atual
-                            ne_completa = f"78770000001NE{datetime.now().year}{cod_ne_final}"
-                            cnpj_alvo = cnpjs_envolvidos[0]
+                        with st.spinner(f"Gravando NE {ne_completa}..."):
+                            for nup in nups_sel:
+                                cell = aba_p.find(nup)
+                                if cell:
+                                    # Grava a NE na Coluna O (15)
+                                    aba_p.update_cell(cell.row, 15, ne_completa)
+                                    # Move para Status 5 (Empenhado)
+                                    mover_status(nup, 5)
+                                    
+                                    fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
+                                    registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
                             
-                            with st.spinner(f"Gravando NE {ne_completa}..."):
-                                for nup in nups_sel:
-                                    cell = aba_p.find(nup)
-                                    if cell:
-                                        # --- A CORREÇÃO ESTÁ AQUI: COLUNA 15 ---
-                                        aba_p.update_cell(cell.row, 15, ne_completa) # 15 = Coluna O (NE)
-                                        
-                                        # O mover_status vai atualizar a coluna 11 (Status) e a 14 (Data)
-                                        mover_status(nup, 5)
-                                        
-                                        fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
-                                        registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
-                            
-                            st.success(f"✅ Sucesso! NE {ne_completa} gravada na Coluna O.")
-                            time.sleep(1)
+                            st.success(f"✅ Sucesso! NE {ne_completa} cadastrada para {empresa_nome}.")
+                            time.sleep(1.5)
                             st.rerun()
 
-                st.subheader("Processos Disponíveis para Empenho")
-                cols_v = ['nup','cnpj','ose','mes_extenso','ano_competencia','valor_liquido']
-                st.dataframe(f_status_4[cols_v].rename(columns={'mes_extenso':'Mês'}), use_container_width=True)
+                st.divider()
+                st.subheader("📋 Processos Disponíveis para Empenho")
+                cols_v = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido']
+                st.dataframe(f_status_4[cols_v].rename(columns={'mes_sigla':'Mês'}), use_container_width=True)
+            
             else:
                 st.info("Não há faturas aguardando emissão de NE.")
 
