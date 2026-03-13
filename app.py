@@ -617,81 +617,80 @@ else:
 
 
         # 3. ABA: FATURAS AUDITADAS
-        with t_auditadas:
-            # --- CÁLCULO DOS INDICADORES DE CONCLUSÃO (Status 3) ---
-            user_logado = str(st.session_state.user_id).strip()
-            df_auditadas = df[(df['status'] == 3) & (df['responsavel_atual'].astype(str).str.strip() == user_logado)].copy()
+with t_auditadas:
+    # --- CÁLCULO DOS INDICADORES (Status 3) ---
+    # Visão global: todos os processos finalizados tecnicamente
+    df_auditadas = df[df['status'] == 3].copy()
+    
+    if not df_auditadas.empty:
+        # 1. Preparação dos dados
+        df_auditadas['v_apres_limpo'] = df_auditadas['valor_apresentado'].apply(limpar_valor)
+        df_auditadas['glosa_limpo'] = df_auditadas['glosa'].apply(limpar_valor)
+        df_auditadas['v_liq_limpo'] = df_auditadas['valor_liquido'].apply(limpar_valor)
+        
+        # AJUSTE DE REGRA: Data de recebimento na auditoria (Coluna 14 / Índice 13)
+        # Agora o prazo conta desde que o processo ENTROU no setor
+        df_auditadas['dt_entrada_setor'] = pd.to_datetime(df_auditadas.iloc[:, 13], dayfirst=True, errors='coerce')
+        
+        hoje = datetime.now()
+        df_auditadas['dias_no_setor'] = (hoje - df_auditadas['dt_entrada_setor']).dt.days
+        
+        # 2. Parâmetros de Temporalidade (Ajustados conforme solicitado: 10, 15 e >15)
+        aceitavel_aud = len(df_auditadas[df_auditadas['dias_no_setor'] <= 10])
+        atencao_aud = len(df_auditadas[(df_auditadas['dias_no_setor'] >= 11) & (df_auditadas['dias_no_setor'] <= 15)])
+        atraso_aud = len(df_auditadas[df_auditadas['dias_no_setor'] > 15])
+
+        # --- INTERFACE DE INDICADORES (KPIs) ---
+        st.markdown("### 📊 Faturas Auditadas aguardando encaminhamento")
+        st.write("⚠️ **Prazos contados a partir do RECEBIMENTO na Auditoria (Mesmo critério da mesa de trabalho)** ⚠️")
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total Concluído", f"{len(df_auditadas)}")
+        c2.metric("🟢 No Prazo (até 10d)", f"{aceitavel_aud}")
+        c3.metric("🟡 Atenção (11-15d)", f"{atencao_aud}")
+        c4.metric("🔴 Em Atraso (>15d)", f"{atraso_aud}")
+
+        # Detalhamento de Valores
+        with st.expander("💰 Resumo Financeiro da Produção Geral", expanded=False):
+            total_ap = df_auditadas['v_apres_limpo'].sum()
+            total_gl = df_auditadas['glosa_limpo'].sum()
+            total_lq = df_auditadas['v_liq_limpo'].sum()
             
-            if not df_auditadas.empty:
-                # 1. Preparação dos dados técnicos
-                df_auditadas['v_apres_limpo'] = df_auditadas['valor_apresentado'].apply(limpar_valor)
-                df_auditadas['glosa_limpo'] = df_auditadas['glosa'].apply(limpar_valor)
-                df_auditadas['v_liq_limpo'] = df_auditadas['valor_liquido'].apply(limpar_valor)
-                
-                # Data da conclusão (Coluna 14)
-                df_auditadas['dt_conclusao'] = pd.to_datetime(df_auditadas.iloc[:, 13], dayfirst=True, errors='coerce')
-                
-                hoje = datetime.now()
-                df_auditadas['dias_concluido'] = (hoje - df_auditadas['dt_conclusao']).dt.days
-                
-                # 2. Cálculos de Temporalidade para Faturas Auditadas
-                aceitavel_aud = len(df_auditadas[df_auditadas['dias_concluido'] <= 7])
-                atencao_aud = len(df_auditadas[(df_auditadas['dias_concluido'] >= 8) & (df_auditadas['dias_concluido'] <= 10)])
-                atraso_aud = len(df_auditadas[df_auditadas['dias_concluido'] > 10])
+            st.write(f"**Valor Apresentado Total:** R$ {total_ap:,.2f}")
+            st.write(f"**Economia Gerada (Glosas):** R$ {total_gl:,.2f}")
+            st.write(f"**Líquido a Pagar:** R$ {total_lq:,.2f}")
+        
+        st.divider()
 
-                # --- INTERFACE DE INDICADORES (KPIs) ---
-                st.markdown("### 📊 Faturas Auditadas aguardando encaminhamento para a Seção de Exexução Financeira")
-                st.write("⚠️ **Os prazos abaixos são contados desde a finalização da auditoria** ⚠️")
+        # --- LISTAGEM E AÇÕES ---
+        st.subheader("✅ Faturas Prontas para Encaminhamento")
+        
+        # Tabela com dias_no_setor para transparência
+        st.dataframe(
+            df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'responsavel_atual', 'dias_no_setor']], 
+            use_container_width=True
+        )
+        
+        lote_exec = st.multiselect(
+            "Selecionar faturas para encaminhar à Execução Financeira:", 
+            df_auditadas['nup'].tolist(), 
+            key="ms_lote_auditadas_v2"
+        )
+        
+        if st.button("📤 ENCAMINHAR PARA EXECUÇÃO FINANCEIRA", key="btn_envio_fin_v2", use_container_width=True):
+            if lote_exec:
+                with st.spinner("Registrando encaminhamento..."):
+                    for n in lote_exec:
+                        fatura_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
+                        registrar_acao(n, fatura_n, "ENCAMINHADO_PARA_FINANCEIRO", f"Usuário {st.session_state.user_id} encaminhou o lote.")
                 
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total Concluído", f"{len(df_auditadas)}")
-                c2.metric("🟢 No Prazo (até 7d)", f"{aceitavel_aud}")
-                c3.metric("🟡 Atenção (8-10d)", f"{atencao_aud}")
-                c4.metric("🔴 Em Atraso (>10d)", f"{atraso_aud}")
-
-                # Detalhamento de Valores Auditados
-                with st.expander("💰 Resumo Financeiro da Produção", expanded=False):
-                    total_ap = df_auditadas['v_apres_limpo'].sum()
-                    total_gl = df_auditadas['glosa_limpo'].sum()
-                    total_lq = df_auditadas['v_liq_limpo'].sum()
-                    
-                    st.write(f"**Valor Apresentado:** R$ {total_ap:,.2f}")
-                    st.write(f"**Economia Gerada (Glosas):** R$ {total_gl:,.2f}")
-                    st.write(f"**Líquido a Pagar:** R$ {total_lq:,.2f}")
-                
-                st.divider()
-
-            # --- LISTAGEM E AÇÕES ---
-            st.subheader("✅ Minhas Faturas Auditadas")
-            
-            if df_auditadas.empty:
-                st.info("Nenhuma fatura auditada pendente de encaminhamento.")
+                st.success(f"✅ {len(lote_exec)} processos notificados.")
+                time.sleep(1.5)
+                st.rerun()
             else:
-                # Tabela com as colunas solicitadas
-                st.dataframe(
-                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'dias_concluido']], 
-                    use_container_width=True
-                )
-                
-                # Seleção múltipla para despacho
-                lote_exec = st.multiselect("Selecionar faturas para informar a Execução Financeira:", df_auditadas['nup'].tolist())
-                
-                if st.button("📤 ENCAMINHAR PARA EXECUÇÃO FINANCEIRA"):
-                    if lote_exec:
-                        with st.spinner("Registrando encaminhamento..."):
-                            for n in lote_exec:
-                                # Conforme solicitado: O STATUS PERMANECE 3!
-                                # Apenas registramos a ação para controle no log e histórico
-                                fatura_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
-                                registrar_acao(n, fatura_n, "ENCAMINHADO_PARA_FINANCEIRO", f"Auditor {st.session_state.user_id} enviou para conferência da Execução Financeira.")
-                        
-                        st.success(f"✅ {len(lote_exec)} processos notificados à Execução Financeira. Eles permanecem em sua lista até o aceite final.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Selecione ao menos uma fatura para encaminhar.")
-
-
+                st.warning("⚠️ Selecione ao menos uma fatura para encaminhar.")
+    else:
+        st.info("Nenhuma fatura auditada pendente no momento.")
 
 
         # 4. ABA: CONSULTAS (BUSCA GLOBAL)
