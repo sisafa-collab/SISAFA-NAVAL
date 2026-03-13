@@ -11,6 +11,7 @@ import re
 from email.message import EmailMessage
 import plotly.express as px
 
+# --- python -m streamlit run app.py ---
 # --- CONFIGURAÇÕES E CAMINHOS ---
 ID_PLANILHA = "1NS9zdzNFcHjQ7zFpEysuU-udrrV1VaM7nPY7LjHk3Qk"
 ABA_USUARIOS = "SISAFA-NAVAL-Usuarios"
@@ -381,9 +382,9 @@ else:
                 df_fila['dias_fila'] = (hoje - df_fila['dt_entrada']).dt.days
                 
                 # 2. Cálculos de Temporalidade
-                aceitavel = len(df_fila[df_fila['dias_fila'] <= 7])
-                atencao = len(df_fila[(df_fila['dias_fila'] >= 8) & (df_fila['dias_fila'] <= 10)])
-                atraso = len(df_fila[df_fila['dias_fila'] > 10])
+                aceitavel = len(df_fila[df_fila['dias_fila'] <= 1])
+                atencao = len(df_fila[(df_fila['dias_fila'] >= 2) & (df_fila['dias_fila'] <= 4)])
+                atraso = len(df_fila[df_fila['dias_fila'] > 5])
                 
                 # 3. Valor Total na Fila
                 valor_total_fila = df_fila['valor_limpo'].sum()
@@ -393,9 +394,9 @@ else:
                 
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total de Faturas", f"{len(df_fila)}")
-                c2.metric("🟢 Aceitável (até 7d)", f"{aceitavel}")
-                c3.metric("🟡 Atenção (8-10d)", f"{atencao}")
-                c4.metric("🔴 Em Atraso (>10d)", f"{atraso}")
+                c2.metric("🟢 Aceitável (até 1d)", f"{aceitavel}")
+                c3.metric("🟡 Atenção (2-4d)", f"{atencao}")
+                c4.metric("🔴 Em Atraso (>5d)", f"{atraso}")
 
                 # Exibição do Valor por Competência
                 with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
@@ -492,21 +493,23 @@ else:
                 
                 st.divider()
 
-            # --- MINHA MESA DE TRABALHO (VISÃO INDIVIDUAL) ---
-            st.subheader("🩺 Minha Mesa de Trabalho")
+            # --- MINHA MESA DE TRABALHO (VISÃO GERAL DO SETOR) ---
+            st.subheader("🩺 Mesa de Trabalho da Auditoria")
             
             df['status'] = pd.to_numeric(df['status'], errors='coerce')
-            user_logado = str(st.session_state.user_id).strip()
-            df_mesa = df[(df['status'] == 2) & (df['responsavel_atual'].astype(str).str.strip() == user_logado)].copy()
+            
+            # REMOVIDA A RESTRIÇÃO POR USER_ID: Agora filtra apenas pelo Status 2
+            df_mesa = df[df['status'] == 2].copy()
 
             if df_mesa.empty:
-                st.info(f"Sua mesa está vazia (ID: {user_logado}). Puxe processos da Fila de Espera.")
+                st.info("Não há processos em auditagem no momento.")
             else:
-                st.write("**Faturas sob sua responsabilidade:**")
-                # Incluímos a coluna de dias em auditoria para sua gestão pessoal
+                st.write("**Todas as faturas em análise técnica:**")
+                # Incluímos a coluna de dias em auditoria para gestão
                 if not df_total_auditagem.empty:
+                    # Cálculo dos dias baseado na coluna 14 (índice 13)
                     df_mesa['dias_auditoria'] = (hoje - pd.to_datetime(df_mesa.iloc[:, 13], dayfirst=True, errors='coerce')).dt.days
-                
+  
                 st.dataframe(df_mesa[['nup', 'ose', 'valor_apresentado', 'mes_competencia', 'ano_competencia', 'obs']], use_container_width=True)
                 
                 st.divider()
