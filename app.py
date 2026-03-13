@@ -498,7 +498,7 @@ else:
 
                 # Detalhamento Financeiro em Status 2
                 with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
-                    resumo_comp_aud = df_total_auditagem.groupby(['mes_competencia', 'ano_competencia'])['valor_limpo'].sum().reset_index()
+                    resumo_comp_aud = df_total_auditagem.groupby(['mes_sigla', 'ano_competencia'])['valor_limpo'].sum().reset_index()
                     resumo_comp_aud.columns = ['Mês', 'Ano', 'Total em Análise (R$)']
                     st.table(resumo_comp_aud.style.format({'Total em Análise (R$)': 'R$ {:,.2f}'}))
                 
@@ -521,7 +521,7 @@ else:
                     # Cálculo dos dias baseado na coluna 14 (índice 13)
                     df_mesa['dias_auditoria'] = (hoje - pd.to_datetime(df_mesa.iloc[:, 13], dayfirst=True, errors='coerce')).dt.days
   
-                st.dataframe(df_mesa[['nup', 'ose', 'valor_apresentado', 'mes_competencia', 'ano_competencia', 'obs']], use_container_width=True)
+                st.dataframe(df_mesa[['nup', 'ose', 'valor_apresentado', 'mes_sigla', 'ano_competencia', 'obs']], use_container_width=True)
                 
                 st.divider()
                 
@@ -664,7 +664,7 @@ else:
                     total_gl = df_auditadas['glosa_limpo'].sum()
                     total_lq = df_auditadas['v_liq_limpo'].sum()
                     st.write(f"**Valor Apresentado Total:** R$ {total_ap:,.2f}")
-                    st.write(f"**Economia Gerada (Glosas):** R$ {total_gl:,.2f}")
+                    st.write(f"**Glosas:** R$ {total_gl:,.2f}")
                     st.write(f"**Líquido a Pagar:** R$ {total_lq:,.2f}")
                 
                 st.divider()
@@ -672,7 +672,7 @@ else:
                 # --- LISTAGEM E AÇÕES ---
                 st.subheader("✅ Faturas Prontas para Encaminhamento")
                 st.dataframe(
-                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'dias_no_setor']], 
+                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_sigla', 'ano_competencia', 'dias_no_setor']], 
                     use_container_width=True
                 )
                 
@@ -780,13 +780,13 @@ else:
             anos_disp = sorted(df['ano_competencia'].unique(), reverse=True)
             ano_sel = col_f1.selectbox("Filtrar por Ano:", ["Todos"] + list(anos_disp))
             
-            meses_disp = sorted(df['mes_competencia'].unique())
+            meses_disp = sorted(df['mes_sigla'].unique())
             mes_sel = col_f2.selectbox("Filtrar por Mês:", ["Todos"] + list(meses_disp))
 
             # Filtragem dinâmica
             df_p = df.copy()
             if ano_sel != "Todos": df_p = df_p[df_p['ano_competencia'] == ano_sel]
-            if mes_sel != "Todos": df_p = df_p[df_p['mes_competencia'] == mes_sel]
+            if mes_sel != "Todos": df_p = df_p[df_p['mes_sigla'] == mes_sel]
 
             df_p['v_ap_num'] = df_p['valor_apresentado'].apply(limpar_valor)
             df_p['glosa_num'] = df_p['glosa'].apply(limpar_valor)
