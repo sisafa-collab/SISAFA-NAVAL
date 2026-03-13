@@ -368,6 +368,16 @@ else:
             "🔍 Consultas", "📊 Produtividade", "💬 Relacionamento"
         ])
 
+        # --- NOVO: MAPEAMENTO DE MESES PARA EXIBIÇÃO ---
+        mapa_meses = {
+        1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+        7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+        }
+    
+        # Criamos uma coluna nova 'mes_sigla' para visualização sem estragar os cálculos
+        # Certificamos que 'mes_competencia' é numérico para o mapeamento funcionar
+        df['mes_sigla'] = pd.to_numeric(df['mes_competencia'], errors='coerce').map(mapa_meses)
+
         # 1. ABA: FILA DE ESPERA
         with t_fila:
             # --- CÁLCULO DOS INDICADORES ---
@@ -380,7 +390,8 @@ else:
                 
                 hoje = datetime.now()
                 df_fila['dias_fila'] = (hoje - df_fila['dt_entrada']).dt.days
-                
+
+            
                 # 2. Cálculos de Temporalidade
                 aceitavel = len(df_fila[df_fila['dias_fila'] <= 1])
                 atencao = len(df_fila[(df_fila['dias_fila'] >= 2) & (df_fila['dias_fila'] <= 4)])
@@ -400,7 +411,7 @@ else:
 
                 # Exibição do Valor por Competência
                 with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
-                    resumo_comp = df_fila.groupby(['mes_competencia', 'ano_competencia'])['valor_limpo'].sum().reset_index()
+                    resumo_comp = df_fila.groupby(['mes_sigla', 'ano_competencia'])['valor_limpo'].sum().reset_index()
                     resumo_comp.columns = ['Mês', 'Ano', 'Total Apresentado (R$)']
                     st.table(resumo_comp.style.format({'Total Apresentado (R$)': 'R$ {:,.2f}'}))
                 
@@ -414,7 +425,7 @@ else:
             else:
                 # Adicionamos a coluna de Dias na Fila para facilitar a visão do auditor
                 st.dataframe(
-                    df_fila[['nup', 'ose', 'valor_apresentado', 'mes_competencia', 'ano_competencia', 'dias_fila']], 
+                    df_fila[['nup', 'ose', 'valor_apresentado', 'mes_sigla', 'ano_competencia', 'dias_fila']], 
                     use_container_width=True,
                     column_config={
                         "dias_fila": st.column_config.NumberColumn("Dias na Fila", help="Dias desde a entrada na SECOM")
@@ -640,7 +651,7 @@ else:
 
                 # --- INTERFACE DE INDICADORES ---
                 st.markdown("### 📊 Faturas Auditadas aguardando encaminhamento")
-                st.write("⚠️ **Prazos contados a partir do RECEBIMENTO na Auditoria** ⚠️")
+                st.write("⚠️ **O número de dias é contado a partir do recebimento da fatura na Divisão de Auditoria** ⚠️")
                 
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total Concluído", f"{len(df_auditadas)}")
@@ -661,7 +672,7 @@ else:
                 # --- LISTAGEM E AÇÕES ---
                 st.subheader("✅ Faturas Prontas para Encaminhamento")
                 st.dataframe(
-                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'responsavel_atual', 'dias_no_setor']], 
+                    df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_competencia', 'ano_competencia', 'dias_no_setor']], 
                     use_container_width=True
                 )
                 
