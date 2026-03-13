@@ -1069,7 +1069,7 @@ else:
                     if not cod_ne_final:
                         st.warning("⚠️ Digite o número da NE antes de prosseguir.")
                     else:
-                        ne_completa = f"78770000001NE{datetime.now().year}{cod_ne_final}"
+                        ne_completa = f"78770000001{datetime.now().year}NE{cod_ne_final}"
                         cnpj_alvo = f_status_4[f_status_4['nup'].isin(nups_sel)]['cnpj'].iloc[0]
                         
                         with st.spinner(f"Gravando NE {ne_completa}..."):
