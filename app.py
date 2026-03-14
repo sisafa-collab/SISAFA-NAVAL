@@ -1165,6 +1165,141 @@ else:
             else:
                 st.info("Nenhuma fatura pronta para pagamento.")
 
+        # --- ABA 4: ESTATÍSTICAS E INDICADORES (KPIs Financeiros) ---
+        with tab4:
+            st.header("📊 Estatística e Indicadores")
+            
+            # Filtros Rápidos
+            col_f1, col_f2 = st.columns(2)
+            anos_disp = sorted(df['ano_competencia'].unique(), reverse=True)
+            ano_sel = col_f1.selectbox("Filtrar por Ano:", ["Todos"] + list(anos_disp), key="f_ano_exec")
+            
+            df_e = df.copy()
+            if ano_sel != "Todos": df_e = df_e[df_e['ano_competencia'] == ano_sel]
+            
+            df_e['v_ap_num'] = df_e['valor_apresentado'].apply(limpar_valor)
+            df_e['v_liq_num'] = df_e['valor_liquido'].apply(limpar_valor)
+            df_e['glosa_num'] = df_e['glosa'].apply(limpar_valor)
+
+            # --- 1. MÉTRICAS GLOBAIS ---
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Processos no Ciclo", len(df_e))
+            c2.metric("Apresentado", f"R$ {df_e['v_ap_num'].sum():,.2f}")
+            c3.metric("Economia (Glosa)", f"R$ {df_e['glosa_num'].sum():,.2f}")
+            c4.metric("Líquido a Pagar", f"R$ {df_e['v_liq_num'].sum():,.2f}")
+
+            st.divider()
+            
+            # --- 2. GRÁFICOS DE DESEMPENHO ---
+            cg1, cg2 = st.columns(2)
+            
+            with cg1:
+                # Distribuição por Fase do Ciclo
+                status_map = {
+                    1: "Fila Auditoria", 2: "Em Auditoria", 3: "Fila Execução",
+                    4: "Aguard. NE", 5: "Empenhado", 6: "Fiscalização",
+                    7: "Liquidando", 8: "Pronto Pagar", 9: "Pago/Encerrado"
+                }
+                status_counts = df_e['status'].map(status_map).value_counts().reset_index()
+                st.plotly_chart(px.pie(status_counts, values='count', names='status', title="Distribuição por Fase", hole=0.4), use_container_width=True)
+            
+            with cg2:
+                # Top 10 OSEs por Valor Líquido
+                top_ose_exec = df_e.groupby('ose')['v_liq_num'].sum().sort_values(ascending=False).head(10).reset_index()
+                st.plotly_chart(px.bar(top_ose_exec, x='v_liq_num', y='ose', orientation='h', title="Top 10 OSEs (Valor Líquido)", color_discrete_sequence=['#2e6b54']), use_container_width=True)
+
+        # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
+        with tab5:
+            st.subheader("🔍 Consultas")
+            
+            termo_busca_exec = st.text_input(
+                "Pesquise por NUP, OSE, CNPJ, Nota de Empenho ou Fatura:", 
+                placeholder="Ex: 00052, HNBra, 63060...",
+                key="busca_global_exec"
+            )
+
+            if termo_busca_exec:
+                # Busca em múltiplas colunas simultaneamente
+                mask_exec = (
+                    df['nup'].astype(str).str.contains(termo_busca_exec, case=False, na=False) |
+                    df['ose'].astype(str).str.contains(termo_busca_exec, case=False, na=False) |
+                    df['ne'].astype(str).str.contains(termo_busca_exec, case=False, na=False) |
+                    df['Numero_da_fatura'].astype(str).str.contains(termo_busca_exec, case=False, na=False)
+                )
+                res_exec = df[mask_exec]
+
+                if res_exec.empty:
+                    st.warning("Nenhum registro encontrado.")
+                else:
+                    st.write(f"📂 **{len(res_exec)}** resultados encontrados:")
+                    st.dataframe(res_exec[['nup', 'ose', 'Numero_da_fatura', 'ne', 'status']], use_container_width=True)
+                    
+                    nup_detalhe = st.selectbox("Selecione o NUP para ver o histórico completo:", [""] + res_exec['nup'].tolist(), key="sb_detalhe_exec")
+
+                    if nup_detalhe:
+                        # Snapshot
+                        dados_nup = df[df['nup'] == nup_detalhe].iloc[0]
+                        st.info(f"📍 **Status Atual:** Fase {dados_nup['status']} | **Responsável:** {dados_nup['responsavel_atual']} | **NE:** {dados_nup['ne']}")
+
+                        # Histórico de Movimentações (Status)
+                        st.markdown("### 👣 Movimentações de Status")
+                        try:
+                            aba_h = sh.worksheet(ABA_HISTORICO)
+                            df_h = pd.DataFrame(aba_h.get_all_records())
+                            track = df_h[df_h['nup'] == nup_detalhe].sort_values(by='timestamp')
+                            if not track.empty:
+                                for _, r in track.iterrows():
+                                    st.caption(f"🕒 {r['timestamp']} | **{r['status_origem']}** ⮕ **{r['status_destino']}** (Usuário: {r['usuario']})")
+                            else: st.write("Sem histórico de movimentação.")
+                        except: st.error("Erro ao carregar histórico.")
+
+                        # Logs de Ações (E-mails, Recebimentos, NEs)
+                        st.markdown("### 📝 Logs de Eventos")
+                        try:
+                            aba_l = sh.worksheet(ABA_LOGS_ACOES)
+                            df_l = pd.DataFrame(aba_l.get_all_records())
+                            logs = df_l[df_l['nup'] == nup_detalhe].sort_values(by='data_hora', ascending=False)
+                            if not logs.empty:
+                                st.table(logs[['data_hora', 'acao', 'militar_nip', 'detalhes']])
+                            else: st.write("Nenhuma ação específica registrada.")
+                        except: st.error("Erro ao carregar logs.")
+
+        # --- ABA 6: RELACIONAMENTO (Inbox OSE) ---
+        with tab6:
+            st.subheader("🤝 Relacionamento")
+            st.write("Dúvidas financeiras e questionamentos de faturas enviados pelas OSEs.")
+
+            try:
+                aba_msg = sh.worksheet(ABA_MENSAGENS)
+                df_msg = pd.DataFrame(aba_msg.get_all_records())
+                
+                if df_msg.empty:
+                    st.info("Nenhuma mensagem pendente.")
+                else:
+                    pendentes = len(df_msg[df_msg['status_resposta'] == 'PENDENTE'])
+                    st.metric("Mensagens Pendentes", pendentes)
+                    
+                    df_exibir = df_msg.sort_values(by='status_resposta', ascending=False)
+                    st.dataframe(df_exibir[['nup', 'cnpj_ose', 'assunto', 'status_resposta']], use_container_width=True)
+
+                    st.markdown("---")
+                    nup_msg = st.selectbox("Selecione o NUP para responder à OSE:", [""] + df_msg['nup'].tolist(), key="sel_msg_exec")
+
+                    if nup_msg:
+                        item = df_msg[df_msg['nup'] == nup_msg].iloc[0]
+                        with st.chat_message("user"):
+                            st.write(f"**Assunto:** {item['assunto']}")
+                            st.write(item['mensagem_corpo'])
+                        
+                        resp_exec = st.text_area("Parecer da Execução Financeira:", placeholder="Digite aqui a resposta para a OSE...")
+                        if st.button("📤 Enviar Parecer Financeiro"):
+                            if resp_exec:
+                                registrar_acao(nup_msg, "N/A", "RESPOSTA_FINANCEIRA", "Financeiro respondeu questionamento da OSE.")
+                                st.success("Resposta enviada para o portal da OSE!")
+                                time.sleep(1)
+                                st.rerun()
+            except Exception as e:
+                st.error(f"Erro na aba relacionamento: {e}")
 
 
 
