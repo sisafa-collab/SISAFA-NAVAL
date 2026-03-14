@@ -259,7 +259,7 @@ elif st.session_state.modulo_ativo is None:
     with col_l2:
         if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
     
-    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Bem-vindo, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Olá, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho abaixo para iniciar:</p><br>", unsafe_allow_html=True)
     
     perfis = [p.strip().upper() for p in st.session_state.user_perfil.split(',')]
@@ -1006,19 +1006,17 @@ else:
 
         # --- ABA 2: GESTÃO DE NE (Status 4 -> 5 -> 6) ---
         with tab2:
+            # --- SEÇÃO 1: EMISSÃO DE NE ---
             st.markdown("### 📝 1. Emitir Nota de Empenho (NE)")
             
-            # Mapeamento para garantir que as siglas funcionem nesta aba
             meses_siglas = {
                 1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
                 7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
             }
             
-            # 1. Filtro de faturas prontas para empenho
             f_status_4 = df[df['status'] == 4].copy()
             
             if not f_status_4.empty:
-                # Criamos a coluna mes_sigla para evitar o KeyError na visualização
                 f_status_4['mes_sigla'] = pd.to_numeric(f_status_4['mes_competencia'], errors='coerce').map(meses_siglas)
 
                 nups_sel = st.multiselect(
@@ -1027,17 +1025,13 @@ else:
                     key="sel_ne_batch"
                 )
                 
-                # --- BLOCO DE AJUDA E CONFERÊNCIA ---
                 trava_cnpj = False
                 if nups_sel:
                     df_conf = f_status_4[f_status_4['nup'].isin(nups_sel)].copy()
                     df_conf['v_liq_num'] = df_conf['valor_liquido'].apply(limpar_valor)
-                    
-                    # Verificação de CNPJs únicos
                     lista_cnpjs = df_conf['cnpj'].unique()
                     trava_cnpj = len(lista_cnpjs) > 1
                     
-                    # Dados para o Card
                     empresa_nome = df_conf['ose'].iloc[0]
                     cnpj_principal = df_conf['cnpj'].iloc[0]
                     valor_total_ne = df_conf['v_liq_num'].sum()
@@ -1046,25 +1040,20 @@ else:
                     with st.container(border=True):
                         st.markdown(f"#### 🔎 Conferência de Empenho")
                         c_aj1, c_aj2 = st.columns([2, 1])
-                        
                         with c_aj1:
                             st.write(f"🏢 **Empresa:** {empresa_nome}")
                             st.write(f"🆔 **CNPJ:** {cnpj_principal}")
                             st.write(f"📄 **Faturas:** {faturas_no_lote}")
-                            
                             if trava_cnpj:
                                 st.error("❌ **ALERTA:** Múltiplos CNPJs detectados. Remova os NUPs intrusos.")
-                        
                         with c_aj2:
                             st.metric("Qtd. Faturas", len(df_conf))
                             st.metric("Total da NE", f"R$ {valor_total_ne:,.2f}")
 
-                # --- INPUTS E CADASTRO ---
                 col_input1, col_input2 = st.columns([1,1])
                 with col_input1:
                     cod_ne_final = st.text_input("Número Final da NE (ex: 00052)", key="input_ne_num")
                 
-                # O botão fica desabilitado se houver erro de CNPJ ou nada selecionado
                 if st.button("🚀 Cadastrar NE", disabled=trava_cnpj or not nups_sel, use_container_width=True):
                     if not cod_ne_final:
                         st.warning("⚠️ Digite o número da NE antes de prosseguir.")
@@ -1078,76 +1067,65 @@ else:
                                 if cell:
                                     aba_p.update_cell(cell.row, 15, ne_completa)
                                     mover_status(nup, 5)
-                                    
                                     fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
                                     registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
                             
-                            st.success(f"✅ Sucesso! NE {ne_completa} cadastrada para {empresa_nome}.")
+                            st.success(f"✅ Sucesso! NE {ne_completa} cadastrada.")
                             time.sleep(1.5)
                             st.rerun()
 
                 st.divider()
                 st.subheader("📋 Processos Disponíveis para Empenho")
-                # Agora cols_v encontrará a coluna 'mes_sigla' sem erro
                 cols_v = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido']
                 st.dataframe(f_status_4[cols_v].rename(columns={'mes_sigla':'Mês'}), use_container_width=True)
-            
             else:
                 st.info("Não há faturas aguardando emissão de NE.")
 
-            st.divider()
+            st.markdown("---") # Separador visual dentro da aba
 
-            # --- SEÇÃO 2: ENVIO PARA FISCALIZAÇÃO (Status 5 -> 6) ---
-        st.markdown("### 📤 2. Encaminhar para Fiscalização")
-        
-        # Filtra apenas Status 5 (Já empenhadas)
-        f_status_5 = df[df['status'] == 5].copy()
-        
-        if not f_status_5.empty:
-            # Mapeamento de meses para visualização
-            meses_siglas = {
-                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
-                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
-            }
-            f_status_5['mes_extenso'] = f_status_5['mes_competencia'].map(meses_siglas).fillna(f_status_5['mes_competencia'])
+            # --- SEÇÃO 2: ENVIO PARA FISCALIZAÇÃO (Agora DENTRO da tab2) ---
+            st.markdown("### 📤 2. Encaminhar para Fiscalização (Por Nota de Empenho)")
+            
+            f_status_5 = df[df['status'] == 5].copy()
+            
+            if not f_status_5.empty:
+                # Criamos a lista de NEs únicas disponíveis
+                lista_nes_disponiveis = sorted(f_status_5['ne'].unique().tolist())
 
-            # Seleção em lote para o fiscal
-            lote_fiscal = st.multiselect(
-                "Selecione o(s) NUP(s) para enviar ao Fiscal:", 
-                f_status_5['nup'].tolist(), 
-                key="lote_fiscal_exec"
-            )
+                selecao_ne = st.multiselect(
+                    "Selecione a(s) Nota(s) de Empenho para enviar ao Fiscal:",
+                    options=lista_nes_disponiveis,
+                    help="Ao selecionar uma NE, todos os processos vinculados a ela serão enviados.",
+                    key="multisel_envio_fiscal_ne"
+                )
 
-            if st.button("📧 Enviar em Lote"):
-                if lote_fiscal:
-                    with st.spinner("Movimentando processos para Fiscalização..."):
-                        for n in lote_fiscal:
-                            # Evolui para Status 6 (Em Fiscalização)
-                            mover_status(n, 6)
-                            
-                            # Log da ação
-                            fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                            registrar_acao(n, fatura_n, "ENVIO_FISCALIZACAO", "Encaminhado para conferência do Fiscal (PJS/Fiscais).")
-                    
-                    st.success(f"✅ {len(lote_fiscal)} faturas encaminhadas para fiscalização com sucesso!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.warning("⚠️ Selecione ao menos um NUP da lista abaixo.")
+                if st.button("📧 Encaminhar Empenhos p/ Fiscalização", use_container_width=True):
+                    if selecao_ne:
+                        # Filtramos todos os NUPs que pertencem às NEs selecionadas
+                        nups_para_enviar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
+                        
+                        with st.spinner(f"Encaminhando {len(nups_para_enviar)} faturas vinculadas..."):
+                            for nup in nups_para_enviar:
+                                # Evolui para Status 6 (Em Fiscalização)
+                                mover_status(nup, 6)
+                                
+                                # Log da ação individual
+                                dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
+                                registrar_acao(nup, dados_n['Numero_da_fatura'], "ENVIO_FISCALIZACAO", f"Empenho {dados_n['ne']} enviado p/ Fiscalização.")
+                        
+                        st.success(f"✅ Sucesso! {len(selecao_ne)} Notas de Empenho enviadas ao Fiscal ({len(nups_para_enviar)} faturas no total).")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Selecione ao menos uma Nota de Empenho.")
 
-            # --- TABELA ORGANIZADA POR EMPENHO ---
-            st.subheader("Processos Empenhados (Aguardando Envio)")
-            
-            # Colunas solicitadas: NUP, CNPJ, OSE, Valor, Mês, Ano e NE
-            cols_v = ['nup', 'cnpj', 'ose', 'valor_liquido', 'mes_extenso', 'ano_competencia', 'ne']
-            
-            # Ordenamos pela coluna 'ne' para agrupar visualmente as faturas do mesmo empenho
-            df_exibir_fiscal = f_status_5[cols_v].sort_values(by='ne').rename(columns={'mes_extenso': 'Mês', 'ne': 'Nota de Empenho'})
-            
-            st.dataframe(df_exibir_fiscal, use_container_width=True)
-            
-        else:
-            st.info("Nenhuma fatura empenhada (Status 5) aguardando envio.")
+                st.subheader("📊 Faturas Empenhadas aguardando envio")
+                f_status_5['mes_sigla'] = f_status_5['mes_competencia'].map(meses_siglas)
+                cols_f = ['ne', 'ose', 'nup', 'valor_liquido', 'mes_sigla', 'ano_competencia']
+                df_exibir_f = f_status_5[cols_f].sort_values(by='ne').rename(columns={'ne': 'Nota de Empenho', 'mes_sigla': 'Mês'})
+                st.dataframe(df_exibir_f, use_container_width=True)
+            else:
+                st.info("Não há Notas de Empenho aguardando envio.")
 
         # --- ABA 3: GESTÃO DE PAGAMENTOS (Status 7 -> 8 -> 9) ---
         with tab3:
