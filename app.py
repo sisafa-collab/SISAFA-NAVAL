@@ -908,101 +908,104 @@ else:
 
         # Criando as abas
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "📥 Fila de Espera", "📄 Gestão de NE", "💸 Gestão de Pagamentos", 
+            "📥 Caixa de entrada", "📄 Gestão de NE", "💸 Gestão de Pagamentos", 
             "📊 Estatísticas e Indicadores", "🔍 Consultas", "🤝 Relacionamento"
         ])
 
-        # --- ABA 1: FILA DE ESPERA (Baseada no Layout da Auditoria) ---
+        # --- ABA 1: CAIXA DE ENTRADA ---
         with tab1:
-            # --- CÁLCULO DOS INDICADORES ---
-            df_fila_exec = df[df['status'] == 3].copy()
+            st.header("📥 Caixa de Entrada")
             
-            # Cruzamento automático com Logs para pegar a data de encaminhamento
-            logs_raw = aba_l.get_all_records()
-            df_logs = pd.DataFrame(logs_raw)
-            df_envio = df_logs[df_logs['acao'] == "ENCAMINHADO_PARA_FINANCEIRO"].copy()
-            df_envio['dt_chegada'] = pd.to_datetime(df_envio['data_hora'], dayfirst=True, errors='coerce')
-            df_envio = df_envio.sort_values('dt_chegada', ascending=False).drop_duplicates('nup')
+            meses_siglas = {
+                1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN',
+                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'
+            }
+
+            # =================================================================
+            # 1. PARTE: FATURAS AUDITADAS (Vindo da Auditoria - Status 3)
+            # =================================================================
+            st.subheader("📥 Faturas auditadas aguardando Recebimento no Financeiro")
             
-            # Mescla a data do log no dataframe de execução
-            df_fila_exec = df_fila_exec.merge(df_envio[['nup', 'dt_chegada']], on='nup', how='left')
-
-            if not df_fila_exec.empty:
-                # 1. Preparação dos dados: Limpeza de valores e cálculo de dias
-                # (Usando o v_num que criamos para evitar erro de string)
-                df_fila_exec['valor_limpo'] = df_fila_exec['valor_liquido'].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).str.strip()
-                df_fila_exec['valor_limpo'] = pd.to_numeric(df_fila_exec['valor_limpo'], errors='coerce').fillna(0.0)
-                
-                hoje = datetime.now()
-                df_fila_exec['dias_fila'] = (hoje - df_fila_exec['dt_chegada']).dt.days.fillna(0).astype(int)
-
-                # 2. Cálculos de Temporalidade (Padrão Execução: 2d, 3d, 4d+)
-                aceitavel = len(df_fila_exec[df_fila_exec['dias_fila'] <= 2])
-                atencao = len(df_fila_exec[df_fila_exec['dias_fila'] == 3])
-                atraso = len(df_fila_exec[df_fila_exec['dias_fila'] >= 4])
-
-                # --- INTERFACE DE INDICADORES (KPIs) ---
-                st.markdown("### 📊 Situação da fila de faturas enviadas pela Auditoria")
-                
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total de Faturas", f"{len(df_fila_exec)}")
-                c2.metric("🟢 Aceitável (até 2d)", f"{aceitavel}")
-                c3.metric("🟡 Atenção (3d)", f"{atencao}")
-                c4.metric("🔴 Em Atraso (>= 4d)", f"{atraso}")
-
-                # Detalhamento por Competência
-                with st.expander("💰 Detalhamento por Competência (Mês/Ano)", expanded=False):
-                    resumo_comp = df_fila_exec.groupby(['mes_competencia','ano_competencia'])['valor_limpo'].sum().reset_index()
-                    resumo_comp.columns = ['Mês','Ano','Total Líquido (R$)']
-                    st.table(resumo_comp.style.format({'Total Líquido (R$)':'R${:,.2f}'}))
-                
-                st.divider()
-
-            # --- TABELA DE PROCESSOS ---
-            st.subheader("📥 Processos aguardando Recebimento no Financeiro")
+            df_fila_aud = df[df['status'] == 3].copy()
             
-            if df_fila_exec.empty:
-                st.info("Não há faturas na fila no momento.")
+            # Cruzamento com Logs para pegar data de envio da Auditoria
+            try:
+                logs_raw = aba_l.get_all_records()
+                df_logs = pd.DataFrame(logs_raw)
+                df_envio_aud = df_logs[df_logs['acao'] == "ENCAMINHADO_PARA_FINANCEIRO"].copy()
+                df_envio_aud['dt_chegada'] = pd.to_datetime(df_envio_aud['data_hora'], dayfirst=True, errors='coerce')
+                df_envio_aud = df_envio_aud.sort_values('dt_chegada', ascending=False).drop_duplicates('nup')
+                df_fila_aud = df_fila_aud.merge(df_envio_aud[['nup', 'dt_chegada']], on='nup', how='left')
+            except:
+                df_fila_aud['dt_chegada'] = datetime.now()
+
+            if df_fila_aud.empty:
+                st.info("Nenhuma fatura vinda da Auditoria no momento.")
             else:
+                df_fila_aud['mes_sigla'] = pd.to_numeric(df_fila_aud['mes_competencia'], errors='coerce').map(meses_siglas)
+                hoje = datetime.now()
+                df_fila_aud['dias_espera'] = (hoje - df_fila_aud['dt_chegada']).dt.days.fillna(0).astype(int)
+
                 st.dataframe(
-                    df_fila_exec[['nup','ose','valor_liquido','mes_competencia','ano_competencia','dias_fila']],
+                    df_fila_aud[['nup','ose','valor_liquido','mes_sigla','ano_competencia','dias_espera']],
                     use_container_width=True,
-                    column_config={
-                        "dias_fila": st.column_config.NumberColumn("Dias na Fila", help="Dias desde o envio pela Auditoria")
-                    }
+                    key="df_aud_recepcao"
                 )
                 
-                # Seleção múltipla para recebimento
-                nups_sel = st.multiselect("Selecione os NUPs para receber:", df_fila_exec['nup'].tolist(), key="multi_exec")
+                nups_aud_sel = st.multiselect("Selecionar faturas auditadas para receber:", df_fila_aud['nup'].tolist(), key="ms_aud_recep")
                 
-                if st.button("📥 RECEBER FATURA(S)"):
-                    if nups_sel:
-                        st.session_state.confirma_exec = True
-                    else:
-                        st.warning("⚠️ Selecione ao menos uma fatura.")
-
-                # --- INTERFACE DE CONFIRMAÇÃO ---
-                if st.session_state.get('confirma_exec', False):
-                    st.markdown("---")
-                    st.warning(f"⚖️ **CONFIRMAÇÃO:** Você vai receber **{len(nups_sel)}** processo(s). Confirmar?")
-                    
-                    col_sim, col_nao = st.columns(2)
-                    
-                    if col_sim.button("✅ SIM, receber"):
-                        with st.spinner("Movimentando..."):
-                            for n in nups_sel:
-                                mover_status(n, 4) # Move para Aguardando emissão de NE
-                                fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                registrar_acao(n, fatura_n, "RECEBIMENTO_FINANCEIRO", f"Financeiro {st.session_state.user_id} recebeu a fatura.")
-                        
-                        st.success(f"✅ {len(nups_sel)} processos movidos!")
-                        st.session_state.confirma_exec = False
+                if st.button("✅ Receber Faturas Auditadas", key="btn_aud_recep"):
+                    if nups_aud_sel:
+                        with st.spinner("Recebendo..."):
+                            for n in nups_aud_sel:
+                                mover_status(n, 4) # Evolui para Aguard. NE
+                                fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura auditada recebida pela Execução.")
+                        st.success(f"{len(nups_aud_sel)} faturas recebidas!")
                         time.sleep(1)
                         st.rerun()
 
-                    if col_nao.button("❌ NÃO, cancelar"):
-                        st.session_state.confirma_exec = False
+            st.divider()
+
+            # =================================================================
+            # 2. PARTE: NOTAS FISCAIS CERTIFICADAS (Vindo do Fiscal - Status 6)
+            # =================================================================
+            st.subheader("📥 Notas Fiscais certificadas aguardando Recebimento no Financeiro")
+            
+            # Filtramos processos que o Fiscal já digitou a NF (Status 6)
+            df_fila_fiscal = df[df['status'] == 6].copy()
+            
+            if df_fila_fiscal.empty:
+                st.info("Nenhuma Nota Fiscal aguardando conferência do Fiscal.")
+            else:
+                df_fila_fiscal['mes_sigla'] = pd.to_numeric(df_fila_fiscal['mes_competencia'], errors='coerce').map(meses_siglas)
+                
+                # Exibição da tabela com a coluna 'nf' (Coluna onde o fiscal digita)
+                # Assumindo que a coluna na sua planilha chama-se 'nf'
+                cols_nf = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido', 'nf']
+                st.dataframe(df_fila_fiscal[cols_nf].rename(columns={'nf': 'Número da NF'}), use_container_width=True)
+                
+                # Seleção por NOTA FISCAL
+                lista_nfs = sorted(df_fila_fiscal['nf'].unique().tolist())
+                nfs_sel = st.multiselect("Selecione a(s) Nota(s) Fiscal(is) para aceitar:", options=lista_nfs, key="ms_nf_recep")
+                
+                if st.button("🚀 Aceitar e Liquidar Notas Fiscais", key="btn_nf_recep"):
+                    if nfs_sel:
+                        # Buscamos todos os NUPs vinculados a essas NFs
+                        nups_da_nf = df_fila_fiscal[df_fila_fiscal['nf'].isin(nfs_sel)]['nup'].tolist()
+                        
+                        with st.spinner(f"Processando {len(nups_da_nf)} faturas..."):
+                            for n in nups_da_nf:
+                                mover_status(n, 7) # Evolui de 6 para 7 (Liquidando/Retorno do Fiscal)
+                                fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                nf_n = df_fila_fiscal[df_fila_fiscal['nup'] == n]['nf'].values[0]
+                                registrar_acao(n, fat_n, "NF_ACEITA_FINANCEIRO", f"NF {nf_n} conferida e aceita pela Execução.")
+                        
+                        st.success(f"✅ {len(nfs_sel)} Notas Fiscais aceitas! Processos movidos para liquidação.")
+                        time.sleep(1.5)
                         st.rerun()
+                    else:
+                        st.warning("⚠️ Selecione ao menos uma NF para aceitar.")
 
         # --- ABA 2: GESTÃO DE NE (Status 4 -> 5 -> 6) ---
         with tab2:
@@ -1142,7 +1145,7 @@ else:
                         fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
                         registrar_acao(n, fatura_n, "LIQUIDADO", "Fatura liquidada e pronta para pagamento.")
                     st.rerun()
-                st.dataframe(f_status_7[['nup', 'ose', 'valor_liquido']], use_container_width=True)
+                st.dataframe(f_status_7[['nup', 'ose', 'valor_liquido','nf']], use_container_width=True)
             else:
                 st.info("Nenhuma fatura aguardando liquidação.")
 
@@ -1161,7 +1164,7 @@ else:
                     st.success("Missão cumprida! Faturas pagas.")
                     time.sleep(1)
                     st.rerun()
-                st.dataframe(f_status_8[['nup', 'ose', 'valor_liquido']], use_container_width=True)
+                st.dataframe(f_status_8[['nup', 'ose', 'valor_liquido','nf']], use_container_width=True)
             else:
                 st.info("Nenhuma fatura pronta para pagamento.")
 
