@@ -1356,9 +1356,53 @@ else:
                     df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_limpo)].copy()
                     
                     if not df_proc_fisc.empty:
+                        # Preparação dos dados
                         df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
+                        
+                        # --- EXIBIÇÃO DA TABELA ---
+                        st.write(f"📋 **Processos detalhados de {ose_sel}:**")
                         cols_fisc = ['nup', 'cnpj', 'ose', 'Numero_da_fatura', 'situação_texto']
                         st.dataframe(df_proc_fisc[cols_fisc].rename(columns={'situação_texto': 'Situação'}), use_container_width=True)
+                        
+                        st.divider()
+
+                        # --- NOVO: DASHBOARD ANALÍTICO ---
+                        st.subheader(f"📊 Painel de Controle: {ose_sel}")
+                        
+                        c_dash1, c_dash2 = st.columns([1.2, 0.8])
+                        
+                        with c_dash1:
+                            # Gráfico de Pizza (Rosca) por Status
+                            df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
+                            df_pizza.columns = ['Fase', 'Quantidade']
+                            
+                            fig_pizza = px.pie(
+                                df_pizza, 
+                                values='Quantidade', 
+                                names='Fase', 
+                                title="Processos por Fase do Ciclo",
+                                hole=0.5,
+                                color_discrete_sequence=px.colors.qualitative.Safe
+                            )
+                            # Ajuste de layout para legenda embaixo
+                            fig_pizza.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5))
+                            st.plotly_chart(fig_pizza, use_container_width=True)
+
+                        with c_dash2:
+                            # Métricas Financeiras
+                            df_proc_fisc['v_liq_num'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
+                            
+                            # Filtramos o que já foi concluído (Status 9) e o que está em andamento
+                            valor_pago = df_proc_fisc[df_proc_fisc['status'] == 9]['v_liq_num'].sum()
+                            valor_tramite = df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq_num'].sum()
+                            
+                            st.metric("Total de Processos", f"{len(df_proc_fisc)}")
+                            st.metric("Volume em Trâmite", f"R$ {valor_tramite:,.2f}")
+                            st.metric("Total Pago (Histórico)", f"R$ {valor_pago:,.2f}")
+                            
+                            # Alerta visual se houver faturas em atraso (Status < 9 e muitos dias)
+                            st.info("💡 As métricas acima refletem o valor líquido final após glosas.")
+
                     else:
                         st.info("Não há processos para este CNPJ.")
 
