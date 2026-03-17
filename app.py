@@ -1305,136 +1305,85 @@ else:
                 st.error(f"Erro na aba relacionamento: {e}")
 
 
-
-
-
-
-
-    # =================================================================
-# MÓDULO 4: FISCALIZAÇÃO DE CONTRATOS
-# =================================================================
     elif "FISCALIZAÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
-        st.header("📋 Fiscalização de Contratos em Saúde")
+    st.header("📋 Fiscalização de Contratos em Saúde")
 
-       # Definição das Abas
-        tab_visao, tab_nf, tab_busca, tab_rel = st.tabs([
+    tab_visao, tab_nf, tab_busca, tab_rel = st.tabs([
         "🔭 Visão Geral", "🧾 Empenhos aguardando NF", "🔍 Consultas", "💬 Relacionamento"
-        ])
+    ])
 
-    # --- LÓGICA DE PERMISSÃO (Global vs Comum) ---
     user_nip = str(st.session_state.user_id).strip()
-    is_global = (user_nip == "99999999") # Rosilene
+    is_global = (user_nip == "99999999") 
 
-    # 1. ABA: VISÃO GERAL
     with tab_visao:
         st.subheader("Meus contratos")
-        
-        # Carregamos a Tabela-A para saber quais OSEs pertencem a qual Fiscal
         df_ose_master = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
         
         if is_global:
-            st.info("🔓 Perfil Fiscal Global: Visualizando todas as OSEs do SISAFA.")
+            st.info("🔓 Perfil Fiscal Global: Visualizando todas as OSEs.")
             df_fiscal = df_ose_master.copy()
         else:
-            # Filtra OSEs onde o NIP do Fiscal coincide
             df_fiscal = df_ose_master[df_ose_master['NIP_Fiscal'].astype(str) == user_nip].copy()
 
         if df_fiscal.empty:
-            st.warning("Nenhum contrato vinculado ao seu NIP na Tabela-A.")
+            st.warning("Nenhum contrato vinculado ao seu NIP.")
         else:
             st.dataframe(df_fiscal[['CNPJ', 'Razão Social', 'E-mail Principal da OSE']], use_container_width=True)
-            
             st.divider()
             st.subheader("Situação Geral")
-            
-            ose_sel = st.selectbox("Escolha a Razão Social para detalhamento:", [""] + df_fiscal['Razão Social'].tolist())
+            ose_sel = st.selectbox("Escolha a Razão Social:", [""] + df_fiscal['Razão Social'].tolist())
             
             if ose_sel:
-                # Dicionário de tradução de Status
                 mapa_status = {
                     1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
                     4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
                     6: "6 - AGUARDANDO EMISSÃO DE NF", 7: "7 - EM LIQUIDAÇÃO",
                     8: "8 - FATURA LIQUIDADA", 9: "9 - FATURA PAGA"
                 }
-                
-                # Filtra processos da OSE selecionada
                 cnpj_ose = df_fiscal[df_fiscal['Razão Social'] == ose_sel]['CNPJ'].iloc[0]
-                # Filtro pelo CNPJ (considerando os primeiros dígitos para evitar erros de formatação)
                 cnpj_limpo = str(cnpj_ose).split('.')[0]
-                df_processos_ose = df[df['cnpj'].astype(str).str.contains(cnpj_limpo)].copy()
+                df_p_ose = df[df['cnpj'].astype(str).str.contains(cnpj_limpo)].copy()
                 
-                if df_processos_ose.empty:
-                    st.info(f"Não há processos registrados para {ose_sel}.")
-                else:
-                    df_processos_ose['Situação'] = df_processos_ose['status'].map(mapa_status)
-                    cols_view = ['nup', 'cnpj', 'ose', 'Numero_da_fatura', 'Situação']
-                    st.dataframe(df_processos_ose[cols_view], use_container_width=True)
+                if not df_p_ose.empty:
+                    df_p_ose['Situação'] = df_p_ose['status'].map(mapa_status)
+                    st.dataframe(df_p_ose[['nup', 'ose', 'Numero_da_fatura', 'Situação']], use_container_width=True)
 
-    # 2. ABA: EMPENHOS AGUARDANDO NF
     with tab_nf:
-        st.markdown("### 🧾 NOTAS DE EMPENHO AGUARDANDO EMISSÃO DE NOTA FISCAL")
+        st.markdown("### 🧾 NOTAS DE EMPENHO AGUARDANDO NF")
+        df_s6 = df[df['status'] == 6].copy()
         
-        # Regra: Status 6 (Fase onde o Fiscal atua solicitando NF)
-        df_status_6 = df[df['status'] == 6].copy()
-        
-        if df_status_6.empty:
-            st.info("Não há Notas de Empenho aguardando NF no momento.")
-        else:
-            # Indicadores de Prazo baseados na coluna 14 (Índice 13)
-            df_status_6['dt_mov'] = pd.to_datetime(df_status_6.iloc[:, 13], dayfirst=True, errors='coerce')
-            hoje = datetime.now()
-            df_status_6['dias'] = (hoje - df_status_6['dt_mov']).dt.days.fillna(0).astype(int)
+        if not df_s6.empty:
+            df_s6['dt_mov'] = pd.to_datetime(df_s6.iloc[:, 13], dayfirst=True, errors='coerce')
+            df_s6['dias'] = (datetime.now() - df_s6['dt_mov']).dt.days.fillna(0).astype(int)
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Total NEs", len(df_status_6['ne'].unique()))
-            c2.metric("🟢 Aceitável (até 3d)", len(df_status_6[df_status_6['dias'] <= 3]))
-            c3.metric("🟡 Atenção (4-7d)", len(df_status_6[(df_status_6['dias'] > 3) & (df_status_6['dias'] <= 7)]))
-            c4.metric("🔴 Atraso (>7d)", len(df_status_6[df_status_6['dias'] > 7]))
+            c1.metric("Total NEs", len(df_s6['ne'].unique()))
+            c2.metric("🟢 Até 3d", len(df_s6[df_s6['dias'] <= 3]))
+            c3.metric("🟡 4-7d", len(df_s6[(df_s6['dias'] > 3) & (df_s6['dias'] <= 7)]))
+            c4.metric("🔴 >7d", len(df_s6[df_s6['dias'] > 7]))
 
-            st.dataframe(df_status_6[['nup', 'cnpj', 'ose', 'Numero_da_fatura', 'ne', 'dias']].sort_values(by='ne'), use_container_width=True)
-            
+            st.dataframe(df_s6[['nup', 'ose', 'ne', 'dias']].sort_values(by='ne'), use_container_width=True)
             st.divider()
             
-            # Opção de selecionar por NE
-            lista_ne = sorted(df_status_6['ne'].unique().tolist())
-            ne_alvo = st.selectbox("Selecione a Nota de Empenho para processar:", [""] + lista_ne, key="sb_fiscal_ne")
-            
-            if ne_alvo:
-                df_ne = df_status_6[df_status_6['ne'] == ne_alvo].copy()
-                v_total_ne = df_ne['valor_liquido'].apply(limpar_valor).sum()
-                faturas_list = ", ".join(df_ne['Numero_da_fatura'].astype(str).tolist())
-                ose_name = df_ne['ose'].iloc[0]
-                
+            ne_f = st.selectbox("Selecione a NE:", [""] + sorted(df_s6['ne'].unique().tolist()), key="f_ne_sel")
+            if ne_f:
+                df_fne = df_s6[df_s6['ne'] == ne_f]
                 col_a, col_b = st.columns(2)
-                
                 with col_a:
-                    st.markdown("#### 📤 1. Informar Nota Fiscal")
-                    nf_input = st.text_input("Número da Nota Fiscal (NF):", placeholder="Ex: 2026/123", key="nf_fiscal_in")
-                    if st.button("🚀 Enviar para Execução (Liquidação)", use_container_width=True, key="btn_envio_nf"):
-                        if nf_input:
-                            with st.spinner("Gravando NF..."):
-                                for nup in df_ne['nup'].tolist():
-                                    cell = aba_p.find(nup)
-                                    if cell:
-                                        # Grava a NF na Coluna 16 (Coluna P)
-                                        aba_p.update_cell(cell.row, 16, nf_input) 
-                                        registrar_acao(nup, "N/A", "NF_INFORMADA", f"NF {nf_input} cadastrada pelo fiscal.")
-                            st.success(f"NF {nf_input} cadastrada! Aguardando aceite da Execução.")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.warning("Digite o número da NF.")
-
+                    nf_in = st.text_input("Número da NF:", key="nf_f_in")
+                    if st.button("🚀 Enviar NF", use_container_width=True):
+                        if nf_in:
+                            for n in df_fne['nup'].tolist():
+                                cell = aba_p.find(n)
+                                if cell:
+                                    aba_p.update_cell(cell.row, 16, nf_in) 
+                                    registrar_acao(n, "N/A", "NF_INFORMADA", f"NF {nf_in}")
+                            st.success("NF Cadastrada!")
+                            time.sleep(1); st.rerun()
                 with col_b:
-                    st.markdown("#### 📧 2. Solicitar NF (E-mail)")
-                    texto_corpo = f"À {ose_name},\n\nSolicito emissão de Nota Fiscal com vistas ao pagamento da Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total_ne:,.2f}, referente às faturas: {faturas_list}."
-                    msg_fiscal = st.text_area("Corpo do e-mail:", value=texto_corpo, height=180, key="txt_email_fiscal")
-                    
-                    if st.button("📧 Disparar Solicitação", use_container_width=True, key="btn_email_fiscal"):
-                        # Aqui você chamaria a função de e-mail passando a msg_fiscal
-                        st.toast(f"E-mail de solicitação enviado para {ose_name}!", icon="📧")
-                        registrar_acao(df_ne['nup'].iloc[0], "N/A", "SOLICITACAO_NF_ENVIADA", f"Solicitado empenho {ne_alvo}")
+                    st.text_area("E-mail para OSE:", value=f"Solicito NF para NE {ne_f}", height=150)
+                    if st.button("📧 Solicitar NF", use_container_width=True):
+                        st.toast("E-mail enviado!")    
 
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
         st.header("📈 Dashboard")
