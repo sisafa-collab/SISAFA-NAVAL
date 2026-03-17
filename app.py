@@ -1305,9 +1305,9 @@ else:
                 st.error(f"Erro na aba relacionamento: {e}")
 
     # =================================================================
-    # MÓDULO 4: FISCALIZAÇÃO DE CONTRATOS
+    # MÓDULO 4: FISCALIZAÇÃO DE CONTRATOS (Ajustado para FISCAL/FISCAL_GLOBAL)
     # =================================================================
-    elif "FISCALIZAÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
+    elif "FISCAL" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
         st.header("📋 Fiscalização de Contratos em Saúde")
 
         # Definição das 3 abas solicitadas
@@ -1317,9 +1317,9 @@ else:
 
         # --- LÓGICA DE PERMISSÃO ---
         user_nip = str(st.session_state.user_id).strip()
-        is_global = (user_nip == "95039023") # Rosilene
+        is_global = (user_nip == "95039023") # NIP da Rosilene (Corrigido conforme planilha)
 
-        # Mapa de Status para exibição amigável (OBS1)
+        # Mapa de Status para exibição amigável
         mapa_status_fisc = {
             1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
             4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
@@ -1333,13 +1333,13 @@ else:
             df_ose_master = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
             
             if is_global:
-                st.success("🔓 Perfil Fiscal Global: Acesso a todas as Organizações.")
+                st.success(f"🔓 Perfil Fiscal Global: Rosilene ({user_nip}) - Acesso Total")
                 df_fiscal = df_ose_master.copy()
             else:
                 df_fiscal = df_ose_master[df_ose_master['NIP_Fiscal'].astype(str) == user_nip].copy()
 
             if df_fiscal.empty:
-                st.warning(f"Nenhum contrato vinculado ao NIP {user_nip}.")
+                st.warning(f"Nenhum contrato vinculado ao NIP {user_nip} na Tabela-A.")
             else:
                 st.write("**Empresas sob sua responsabilidade:**")
                 st.dataframe(df_fiscal[['CNPJ', 'Razão Social']], use_container_width=True)
@@ -1347,14 +1347,12 @@ else:
                 st.divider()
                 st.subheader("Situação geral")
                 
-                # Escolha por Razão Social (que filtra o CNPJ internamente)
                 ose_sel = st.selectbox("Selecione a Organização para ver os processos:", [""] + df_fiscal['Razão Social'].tolist(), key="fisc_visao_sel")
                 
                 if ose_sel:
                     cnpj_ose = df_fiscal[df_fiscal['Razão Social'] == ose_sel]['CNPJ'].iloc[0]
                     cnpj_limpo = str(cnpj_ose).split('.')[0]
                     
-                    # Filtra todos os processos vinculados a este CNPJ
                     df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_limpo)].copy()
                     
                     if not df_proc_fisc.empty:
@@ -1368,13 +1366,11 @@ else:
         with tab_nf:
             st.markdown("### 🧾 NOTAS DE EMPENHO AGUARDANDO EMISSÃO DE NOTA FISCAL")
             
-            # Regra de Negócio: Status 6
             df_s6 = df[df['status'] == 6].copy()
             
             if df_s6.empty:
                 st.info("Não há Notas de Empenho aguardando NF.")
             else:
-                # Indicadores de Prazo (Coluna 14 / Índice 13)
                 df_s6['dt_mov'] = pd.to_datetime(df_s6.iloc[:, 13], dayfirst=True, errors='coerce')
                 df_s6['dias'] = (datetime.now() - df_s6['dt_mov']).dt.days.fillna(0).astype(int)
                 
@@ -1432,7 +1428,6 @@ else:
                 aba_msg = sh.worksheet(ABA_MENSAGENS)
                 df_msg = pd.DataFrame(aba_msg.get_all_records())
                 
-                # O fiscal vê mensagens apenas das OSEs dele (ou todas se for global)
                 if not is_global:
                     cnpjs_meus = df_fiscal['CNPJ'].astype(str).str.split('.').str[0].tolist()
                     df_msg = df_msg[df_msg['cnpj_ose'].astype(str).str.contains('|'.join(cnpjs_meus))].copy()
