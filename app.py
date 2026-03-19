@@ -1486,7 +1486,6 @@ else:
                             email_execucao = "hnbra.execucaofinanceira@gmail.com"
                             
                             if not match_user.empty:
-                                # Tenta colunas com ou sem hífen
                                 email_executor = match_user.iloc[0].get('E-mail', match_user.iloc[0].get('Email', email_execucao))
                             else:
                                 email_executor = email_execucao
@@ -1522,29 +1521,29 @@ else:
                             st.text_input("Assunto:", value=assunto_email, key="email_sub_fisc_v3")
                             msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
                         
+                        # --- BOTÃO E LÓGICA DE ENVIO (IDENTAÇÃO CORRIGIDA) ---
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
-                        # Este bloco abaixo precisa estar todo recuado (4 espaços para a direita)
-                        if not email_destino or email_destino == "aguardando_dados@ose.com":
-                        st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
-                        else:
-                        with st.spinner("Disparando e-mail real..."):
-                        # --- CHAMADA DA FUNÇÃO REAL DE ENVIO ---
-                        # Nota: Certifique-se que você tem a função 'enviar_email_generico' no seu código
-                        sucesso = enviar_email_generico(
-                        destinatario=email_destino,
-                        assunto=assunto_email,
-                        corpo=corpo_email,
-                        cc=lista_cc
-                          )
-                    
-                        if sucesso:
-                        # Só registra a ação e dá sucesso se o e-mail for enviado de fato
-                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
-                        st.success("Solicitação enviada com sucesso!")
-                        time.sleep(1)
-                        st.rerun()
-                        else:
-                        st.error("❌ Falha técnica: O servidor SMTP não conseguiu disparar o e-mail.")
+                            if not email_destino or email_destino == "aguardando_dados@ose.com":
+                                st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
+                            else:
+                                with st.spinner("Disparando e-mail real..."):
+                                    # Chamada da função real de envio
+                                    sucesso = enviar_email_generico(
+                                        destinatario=email_destino,
+                                        assunto=assunto_email,
+                                        corpo=msg_editada,
+                                        cc=lista_cc
+                                    )
+                                    
+                                    if sucesso:
+                                        # Grava log e mostra sucesso
+                                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
+                                        st.success("Solicitação enviada com sucesso!")
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Falha técnica: O servidor SMTP não conseguiu disparar o e-mail.")
+                                        
 
         # 3. ABA: RELACIONAMENTO
         with tab_rel:
