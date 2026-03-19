@@ -1523,12 +1523,27 @@ else:
                             msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
                         
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
-                            with st.spinner("Disparando e-mail..."):
-                                # Registrar a ação nos logs
-                                registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
-                                st.success("Solicitação enviada com sucesso!")
-                                time.sleep(1)
-                                st.rerun()
+            if not email_destino or email_destino == "aguardando_dados@ose.com":
+                st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
+            else:
+                with st.spinner("Disparando e-mail real..."):
+                    # --- A LINHA QUE FALTAVA ESTÁ AQUI EMBAIXO ---
+                    # Substitua 'enviar_email_com_cc' pelo nome da sua função que dispara o SMTP
+                    sucesso = enviar_email_com_cc(
+                        destinatario=email_destino,
+                        com_copia=lista_cc,
+                        assunto=assunto_email,
+                        corpo=msg_editada
+                    )
+                    
+                    if sucesso:
+                        # Só registra no log e dá sucesso se o e-mail realmente sair
+                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
+                        st.success("Solicitação enviada com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro técnico ao disparar o e-mail. Verifique a conexão com o servidor SMTP.")
 
         # 3. ABA: RELACIONAMENTO
         with tab_rel:
