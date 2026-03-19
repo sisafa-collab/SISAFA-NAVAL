@@ -1457,45 +1457,59 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
-                        # --- BUSCA DE DADOS NA TABELA-A PARA CÓPIAS (CC) ---
+                        # --- BUSCA DE DADOS E CONFIGURAÇÃO DE CONTATOS ---
                         try:
-                            # 1. Localiza a linha da OSE na Tabela-A pelo CNPJ
+                            # 1. Dados da Tabela-A
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0]
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
-                            info_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)].iloc[0]
                             
-                            # Mapeamento dinâmico das colunas da Tabela-A
-                            email_destino = info_ose.get('E-mail Principal da OSE', info_ose.get('Email Principal da OSE', ""))
-                            email_gestor_titular = info_ose.get('E-mail do Gestor Titular', info_ose.get('Email do Gestor Titular', ""))
-                            email_gestor_substituto = info_ose.get('E-mail do Gestor Substituto', info_ose.get('Email do Gestor Substituto', ""))
+                            # Busca a linha da OSE (filtro flexível)
+                            linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             
-                            # 2. Busca o e-mail de quem está logado (Executor)
+                            if not linha_ose.empty:
+                                info_ose = linha_ose.iloc[0]
+                                email_destino = info_ose.get('E-mail Principal da OSE', info_ose.get('Email Principal da OSE', ""))
+                                email_gestor_t = info_ose.get('E-mail do Gestor Titular', info_ose.get('Email do Gestor Titular', ""))
+                                email_gestor_s = info_ose.get('E-mail do Gestor Substituto', info_ose.get('Email do Gestor Substituto', ""))
+                            else:
+                                email_destino = "faturamento_ose@gmail.com"
+                                email_gestor_t, email_gestor_s = "", ""
+
+                            # 2. Dados do Executor (Logado)
                             df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
                             user_id_atual = str(st.session_state.user_id).strip()
                             
-                            # Procura a coluna de e-mail (pode ser 'Email' ou 'E-mail')
-                            col_email_user = 'E-mail' if 'E-mail' in df_users.columns else 'Email'
-                            
+                            # Tenta achar o e-mail do executor na planilha
                             match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
-                            email_executor = match_user[col_email_user].values[0] if not match_user.empty else ""
                             
-                            # 3. Monta a lista de CC (remove vazios e duplicados)
-                            lista_cc = list(set([e for e in [email_gestor_titular, email_gestor_substituto, email_executor] if e]))
+                            # E-mail da Execução (Backup)
+                            email_execucao = "hnbra.execucaofinanceira@gmail.com"
+                            
+                            if not match_user.empty:
+                                # Tenta colunas com ou sem hífen
+                                email_executor = match_user.iloc[0].get('E-mail', match_user.iloc[0].get('Email', email_execucao))
+                            else:
+                                email_executor = email_execucao
+                            
+                            # 3. Monta lista de CC (Removendo duplicados e vazios)
+                            lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, email_execucao] if e]))
                             cc_string = ", ".join(lista_cc)
                             
                         except Exception as e:
-                            st.error(f"Erro ao buscar contatos: {e}")
-                            email_destino = "faturamento@exemplo.com"
-                            cc_string = ""
+                            st.error(f"Erro ao processar contatos: {e}")
+                            email_destino = "aguardando_dados@ose.com"
+                            cc_string = "hnbra.execucaofinanceira@gmail.com"
 
-                        # --- CONSTRUÇÃO DO CONTEÚDO (Mantendo seu texto) ---
+                        # --- CONTEÚDO DO E-MAIL ---
                         assunto_email = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
                         corpo_email = (
                             f"À Gerência de Faturamento da {ose_txt},\n\n"
                             f"Informamos que a Nota de Empenho nº **{ne_alvo}**, no valor total de **R$ {v_total:,.2f}**, "
                             f"referente às faturas **{faturas_txt}**, já encontra-se disponível.\n\n"
-                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal, mediante conferência do vínculo dos referidos valores ao CNPJ correspondente, para que possamos "
-                            f"prosseguir com o trâmite de liquidação e pagamento. Destaca-se que a emissão de documentos fiscais erroneamente acarreta retrabalho e pendências administrativas junto ao fisco. Sugerimos atenção!\n\n"
+                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal para o e-mail: {email_execucao}, "
+                            f"mediante conferência do vínculo dos referidos valores ao CNPJ correspondente, para que possamos "
+                            f"prosseguir com o trâmite de liquidação e pagamento.\n\n"
+                            f"Destaca-se que a emissão de documentos fiscais erroneamente acarreta retrabalho e pendências administrativas junto ao fisco. Sugerimos atenção!\n\n"
                             f"Atenciosamente,\n\n"
                             f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
@@ -1505,13 +1519,14 @@ else:
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
-                            st.text_input("Assunto:", value=assunto_email, key="email_subject_fisc_final")
-                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_final")
+                            st.text_input("Assunto:", value=assunto_email, key="email_sub_fisc_v3")
+                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
                         
-                        if st.button("📧 Disparar E-mail para OSE", use_container_width=True, key="btn_send_email_fisc_final"):
-                            with st.spinner("Enviando..."):
-                                # registrar_acao(...) 
-                                st.toast(f"Solicitação enviada!", icon="📧")
+                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
+                            with st.spinner("Disparando e-mail..."):
+                                # Registrar a ação nos logs
+                                registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
+                                st.success("Solicitação enviada com sucesso!")
                                 time.sleep(1)
                                 st.rerun()
 
