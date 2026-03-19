@@ -144,6 +144,38 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
         st.error(f"Erro no envio: {e}")
         return False    
 
+def enviar_email_generico(destinatario, assunto, corpo, cc=None):
+    """
+    Função para enviar e-mails gerais (Solicitação de NF, avisos, etc)
+    usando os imports que você já tem.
+    """
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SMTP_USER = "hnbra.execucaofinanceira@gmail.com"
+    SMTP_PASS = st.secrets["smtp_password"] 
+
+    msg = EmailMessage()
+    msg['Subject'] = assunto
+    msg['From'] = SMTP_USER
+    msg['To'] = destinatario
+    
+    if cc:
+        # cc pode ser uma string única ou uma lista de e-mails
+        msg['Cc'] = cc if isinstance(cc, str) else ", ".join(cc)
+
+    # O corpo aqui é texto simples para aceitar o que o fiscal digitar na tela
+    msg.set_content(corpo)
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        st.error(f"Erro no envio técnico: {e}")
+        return False
+
 def limpar_valor(valor):
     if isinstance(valor, (int, float)): 
         return float(valor)
@@ -1543,7 +1575,7 @@ else:
                                         st.rerun()
                                     else:
                                         st.error("❌ Falha técnica: O servidor SMTP não conseguiu disparar o e-mail.")
-                                        
+
 
         # 3. ABA: RELACIONAMENTO
         with tab_rel:
