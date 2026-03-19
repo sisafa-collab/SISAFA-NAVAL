@@ -1415,55 +1415,103 @@ else:
             if df_s6.empty:
                 st.info("Não há Notas de Empenho aguardando NF.")
             else:
+                # Indicadores de Prazo (Coluna 14 / Índice 13)
                 df_s6['dt_mov'] = pd.to_datetime(df_s6.iloc[:, 13], dayfirst=True, errors='coerce')
                 df_s6['dias'] = (datetime.now() - df_s6['dt_mov']).dt.days.fillna(0).astype(int)
                 
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total NEs", len(df_s6['ne'].unique()))
-                c2.metric("🟢 Aceitável (até 3d)", len(df_s6[df_s6['dias'] <= 3]))
-                c3.metric("🟡 Atenção (4-7d)", len(df_s6[(df_s6['dias'] > 3) & (df_s6['dias'] <= 7)]))
-                c4.metric("🔴 Atraso (>7d)", len(df_s6[df_s6['dias'] > 7]))
+                c2.metric("🟢 Até 3d", len(df_s6[df_s6['dias'] <= 3]))
+                c3.metric("🟡 4-7d", len(df_s6[(df_s6['dias'] > 3) & (df_s6['dias'] <= 7)]))
+                c4.metric("🔴 >7d", len(df_s6[df_s6['dias'] > 7]))
 
-                st.dataframe(df_s6[['nup', 'cnpj', 'ose', 'Numero_da_fatura', 'ne', 'dias']].sort_values(by='ne'), use_container_width=True)
+                st.dataframe(df_s6[['nup', 'ose', 'ne', 'dias']].sort_values(by='ne'), use_container_width=True)
                 st.divider()
                 
-                ne_sel_fisc = st.selectbox("Selecione a NE para gerenciar:", [""] + sorted(df_s6['ne'].unique().tolist()), key="f_ne_fisc")
+                ne_alvo = st.selectbox("Selecione a NE para gerenciar:", [""] + sorted(df_s6['ne'].unique().tolist()), key="fisc_sel_ne_final")
                 
-                if ne_sel_fisc:
-                    df_ne_fisc = df_s6[df_s6['ne'] == ne_sel_fisc]
-                    val_total_ne = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum()
-                    faturas_ne = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).tolist())
-                    nome_ose_fisc = df_ne_fisc['ose'].iloc[0]
+                if ne_alvo:
+                    df_ne_fisc = df_s6[df_s6['ne'] == ne_alvo].copy()
+                    v_total = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum()
+                    faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).tolist())
+                    ose_txt = df_ne_fisc['ose'].iloc[0]
                     
                     col_f1, col_f2 = st.columns(2)
                     
                     with col_f1:
-                        st.markdown("#### 📤 Informar NF")
-                        nf_digitada = st.text_input("Número da NF recebida:", key="nf_digit_fisc")
-                        if st.button("🚀 Gravar NF e Notificar Execução", use_container_width=True):
-                            if nf_digitada:
+                        st.markdown("#### 📤 1. Informar Nota Fiscal")
+                        nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key="in_nf_fisc_final")
+                        if st.button("🚀 Enviar NF para Execução", use_container_width=True, key="btn_nf_fisc_final"):
+                            if nf_in:
                                 with st.spinner("Gravando NF..."):
                                     for n in df_ne_fisc['nup'].tolist():
                                         cell = aba_p.find(n)
                                         if cell:
-                                            aba_p.update_cell(cell.row, 16, nf_digitada) # Coluna P
-                                            registrar_acao(n, "N/A", "NF_CADASTRADA_FISCAL", f"NF: {nf_digitada}")
-                                st.success(f"NF {nf_digitada} salva! Aguarde o aceite da Execução.")
+                                            aba_p.update_cell(cell.row, 16, nf_in) # Coluna P
+                                            registrar_acao(n, "N/A", "NF_CADASTRADA_FISCAL", f"NF: {nf_in}")
+                                st.success(f"NF {nf_in} salva com sucesso!")
                                 time.sleep(1); st.rerun()
                             else:
-                                st.warning("Informe o número da NF.")
+                                st.warning("Por favor, informe o número da NF.")
 
                     with col_f2:
-                        st.markdown("#### 📧 Solicitar Nota Fiscal")
-                        texto_padrao_fisc = (
-                            f"À {nome_ose_fisc},\n\nSolicito emissão de Nota Fiscal com vistas ao pagamento da "
-                            f"Nota de Empenho nº {ne_sel_fisc}, no valor total de R$ {val_total_ne:,.2f}, "
-                            f"referente às faturas: {faturas_ne}."
+                        st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
+                        
+                        # --- BUSCA DE DADOS NA TABELA-A PARA CÓPIAS (CC) ---
+                        try:
+                            # Pega o CNPJ da OSE atual (removendo pontos se necessário para o match)
+                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0]
+                            df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                            
+                            # Localiza a linha da OSE na Tabela-A
+                            info_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)].iloc[0]
+                            
+                            email_destino = info_ose['E-mail Principal da OSE']
+                            email_gestor_titular = info_ose['E-mail do Gestor Titular']
+                            email_gestor_substituto = info_ose['E-mail do Gestor Substituto']
+                            
+                            # Busca o e-mail de quem está logado (quem executa a função)
+                            df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
+                            user_id_atual = str(st.session_state.user_id).strip()
+                            email_executor = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]['Email'].values[0]
+                            
+                            # Monta a lista de cópias sem duplicatas
+                            lista_cc = list(set([email_gestor_titular, email_gestor_substituto, email_executor]))
+                            cc_string = ", ".join(lista_cc)
+                            
+                        except Exception as e:
+                            st.error(f"Erro ao buscar contatos na Tabela-A: {e}")
+                            email_destino = "Não encontrado"
+                            cc_string = ""
+
+                        # --- CONSTRUÇÃO DO CONTEÚDO ---
+                        assunto_email = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
+                        corpo_email = (
+                            f"À Gerência de Faturamento da {ose_txt},\n\n"
+                            f"Informamos que a Nota de Empenho nº **{ne_alvo}**, no valor total de **R$ {v_total:,.2f}**, "
+                            f"referente às faturas **{faturas_txt}**, já encontra-se disponível.\n\n"
+                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal, mediante conferência do vínculo dos referidos valores ao CNPJ correspondente, para que possamos "
+                            f"prosseguir com o trâmite de liquidação e pagamento. Destaca-se que a emissão de documentos fiscais erroneamente acarreta retrabalho e pendências administrativas junto ao fisco. Sugerimos atenção!\n\n"
+                            f"Atenciosamente,\n\n"
+                            f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
-                        msg_extra = st.text_area("Mensagem padrão (editável):", value=texto_padrao_fisc, height=180)
-                        if st.button("📧 Disparar Solicitação", use_container_width=True):
-                            st.toast(f"E-mail enviado para {nome_ose_fisc}!", icon="📧")
-                            registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"NE {ne_sel_fisc}")
+                        
+                        # --- INTERFACE DE CONFERÊNCIA ---
+                        with st.container(border=True):
+                            st.write(f"📩 **Para:** {email_destino}")
+                            st.write(f"📎 **CC:** {cc_string}")
+                            st.text_input("Assunto:", value=assunto_email, key="email_subject_fisc")
+                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc")
+                        
+                        if st.button("📧 Disparar E-mail para OSE", use_container_width=True, key="btn_send_email_fisc"):
+                            with st.spinner("Enviando solicitação..."):
+                                # Exemplo de chamada da função (ajuste conforme seu disparador real)
+                                # disparar_email_geral(dest=email_destino, cc=lista_cc, assunto=assunto_email, corpo=msg_editada)
+                                
+                                st.toast(f"Solicitação enviada para a {ose_txt}!", icon="📧")
+                                registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "SOLICITACAO_NF_ENVIADA", f"NE {ne_alvo} | CC: {cc_string}")
+                                time.sleep(1)
+                                st.rerun()
 
         # 3. ABA: RELACIONAMENTO
         with tab_rel:
