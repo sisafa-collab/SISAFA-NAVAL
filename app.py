@@ -147,7 +147,7 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
 def enviar_email_generico(destinatario, assunto, corpo, cc=None):
     """
     Função para enviar e-mails gerais (Solicitação de NF, avisos, etc)
-    usando os imports que você já tem.
+    Ajustada para limpar quebras de linha no Assunto e tratar a lista de CC.
     """
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
@@ -155,15 +155,25 @@ def enviar_email_generico(destinatario, assunto, corpo, cc=None):
     SMTP_PASS = st.secrets["smtp_password"] 
 
     msg = EmailMessage()
-    msg['Subject'] = assunto
+    
+    # --- CORREÇÃO DO ERRO: Limpeza do Assunto ---
+    # O strip() remove espaços e o replace("\n", "") remove o "Enter" que causa o erro
+    msg['Subject'] = str(assunto).strip().replace("\n", "").replace("\r", "")
+    
     msg['From'] = SMTP_USER
     msg['To'] = destinatario
     
+    # --- TRATAMENTO DE CÓPIA (CC) ---
     if cc:
-        # cc pode ser uma string única ou uma lista de e-mails
-        msg['Cc'] = cc if isinstance(cc, str) else ", ".join(cc)
+        if isinstance(cc, list):
+            # Se for uma lista, remove e-mails vazios e junta com vírgula
+            lista_limpa = [e for e in cc if e and str(e).strip()]
+            if lista_limpa:
+                msg['Cc'] = ", ".join(lista_limpa)
+        elif isinstance(cc, str) and cc.strip():
+            msg['Cc'] = cc
 
-    # O corpo aqui é texto simples para aceitar o que o fiscal digitar na tela
+    # Define o corpo do e-mail
     msg.set_content(corpo)
 
     try:
@@ -173,6 +183,8 @@ def enviar_email_generico(destinatario, assunto, corpo, cc=None):
             server.send_message(msg)
         return True
     except Exception as e:
+        # Log interno do erro para ajudar no diagnóstico
+        print(f"Erro técnico SMTP: {e}")
         st.error(f"Erro no envio técnico: {e}")
         return False
 
@@ -1495,7 +1507,6 @@ else:
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0]
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             
-                            # Busca a linha da OSE (filtro flexível)
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             
                             if not linha_ose.empty:
@@ -1510,11 +1521,8 @@ else:
                             # 2. Dados do Executor (Logado)
                             df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
                             user_id_atual = str(st.session_state.user_id).strip()
-                            
-                            # Tenta achar o e-mail do executor na planilha
                             match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
                             
-                            # E-mail da Execução (Backup)
                             email_execucao = "hnbra.execucaofinanceira@gmail.com"
                             
                             if not match_user.empty:
@@ -1522,25 +1530,25 @@ else:
                             else:
                                 email_executor = email_execucao
                             
-                            # 3. Monta lista de CC (Removendo duplicados e vazios)
+                            # 3. Monta lista de CC
                             lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, email_execucao] if e]))
                             cc_string = ", ".join(lista_cc)
                             
                         except Exception as e:
                             st.error(f"Erro ao processar contatos: {e}")
                             email_destino = "aguardando_dados@ose.com"
-                            cc_string = "hnbra.execucaofinanceira@gmail.com"
+                            cc_string = email_execucao
 
-                        # --- CONTEÚDO DO E-MAIL ---
-                        assunto_email = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
+                        # --- CONTEÚDO DO E-MAIL (LIMPO) ---
+                        # O .replace('\n', '') aqui evita o erro de 'Header values'
+                        assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}".replace('\n', '').strip()
+                        
                         corpo_email = (
                             f"À Gerência de Faturamento da {ose_txt},\n\n"
                             f"Informamos que a Nota de Empenho nº **{ne_alvo}**, no valor total de **R$ {v_total:,.2f}**, "
                             f"referente às faturas **{faturas_txt}**, já encontra-se disponível.\n\n"
-                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal para o e-mail: {email_execucao}, "
-                            f"mediante conferência do vínculo dos referidos valores ao CNPJ correspondente, para que possamos "
-                            f"prosseguir com o trâmite de liquidação e pagamento.\n\n"
-                            f"Destaca-se que a emissão de documentos fiscais erroneamente acarreta retrabalho e pendências administrativas junto ao fisco. Sugerimos atenção!\n\n"
+                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal para o e-mail: {email_executor}, "
+                            f"conforme trâmite de liquidação e pagamento.\n\n"
                             f"Atenciosamente,\n\n"
                             f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
@@ -1550,31 +1558,31 @@ else:
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
-                            st.text_input("Assunto:", value=assunto_email, key="email_sub_fisc_v3")
-                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
+                            # Capturamos os inputs em variáveis para usar no envio
+                            assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key="email_sub_fisc_v3")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
                         
-                        # --- BOTÃO E LÓGICA DE ENVIO (IDENTAÇÃO CORRIGIDA) ---
+                        # --- BOTÃO DE ENVIO ---
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
                             if not email_destino or email_destino == "aguardando_dados@ose.com":
-                                st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
+                                st.error("⚠️ Erro: E-mail de destino inválido.")
                             else:
-                                with st.spinner("Disparando e-mail real..."):
-                                    # Chamada da função real de envio
+                                with st.spinner("Enviando e-mail..."):
+                                    # Chamada da função genérica com os dados conferidos/editados
                                     sucesso = enviar_email_generico(
                                         destinatario=email_destino,
-                                        assunto=assunto_email,
-                                        corpo=msg_editada,
+                                        assunto=assunto_final,
+                                        corpo=msg_final,
                                         cc=lista_cc
                                     )
                                     
                                     if sucesso:
-                                        # Grava log e mostra sucesso
-                                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
+                                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
                                         st.success("Solicitação enviada com sucesso!")
                                         time.sleep(1)
                                         st.rerun()
                                     else:
-                                        st.error("❌ Falha técnica: O servidor SMTP não conseguiu disparar o e-mail.")
+                                        st.error("❌ Falha técnica no servidor de e-mail.")
 
 
         # 3. ABA: RELACIONAMENTO
