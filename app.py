@@ -1523,27 +1523,27 @@ else:
                             msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
                         
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
-            # Este bloco abaixo precisa estar todo recuado (4 espaços para a direita)
-            if not email_destino or email_destino == "aguardando_dados@ose.com":
-                st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
-            else:
-                with st.spinner("Disparando e-mail real..."):
-                    # --- CHAMADA DA FUNÇÃO REAL DE ENVIO ---
-                    # Nota: Certifique-se que você tem a função 'enviar_email_generico' no seu código
-                    sucesso = enviar_email_generico(
+                        # Este bloco abaixo precisa estar todo recuado (4 espaços para a direita)
+                        if not email_destino or email_destino == "aguardando_dados@ose.com":
+                        st.error("⚠️ Não é possível enviar: E-mail de destino inválido ou não encontrado.")
+                        else:
+                        with st.spinner("Disparando e-mail real..."):
+                        # --- CHAMADA DA FUNÇÃO REAL DE ENVIO ---
+                        # Nota: Certifique-se que você tem a função 'enviar_email_generico' no seu código
+                        sucesso = enviar_email_generico(
                         destinatario=email_destino,
                         assunto=assunto_email,
                         corpo=corpo_email,
                         cc=lista_cc
-                    )
+                          )
                     
-                    if sucesso:
+                        if sucesso:
                         # Só registra a ação e dá sucesso se o e-mail for enviado de fato
                         registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Dest: {email_destino} | CC: {cc_string}")
                         st.success("Solicitação enviada com sucesso!")
                         time.sleep(1)
                         st.rerun()
-                    else:
+                        else:
                         st.error("❌ Falha técnica: O servidor SMTP não conseguiu disparar o e-mail.")
 
         # 3. ABA: RELACIONAMENTO
