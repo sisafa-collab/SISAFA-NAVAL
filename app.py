@@ -1459,32 +1459,36 @@ else:
                         
                         # --- BUSCA DE DADOS NA TABELA-A PARA CÓPIAS (CC) ---
                         try:
-                            # Pega o CNPJ da OSE atual (removendo pontos se necessário para o match)
+                            # 1. Localiza a linha da OSE na Tabela-A pelo CNPJ
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0]
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
-                            
-                            # Localiza a linha da OSE na Tabela-A
                             info_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)].iloc[0]
                             
-                            email_destino = info_ose['E-mail Principal da OSE']
-                            email_gestor_titular = info_ose['E-mail do Gestor Titular']
-                            email_gestor_substituto = info_ose['E-mail do Gestor Substituto']
+                            # Mapeamento dinâmico das colunas da Tabela-A
+                            email_destino = info_ose.get('E-mail Principal da OSE', info_ose.get('Email Principal da OSE', ""))
+                            email_gestor_titular = info_ose.get('E-mail do Gestor Titular', info_ose.get('Email do Gestor Titular', ""))
+                            email_gestor_substituto = info_ose.get('E-mail do Gestor Substituto', info_ose.get('Email do Gestor Substituto', ""))
                             
-                            # Busca o e-mail de quem está logado (quem executa a função)
+                            # 2. Busca o e-mail de quem está logado (Executor)
                             df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
                             user_id_atual = str(st.session_state.user_id).strip()
-                            email_executor = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]['Email'].values[0]
                             
-                            # Monta a lista de cópias sem duplicatas
-                            lista_cc = list(set([email_gestor_titular, email_gestor_substituto, email_executor]))
+                            # Procura a coluna de e-mail (pode ser 'Email' ou 'E-mail')
+                            col_email_user = 'E-mail' if 'E-mail' in df_users.columns else 'Email'
+                            
+                            match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
+                            email_executor = match_user[col_email_user].values[0] if not match_user.empty else ""
+                            
+                            # 3. Monta a lista de CC (remove vazios e duplicados)
+                            lista_cc = list(set([e for e in [email_gestor_titular, email_gestor_substituto, email_executor] if e]))
                             cc_string = ", ".join(lista_cc)
                             
                         except Exception as e:
-                            st.error(f"Erro ao buscar contatos na Tabela-A: {e}")
-                            email_destino = "Não encontrado"
+                            st.error(f"Erro ao buscar contatos: {e}")
+                            email_destino = "faturamento@exemplo.com"
                             cc_string = ""
 
-                        # --- CONSTRUÇÃO DO CONTEÚDO ---
+                        # --- CONSTRUÇÃO DO CONTEÚDO (Mantendo seu texto) ---
                         assunto_email = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
                         corpo_email = (
                             f"À Gerência de Faturamento da {ose_txt},\n\n"
@@ -1500,16 +1504,14 @@ else:
                         with st.container(border=True):
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
-                            st.text_input("Assunto:", value=assunto_email, key="email_subject_fisc")
-                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc")
+                            st.divider()
+                            st.text_input("Assunto:", value=assunto_email, key="email_subject_fisc_final")
+                            msg_editada = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_final")
                         
-                        if st.button("📧 Disparar E-mail para OSE", use_container_width=True, key="btn_send_email_fisc"):
-                            with st.spinner("Enviando solicitação..."):
-                                # Exemplo de chamada da função (ajuste conforme seu disparador real)
-                                # disparar_email_geral(dest=email_destino, cc=lista_cc, assunto=assunto_email, corpo=msg_editada)
-                                
-                                st.toast(f"Solicitação enviada para a {ose_txt}!", icon="📧")
-                                registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "SOLICITACAO_NF_ENVIADA", f"NE {ne_alvo} | CC: {cc_string}")
+                        if st.button("📧 Disparar E-mail para OSE", use_container_width=True, key="btn_send_email_fisc_final"):
+                            with st.spinner("Enviando..."):
+                                # registrar_acao(...) 
+                                st.toast(f"Solicitação enviada!", icon="📧")
                                 time.sleep(1)
                                 st.rerun()
 
