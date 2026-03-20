@@ -1058,7 +1058,10 @@ else:
             st.subheader("📥 Notas Fiscais certificadas aguardando Recebimento no Financeiro")
             
             # Filtramos processos que o Fiscal já digitou a NF (Status 6)
-            df_fila_fiscal = df[df['status'] == 6].copy()
+            df_fila_fiscal = df[df['status'] == 6].copy() & 
+            (df['nf'].astype(str).str.strip() != "") & 
+            (df['nf'].notna())
+            ].copy()
             
             if df_fila_fiscal.empty:
                 st.info("Nenhuma Nota Fiscal aguardando conferência do Fiscal.")
@@ -1067,7 +1070,7 @@ else:
                 
                 # Exibição da tabela com a coluna 'nf' (Coluna onde o fiscal digita)
                 # Assumindo que a coluna na sua planilha chama-se 'nf'
-                cols_nf = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido', 'nf']
+                cols_nf = ['nup','cnpj','ose','mes_sigla','ano_competencia','valor_liquido', 'ne','nf']
                 st.dataframe(df_fila_fiscal[cols_nf].rename(columns={'nf': 'Número da NF'}), use_container_width=True)
                 
                 # Seleção por NOTA FISCAL
