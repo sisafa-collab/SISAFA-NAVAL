@@ -1060,8 +1060,7 @@ else:
             # Filtramos processos que o Fiscal já digitou a NF (Status 6)
             df_fila_fiscal = df[df['status'] == 6].copy() & 
             (df['nf'].astype(str).str.strip() != "") & 
-            (df['nf'].notna())
-            ].copy()
+            (df['nf'].notna()).copy()
             
             if df_fila_fiscal.empty:
                 st.info("Nenhuma Nota Fiscal aguardando conferência do Fiscal.")
