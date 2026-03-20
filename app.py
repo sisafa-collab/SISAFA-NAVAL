@@ -345,11 +345,6 @@ else:
 
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
-    # Botão para forçar atualização da planilha (limpa o cache)
-    if st.button("🔄 Atualizar Planilha Agora"):
-        st.cache_data.clear()
-        st.rerun()
-
     # --- MÓDULOS ESPECÍFICOS ---
 
    
