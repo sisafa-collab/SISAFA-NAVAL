@@ -62,7 +62,12 @@ def carregar_dados_cache(nome_aba):
 try:
     if 'sh' not in locals() or sh is None:
         client_direto = obter_cliente_google()
-        sh = client_direto.open_by_key(ID_PLANILHA)
+        if client_direto:
+            sh = client_direto.open_by_key(ID_PLANILHA)
+            # Aba de processos definida globalmente para mover status
+            aba_p = sh.worksheet(ABA_PROCESSOS)
+        else:
+            sh = None
 except Exception as e:
     sh = None
     print(f"Erro ao definir 'sh' global: {e}")
@@ -265,12 +270,25 @@ if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # (Coloque aqui o seu código do Mascote)
+    # --- MASCOTE (FIXO) ---
+    mascote_path = carregar_imagem(caminho_mascote)
+    if mascote_path:
+        with open(mascote_path, "rb") as f:
+            data = base64.b64encode(f.read()).decode()
+            st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # (Coloque aqui o seu código da Logo)
+        # --- LOGO CENTRALIZADA ---
+        logo_path = carregar_imagem(caminho_logo)
+        if logo_path: 
+            st.image(logo_path, use_container_width=True)
+        else:
+            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
         
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # --- FORMULÁRIO DE LOGIN ---
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
