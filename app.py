@@ -265,8 +265,19 @@ except Exception as e:
     df = pd.DataFrame()
 
 # --- CONTROLE DE SESSÃO ---
-if 'logged_in' not in st.session_state: st.session_state.logged_in = False
-if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
+if 'logged_in' not in st.session_state: 
+    st.session_state.logged_in = False
+if 'modulo_ativo' not in st.session_state: 
+    st.session_state.modulo_ativo = None
+# Variáveis de Confirmação (Cura para o AttributeError)
+if 'confirmar_secom' not in st.session_state: 
+    st.session_state.confirmar_secom = False
+if 'confirmar_recebimento' not in st.session_state: 
+    st.session_state.confirmar_recebimento = False
+if 'confirmar_finalizacao' not in st.session_state: 
+    st.session_state.confirmar_finalizacao = False
+if 'nups_para_receber' not in st.session_state: st.session_state.nups_para_receber = []
+
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
@@ -490,34 +501,53 @@ else:
                 # Seleção múltipla para recebimento em lote
                 nups_selecionados = st.multiselect("Selecione os NUPs para trazer para sua mesa:", df_fila['nup'].tolist())
                 
-                if st.button("📥 RECEBER FATURA(S)"):
-                    if nups_selecionados:
-                        st.session_state.confirmar_recebimento = True
-                    else:
-                        st.warning("⚠️ Selecione ao menos uma fatura para receber.")
+                # --- BOTÃO QUE DISPARA A CONFIRMAÇÃO ---
+        if st.button("📥 Receber Processos Selecionados"):
+            if len(nups_selecionados) > 0:
+                # Guardamos a lista na memória para o sistema não esquecer após o rerun
+                st.session_state.nups_para_receber = nups_selecionados
+                st.session_state.confirmar_recebimento = True
+                st.rerun()
+            else:
+                st.warning("⚠️ Selecione ao menos um processo na tabela acima.")
 
-                # --- INTERFACE DE CONFIRMAÇÃO ---
-                if st.session_state.confirmar_recebimento:
-                    st.markdown("---")
-                    st.warning(f"⚖️ **CONFIRMAÇÃO:** Você está prestes a assumir a responsabilidade por **{len(nups_selecionados)}** processo(s). Confirmar recebimento?")
-                    
-                    col_sim, col_nao = st.columns(2)
-                    
-                    if col_sim.button("✅ SIM, desejo receber"):
-                        with st.spinner("Movimentando processos..."):
-                            for n in nups_selecionados:
-                                mover_status(n, 2, auditor_nip=st.session_state.user_id)
-                                fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                registrar_acao(n, fatura_n, "RECEBIMENTO_AUDITORIA", f"Auditor {st.session_state.user_id} puxou para a mesa.")
+        # --- INTERFACE DE CONFIRMAÇÃO (REESCRITA E ALINHADA) ---
+        if st.session_state.confirmar_recebimento:
+            st.markdown("---")
+            # Resgatamos os NUPs que salvamos no clique anterior
+            lista_final = st.session_state.nups_para_receber
+            
+            st.warning(f"⚖️ **CONFIRMAÇÃO:** Você está prestes a assumir a responsabilidade por **{len(lista_final)}** processo(s). Confirmar recebimento?")
+            
+            col_sim, col_nao = st.columns(2)
+            
+            if col_sim.button("✅ SIM, desejo receber", use_container_width=True):
+                with st.spinner("Movimentando processos para sua mesa..."):
+                    for n in lista_final:
+                        # 1. Altera o status na planilha para 2 (Em Auditoria)
+                        mover_status(n, 2, auditor_nip=st.session_state.user_id)
+                        
+                        # 2. Registra nos logs (Protegido contra erros de busca)
+                        try:
+                            fatura_n = df[df['nup'] == n]['fatura'].values[0]
+                            registrar_acao(n, fatura_n, "RECEBIMENTO_AUDITORIA", f"Auditor {st.session_state.user_id} puxou para a mesa.")
+                        except:
+                            registrar_acao(n, "N/A", "RECEBIMENTO_AUDITORIA", f"Auditor {st.session_state.user_id} recebeu o processo.")
 
-                        st.toast(f"✅ {len(nups_selecionados)} processos movidos!", icon="⚓")
-                        st.session_state.confirmar_recebimento = False
-                        time.sleep(1)
-                        st.rerun()
+                st.toast(f"✅ {len(lista_final)} processos movidos!", icon="⚓")
+                
+                # Limpa as variáveis para o próximo uso
+                st.session_state.confirmar_recebimento = False
+                st.session_state.nups_para_receber = []
+                
+                time.sleep(1)
+                st.rerun()
 
-                    if col_nao.button("❌ NÃO, cancelar"):
-                        st.session_state.confirmar_recebimento = False
-                        st.rerun()
+            if col_nao.button("❌ NÃO, cancelar", use_container_width=True):
+                # Reseta tudo e volta para a tela normal
+                st.session_state.confirmar_recebimento = False
+                st.session_state.nups_para_receber = []
+                st.rerun()
 
         # 2. ABA: EM AUDITAGEM
         with t_mesa:
