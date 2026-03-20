@@ -36,6 +36,35 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- FUNÇÕES DE CONEXÃO E CACHE (BLINDAGEM DO GOOGLE) ---
+
+@st.cache_resource
+def obter_cliente_google():
+    """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
+    return conectar_google()
+
+@st.cache_data(ttl=600)
+def buscar_dados_tabela(nome_aba):
+    """Lê dados da planilha e guarda na memória por 10 minutos"""
+    try:
+        client = obter_cliente_google()
+        sh_cache = client.open_by_key(ID_PLANILHA)
+        dados = sh_cache.worksheet(nome_aba).get_all_records()
+        return pd.DataFrame(dados)
+    except Exception as e:
+        # Se der erro de cota, ele tenta avisar de forma amigável
+        st.warning(f"⚠️ Google Sheets ocupado. Tentando usar dados em cache...")
+        return pd.DataFrame()
+
+# --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
+try:
+    if 'sh' not in locals() or sh is None:
+        client_direto = obter_cliente_google()
+        sh = client_direto.open_by_key(ID_PLANILHA)
+except Exception as e:
+    sh = None
+    print(f"Erro ao definir 'sh' global: {e}")
+
 # --- FUNÇÕES DE CONEXÃO ---
 def conectar_google():
     try:
