@@ -43,18 +43,20 @@ def obter_cliente_google():
     """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
     return conectar_google()
 
-@st.cache_data(ttl=600)
-def buscar_dados_tabela(nome_aba):
-    """Lê dados da planilha e guarda na memória por 10 minutos"""
+@st.cache_data(ttl=600)  # Guarda os dados por 10 minutos
+def carregar_dados_cache(nome_aba):
+    """Lê dados da planilha e guarda na memória para economizar cota"""
     try:
-        client = obter_cliente_google()
-        sh_cache = client.open_by_key(ID_PLANILHA)
-        dados = sh_cache.worksheet(nome_aba).get_all_records()
-        return pd.DataFrame(dados)
+        # Tenta usar a conexão que já criamos
+        client_c = conectar_google()
+        if client_c:
+            sh_c = client_c.open_by_key(ID_PLANILHA)
+            aba = sh_c.worksheet(nome_aba)
+            return pd.DataFrame(aba.get_all_records())
     except Exception as e:
-        # Se der erro de cota, ele tenta avisar de forma amigável
-        st.warning(f"⚠️ Google Sheets ocupado. Tentando usar dados em cache...")
-        return pd.DataFrame()
+        # Se falhar (como a internet do hospital oscilando), avisa mas não trava
+        print(f"Erro ao carregar cache da aba {nome_aba}: {e}")
+    return pd.DataFrame()
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
