@@ -243,14 +243,11 @@ def carregar_imagem(caminho):
     return caminho if os.path.exists(caminho) else None
 
 # --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
-# Usamos try/except para que o app não morra se o Google falhar por 1 segundo
 try:
     client = conectar_google()
     if client:
         sh = client.open_by_key(ID_PLANILHA)
-        # As abas de escrita não precisam carregar dados agora, apenas ser definidas
         aba_p = sh.worksheet(ABA_PROCESSOS)
-        # Carregamos o DF principal usando o cache para economizar cota
         df = carregar_dados_cache(ABA_PROCESSOS)
     else:
         sh = None
@@ -263,30 +260,26 @@ except Exception as e:
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
-# ... (mantenha suas outras variáveis de sessão aqui)
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # (Mantenha seu código do Mascote aqui...)
-
+    # (Coloque aqui o seu código do Mascote)
+    
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # (Mantenha seu código da Logo aqui...)
-
+        # (Coloque aqui o seu código da Logo)
+        
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
-            # MELHORIA: Busca usuários via CACHE (Gasta 0 de cota se alguém já logou antes)
             df_users = carregar_dados_cache(ABA_USUARIOS)
             
             if not df_users.empty:
-                # Busca rápida no DataFrame (sem precisar ler a planilha de novo)
                 user_match = df_users[df_users.iloc[:, 0].astype(str).str.strip() == u_id.strip()]
                 
                 if not user_match.empty:
-                    # Aqui você pode validar a senha se tiver a coluna r[pass]
                     st.session_state.logged_in = True
                     st.session_state.user_id = u_id
                     st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
@@ -299,17 +292,18 @@ if not st.session_state.logged_in:
 
 # --- 2. TELA DE SELEÇÃO DE MÓDULO ---
 elif st.session_state.modulo_ativo is None:
-    # (Mantenha seu código de seleção de módulo aqui...)
+    # Adicionei o 'pass' para evitar o erro de indentação
+    # Cole aqui o código que desenha os botões de SECOM, AUDITORIA, etc.
+    pass 
 
 # --- 3. AMBIENTE DE TRABALHO ---
 else:
     with st.sidebar:
-        # (Mantenha seu código da Sidebar aqui...)
+        # (Coloque aqui o seu código da Sidebar)
+        pass
 
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
-    # IMPORTANTE: Removi as 3 linhas de conexão que você tinha aqui!
-    # O 'df' já foi carregado via cache lá no topo. Se precisar atualizar:
     if st.button("🔄 Atualizar Dados"):
         st.cache_data.clear()
         st.rerun()
