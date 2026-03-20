@@ -270,16 +270,15 @@ if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # --- MASCOTE (FIXO) ---
+    # O MASCOTE agora está preso aqui dentro. Só aparece se NÃO estiver logado.
     mascote_path = carregar_imagem(caminho_mascote)
     if mascote_path:
         with open(mascote_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
             st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
-    
+
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # --- LOGO CENTRALIZADA ---
         logo_path = carregar_imagem(caminho_logo)
         if logo_path: 
             st.image(logo_path, use_container_width=True)
@@ -287,9 +286,9 @@ if not st.session_state.logged_in:
             st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # --- FORMULÁRIO DE LOGIN ---
-        tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
+
+        # Formulário de Login
+        tipo_acesso = st.radio("Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
         
@@ -297,34 +296,57 @@ if not st.session_state.logged_in:
             df_users = carregar_dados_cache(ABA_USUARIOS)
             
             if not df_users.empty:
+                # Procura o usuário na primeira coluna da planilha
                 user_match = df_users[df_users.iloc[:, 0].astype(str).str.strip() == u_id.strip()]
                 
                 if not user_match.empty:
-                    st.session_state.logged_in = True
-                    st.session_state.user_id = u_id
-                    st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
-                    st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
-                    st.rerun()
+                    # Validando a senha (ajuste o índice [3] se a senha estiver em outra coluna)
+                    if str(user_match.iloc[0, 3]).strip() == senha.strip():
+                        st.session_state.logged_in = True
+                        st.session_state.user_id = u_id
+                        st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
+                        st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
+                        st.rerun()
+                    else:
+                        st.error("Senha incorreta.")
                 else:
-                    st.error("Usuário não cadastrado ou NIP incorreto.")
-            else:
-                st.error("Erro técnico: Não foi possível acessar a base de usuários.")
+                    st.error("Usuário não cadastrado.")
 
-# --- 2. TELA DE SELEÇÃO DE MÓDULO ---
+# --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
 elif st.session_state.modulo_ativo is None:
-    # Adicionei o 'pass' para evitar o erro de indentação
-    # Cole aqui o código que desenha os botões de SECOM, AUDITORIA, etc.
-    pass 
+    col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
+    with col_l2:
+        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
+    
+    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Olá, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
+    
+    # Cria os botões de SECOM, AUDITORIA, etc., baseado no cadastro do usuário
+    perfis = [p.strip().upper() for p in st.session_state.user_perfil.split(',')]
+    cols = st.columns(len(perfis))
+    for i, perfil in enumerate(perfis):
+        with cols[i]:
+            if st.button(perfil, key=f"btn_{perfil}", use_container_width=True):
+                st.session_state.modulo_ativo = perfil
+                st.rerun()
 
-# --- 3. AMBIENTE DE TRABALHO ---
+# --- 3. AMBIENTE DE TRABALHO (MÓDULO ATIVO) ---
 else:
     with st.sidebar:
-        # (Coloque aqui o seu código da Sidebar)
-        pass
+        if os.path.exists(caminho_logo): st.image(caminho_logo)
+        st.markdown(f"<p style='text-align:center;'><b>ID: {st.session_state.user_id}</b><br>Setor: {st.session_state.modulo_ativo}</p>", unsafe_allow_html=True)
+        if st.button("🔄 Trocar de Setor"):
+            st.session_state.modulo_ativo = None
+            st.rerun()
+        if st.button("❌ Sair"):
+            st.session_state.logged_in = False
+            st.session_state.modulo_ativo = None
+            st.rerun()
 
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
-    if st.button("🔄 Atualizar Dados"):
+    # Botão para forçar atualização da planilha (limpa o cache)
+    if st.button("🔄 Atualizar Planilha Agora"):
         st.cache_data.clear()
         st.rerun()
 
