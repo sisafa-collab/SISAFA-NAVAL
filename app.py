@@ -242,126 +242,77 @@ caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de
 def carregar_imagem(caminho):
     return caminho if os.path.exists(caminho) else None
 
-
-# --- CONEXÃO GLOBAL (Cole logo após a função limpar_valor) ---
-
-# 1. Conecta ao Google e abre a planilha mestra
-# --- INICIALIZAÇÃO DA CONEXÃO E CARREGAMENTO ---
-client = conectar_google()
-
-if client:
-    try:
-        # 1. Abre a planilha mestra
+# --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
+# Usamos try/except para que o app não morra se o Google falhar por 1 segundo
+try:
+    client = conectar_google()
+    if client:
         sh = client.open_by_key(ID_PLANILHA)
-        
-        # 2. Define as abas globalmente
+        # As abas de escrita não precisam carregar dados agora, apenas ser definidas
         aba_p = sh.worksheet(ABA_PROCESSOS)
-        aba_l = sh.worksheet(ABA_LOGS_ACOES)
-        aba_u = sh.worksheet(ABA_USUARIOS)
-        aba_h = sh.worksheet(ABA_HISTORICO)
-        
-        # 3. Carrega os dados para o DataFrame principal
-        dados = aba_p.get_all_records()
-        df = pd.DataFrame(dados)
-        
-    except Exception as e:
-        st.error(f"Conectado ao Google, mas erro ao carregar abas: {e}")
-        df = pd.DataFrame() 
-else:
-    st.error("Não foi possível estabelecer a conexão inicial com o Google Sheets.")
+        # Carregamos o DF principal usando o cache para economizar cota
+        df = carregar_dados_cache(ABA_PROCESSOS)
+    else:
+        sh = None
+        df = pd.DataFrame()
+except Exception as e:
+    st.warning("⚠️ Conexão instável com o Google. Tentando reconectar...")
+    sh = None
     df = pd.DataFrame()
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'modulo_ativo' not in st.session_state: st.session_state.modulo_ativo = None
-if 'confirmar_secom' not in st.session_state: st.session_state.confirmar_secom = False
-if 'confirmar_recebimento' not in st.session_state: st.session_state.confirmar_recebimento = False
-if 'confirmar_finalizacao' not in st.session_state: st.session_state.confirmar_finalizacao = False
+# ... (mantenha suas outras variáveis de sessão aqui)
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # 1. Mascote (Mantido fixo no canto da tela, independente das colunas)
-    mascote_path = carregar_imagem(caminho_mascote)
-    if mascote_path:
-        with open(mascote_path, "rb") as f:
-            data = base64.b64encode(f.read()).decode()
-            st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
+    # (Mantenha seu código do Mascote aqui...)
 
-    # 2. Estrutura de Colunas para Centralização
     col1, col2, col3 = st.columns([1, 1.5, 1])
-    
     with col2:
-        # --- LOGO CENTRALIZADA ---
-        # Ao colocar aqui dentro, ela segue o alinhamento da coluna central
-        logo_path = carregar_imagem(caminho_logo)
-        if logo_path: 
-            # use_container_width garante que ela se ajuste ao espaço da coluna
-            st.image(logo_path, use_container_width=True)
-        else:
-            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True) # Pequeno espaço entre logo e campos
+        # (Mantenha seu código da Logo aqui...)
 
-        # --- FORMULÁRIO ---
         tipo_acesso = st.radio("Tipo de Acesso:", ["Interno (NIP)", "Externo (CNPJ)"], horizontal=True)
         u_id = st.text_input(f"Digite seu {'NIP' if 'Interno' in tipo_acesso else 'CNPJ'}")
         senha = st.text_input("Senha", type="password")
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
-            if client:
-                try:
-                    aba_u = sh.worksheet(ABA_USUARIOS)
-                    usuarios = aba_u.get_all_values()
-                    encontrado = False
-                    for r in usuarios:
-                        if str(r[0]).strip() == u_id.strip():
-                            st.session_state.logged_in = True
-                            st.session_state.user_id = u_id
-                            st.session_state.user_full_name = r[1].upper()
-                            st.session_state.user_perfil = r[2].upper()
-                            encontrado = True
-                            st.rerun()
-                    if not encontrado: 
-                        st.error("Usuário não cadastrado.")
-                except Exception as e:
-                    st.error(f"Erro ao validar login: {e}")
+            # MELHORIA: Busca usuários via CACHE (Gasta 0 de cota se alguém já logou antes)
+            df_users = carregar_dados_cache(ABA_USUARIOS)
+            
+            if not df_users.empty:
+                # Busca rápida no DataFrame (sem precisar ler a planilha de novo)
+                user_match = df_users[df_users.iloc[:, 0].astype(str).str.strip() == u_id.strip()]
+                
+                if not user_match.empty:
+                    # Aqui você pode validar a senha se tiver a coluna r[pass]
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = u_id
+                    st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
+                    st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
+                    st.rerun()
+                else:
+                    st.error("Usuário não cadastrado ou NIP incorreto.")
+            else:
+                st.error("Erro técnico: Não foi possível acessar a base de usuários.")
 
-# --- 2. TELA DE SELEÇÃO DE MÓDULO (SALA DE ESPERA) ---
+# --- 2. TELA DE SELEÇÃO DE MÓDULO ---
 elif st.session_state.modulo_ativo is None:
-    col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
-    with col_l2:
-        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
-    
-    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Olá, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho abaixo para iniciar:</p><br>", unsafe_allow_html=True)
-    
-    perfis = [p.strip().upper() for p in st.session_state.user_perfil.split(',')]
-    cols = st.columns(len(perfis))
-    for i, perfil in enumerate(perfis):
-        with cols[i]:
-            if st.button(perfil, key=f"btn_{perfil}", use_container_width=True):
-                st.session_state.modulo_ativo = perfil
-                st.rerun()
+    # (Mantenha seu código de seleção de módulo aqui...)
 
-# --- 3. AMBIENTE DE TRABALHO (MÓDULO ATIVO) ---
+# --- 3. AMBIENTE DE TRABALHO ---
 else:
     with st.sidebar:
-        if os.path.exists(caminho_logo): st.image(caminho_logo)
-        st.markdown(f"<p style='text-align:center;'><b>ID: {st.session_state.user_id}</b><br>Módulo: {st.session_state.modulo_ativo}</p>", unsafe_allow_html=True)
-        if st.button("🔄 Trocar de Setor"):
-            st.session_state.modulo_ativo = None
-            st.rerun()
-        if st.button("❌ Terminar Sessão"):
-            st.session_state.logged_in = False
-            st.session_state.modulo_ativo = None
-            st.rerun()
+        # (Mantenha seu código da Sidebar aqui...)
 
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
-    client = conectar_google()
-    sh = client.open_by_key(ID_PLANILHA)
-    aba_p = sh.worksheet(ABA_PROCESSOS)
-    df = pd.DataFrame(aba_p.get_all_records())
+    # IMPORTANTE: Removi as 3 linhas de conexão que você tinha aqui!
+    # O 'df' já foi carregado via cache lá no topo. Se precisar atualizar:
+    if st.button("🔄 Atualizar Dados"):
+        st.cache_data.clear()
+        st.rerun()
 
     # --- MÓDULOS ESPECÍFICOS ---
 
