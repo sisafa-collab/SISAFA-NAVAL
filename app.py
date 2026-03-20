@@ -301,7 +301,7 @@ if not st.session_state.logged_in:
                 
                 if not user_match.empty:
                     # Validando a senha (ajuste o índice [3] se a senha estiver em outra coluna)
-                    if str(user_match.iloc[0, 3]).strip() == senha.strip():
+                    if str(user_match.iloc[0, 4]).strip() == senha.strip():
                         st.session_state.logged_in = True
                         st.session_state.user_id = u_id
                         st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
