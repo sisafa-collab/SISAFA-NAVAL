@@ -560,7 +560,6 @@ else:
                 df_total_auditagem['valor_limpo'] = df_total_auditagem['valor_apresentado'].apply(limpar_valor)
                 
                 # Usamos a coluna 14 (índice 13) que registra a data da entrada na auditoria
-                # Caso sua planilha tenha um nome de cabeçalho específico, substitua .iloc[:, 13]
                 df_total_auditagem['dt_mov'] = pd.to_datetime(df_total_auditagem.iloc[:, 13], dayfirst=True, errors='coerce')
                 
                 hoje = datetime.now()
@@ -594,18 +593,19 @@ else:
             
             df['status'] = pd.to_numeric(df['status'], errors='coerce')
             
-            # REMOVIDA A RESTRIÇÃO POR USER_ID: Agora filtra apenas pelo Status 2
+            # FILTRO COLETIVO: Agora todos do setor enxergam todas as faturas em Status 2
             df_mesa = df[df['status'] == 2].copy()
 
             if df_mesa.empty:
                 st.info("Não há processos em auditagem no momento.")
             else:
-                st.write("**Todas as faturas em análise técnica:**")
-                # Incluímos a coluna de dias em auditoria para gestão
-                if not df_total_auditagem.empty:
-                    # Cálculo dos dias baseado na coluna 14 (índice 13)
-                    df_mesa['dias_auditoria'] = (hoje - pd.to_datetime(df_mesa.iloc[:, 13], dayfirst=True, errors='coerce')).dt.days
-  
+                st.write("**Todas as faturas em análise técnica no setor:**")
+                
+                # Cálculo dos dias para a tabela de mesa
+                hoje = datetime.now()
+                df_mesa['dt_mov_mesa'] = pd.to_datetime(df_mesa.iloc[:, 13], dayfirst=True, errors='coerce')
+                df_mesa['dias_aud'] = (hoje - df_mesa['dt_mov_mesa']).dt.days
+                
                 st.dataframe(df_mesa[['nup', 'ose', 'valor_apresentado', 'mes_sigla', 'ano_competencia', 'obs']], use_container_width=True)
                 
                 st.divider()
@@ -637,21 +637,21 @@ else:
                     st.markdown("### 🛡️ Conferência de Dados e Destino")
                     with st.container(border=True):
                         try:
-                            # 1. Busca dados da OSE na Tabela-A
+                            # 1. Busca dados da OSE na Tabela-A via Cache
                             cnpj_fatura = str(dados_nup['cnpj']).strip().split('.')[0]
-                            df_ose_info = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                            df_ose_info = carregar_dados_cache(ABA_TABELA_A)
                             linha_ose = df_ose_info[df_ose_info['CNPJ'].astype(str).str.contains(cnpj_fatura)]
                             
-                            # 2. Busca e-mail do Auditor logado
-                            df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
-                            match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_logado]
+                            # 2. Busca e-mail do Auditor logado (Usando o session_state oficial)
+                            df_users = carregar_dados_cache(ABA_USUARIOS)
+                            match_user = df_users[df_users['NIP'].astype(str).str.strip() == str(st.session_state.user_id).strip()]
                             
                             if not match_user.empty:
                                 col_email = 'Email' if 'Email' in match_user.columns else 'E-mail'
                                 email_auditor = match_user[col_email].values[0]
                             else:
                                 email_auditor = None
-                                st.error(f"⚠️ Seu NIP ({user_logado}) não foi encontrado na aba Usuários.")
+                                st.error(f"⚠️ Seu NIP ({st.session_state.user_id}) não foi encontrado na aba Usuários.")
 
                             if not linha_ose.empty and email_auditor:
                                 email_destino = linha_ose['E-mail Principal da OSE'].values[0]
@@ -666,7 +666,7 @@ else:
                                 if linha_ose.empty: st.error(f"⚠️ CNPJ {cnpj_fatura} não localizado na Tabela-A.")
                                 trava_confirmacao = False
                         except Exception as e:
-                            st.error(f"Erro ao carregar dados: {e}")
+                            st.error(f"Erro ao carregar dados de e-mail: {e}")
                             trava_confirmacao = False
 
                     st.divider()
@@ -694,7 +694,7 @@ else:
                                 st.toast(f"E-mail enviado com sucesso!", icon="✅")
 
                     # --- INTERFACE DE CONFIRMAÇÃO DE FINALIZAÇÃO ---
-                    if st.session_state.confirmar_finalizacao:
+                    if st.session_state.get('confirmar_finalizacao'):
                         st.markdown("---")
                         st.warning(f"🛡️ **CONFIRMAÇÃO:** Finalizar NUP **{nup_audit}** com Líquido de **R$ {v_liquido:,.2f}**?")
                         b_sim, b_nao = st.columns(2)
