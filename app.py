@@ -1406,19 +1406,21 @@ else:
 
         # 1. ABA: VISÃO GERAL
         with tab_visao:
-            # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
-            # Mesma ideia da tela de login: fixed, sem texto, z-index alto.
+            # --- 1. INCLUSÃO DA IMAGEM FIXA ---
             mapeamento_path = carregar_imagem(caminho_mapeamento)
+            
             if mapeamento_path:
                 with open(mapeamento_path, "rb") as f:
                     data = base64.b64encode(f.read()).decode()
-                    # z-index 998 (abaixo do mascote se houver colisão, mas acima do conteúdo)
-                    # pointer-events: none permite clicar nos gráficos embaixo dela.
                     st.markdown(
                         f'<img src="data:image/png;base64,{data}" '
                         'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
                         unsafe_allow_html=True
                     )
+            else:
+                # Se a imagem não aparecer, isso vai te dizer o porquê (apenas para você ver)
+                st.sidebar.error(f"Arquivo não encontrado: {caminho_mapeamento}")
+                
             st.subheader("Meus contratos")
             df_ose_master = carregar_dados_cache(ABA_TABELA_A)
             
