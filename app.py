@@ -1397,6 +1397,12 @@ else:
             # Limpeza das colunas da Tabela-A
             df_ose_master.columns = [c.strip().replace(' ', '_').upper() for c in df_ose_master.columns]
             
+            # --- DEFINIÇÃO DA VARIÁVEL (O QUE ESTAVA FALTANDO) ---
+            # Criamos o nome aqui para o Python reconhecê-lo abaixo
+            col_nip = "NIP do Gestor Titular" 
+            col_nip_sub = "NIP do Gestor Substituto" # Já deixei o substituto engatilhado
+
+
             if is_global:
                 st.success(f"🔓 Perfil Global: Acesso Total")
                 df_fiscal = df_ose_master.copy()
