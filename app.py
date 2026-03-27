@@ -1401,10 +1401,17 @@ else:
                 st.success(f"🔓 Perfil Global: Acesso Total")
                 df_fiscal = df_ose_master.copy()
             else:
-                # Limpa NIP (remove .0) e filtra
-                # Versão compacta e segura:
-                df_ose_master['NIP_FISCAL'] = df_ose_master['NIP_FISCAL'].apply(lambda x: str(x).split('.')[0].strip().zfill(8))
-                df_fiscal = df_ose_master[df_ose_master['NIP_FISCAL'] == user_nip].copy()
+                # Se a coluna existir, fazemos a limpeza e o filtro
+                if col_nip in df_ose_master.columns:
+                    df_ose_master[col_nip] = df_ose_master[col_nip].apply(
+                        lambda x: str(x).split('.')[0].strip().zfill(8)
+                    )
+                    df_fiscal = df_ose_master[df_ose_master[col_nip] == user_nip].copy()
+                else:
+                    # Caso o nome mude na planilha, o sistema avisa em vez de dar erro
+                    st.error(f"❌ Erro Técnico: Coluna '{col_nip}' não encontrada na Tabela-A.")
+                    st.write("Colunas detectadas:", list(df_ose_master.columns))
+                    df_fiscal = pd.DataFrame()
 
             if df_fiscal.empty:
                 st.warning(f"⚠️ Nenhum contrato vinculado ao NIP {user_nip}.")
