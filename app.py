@@ -1399,8 +1399,8 @@ else:
             
             # --- DEFINIÇÃO DA VARIÁVEL (O QUE ESTAVA FALTANDO) ---
             # Criamos o nome aqui para o Python reconhecê-lo abaixo
-            col_nip = "NIP do Gestor Titular" 
-            col_nip_sub = "NIP do Gestor Substituto" # Já deixei o substituto engatilhado
+            col_nip = "NIP_do_Gestor_Titular" 
+            col_nip_sub = "NIP_do_Gestor_Substituto" # Já deixei o substituto engatilhado
 
 
             if is_global:
