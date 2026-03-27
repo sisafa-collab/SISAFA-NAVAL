@@ -24,6 +24,7 @@ ABA_TABELA_A = "SISAFA-NAVAL-Tabela-A"
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 
 st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
 
@@ -1405,6 +1406,19 @@ else:
 
         # 1. ABA: VISÃO GERAL
         with tab_visao:
+            # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
+            # Mesma ideia da tela de login: fixed, sem texto, z-index alto.
+            mapeamento_path = carregar_imagem(caminho_mapeamento)
+            if mapeamento_path:
+                with open(mapeamento_path, "rb") as f:
+                    data = base64.b64encode(f.read()).decode()
+                    # z-index 998 (abaixo do mascote se houver colisão, mas acima do conteúdo)
+                    # pointer-events: none permite clicar nos gráficos embaixo dela.
+                    st.markdown(
+                        f'<img src="data:image/png;base64,{data}" '
+                        'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
+                        unsafe_allow_html=True
+                    )
             st.subheader("Meus contratos")
             df_ose_master = carregar_dados_cache(ABA_TABELA_A)
             
