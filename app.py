@@ -1453,18 +1453,19 @@ else:
             
             df_s6 = df[df['status'] == 6].copy()
             
-            # --- FILTRO DE PRIVACIDADE (VINCULADO AOS MEUS CONTRATOS) ---
+            # --- LÓGICA DE PRIVACIDADE ---
             if is_global:
                 df_s6 = df_s6_total
             else:
-                # Pegamos a lista de CNPJs que o fiscal gerencia (vinda do df_fiscal da Aba 1)
-                if not df_fiscal.empty:
-                    # Pegamos apenas a base do CNPJ para garantir o cruzamento
+                # Se o fiscal tiver contratos vinculados (definidos na Aba 1)
+                if 'df_fiscal' in locals() and not df_fiscal.empty:
+                    # Extraímos os CNPJs do fiscal para filtrar
                     meus_cnpjs = df_fiscal['CNPJ'].astype(str).str.split('.').str[0].unique().tolist()
-                    # Filtramos a base de Status 6: apenas processos dessas empresas
+                    # Filtramos a base total para mostrar só o que é dele
                     df_s6 = df_s6_total[df_s6_total['cnpj'].astype(str).str.contains('|'.join(meus_cnpjs))].copy()
                 else:
-                    df_s6 = pd.DataFrame() # Se não tem contrato, não vê nada
+                    # Se não tiver contratos, a tabela fica vazia
+                    df_s6 = pd.DataFrame()
 
             if df_s6.empty:
                 st.info("Não há Notas de Empenho aguardando NF.")
