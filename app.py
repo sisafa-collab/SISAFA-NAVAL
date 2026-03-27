@@ -307,21 +307,35 @@ if not st.session_state.logged_in:
             df_users = carregar_dados_cache(ABA_USUARIOS)
             
             if not df_users.empty:
-                # Procura o usuário na primeira coluna da planilha
-                user_match = df_users[df_users.iloc[:, 0].astype(str).str.strip() == u_id.strip()]
+                # --- A VACINA CONTRA O SUMIÇO DO ZERO ---
+                # 1. Limpa a coluna da planilha: tira o ".0", remove espaços e garante 8 dígitos
+                df_users.iloc[:, 0] = (
+                    df_users.iloc[:, 0]
+                    .astype(str)
+                    .str.split('.').str[0]
+                    .str.strip()
+                    .str.zfill(8)
+                )
+                
+                # 2. Limpa o NIP que o usuário digitou: garante que também tenha 8 dígitos
+                u_id_limpo = u_id.strip().zfill(8)
+                
+                # Procura o usuário usando os dados "vacinados"
+                user_match = df_users[df_users.iloc[:, 0] == u_id_limpo]
                 
                 if not user_match.empty:
-                    # Validando a senha (ajuste o índice [3] se a senha estiver em outra coluna)
+                    # Validando a senha (ajuste o índice se necessário)
                     if str(user_match.iloc[0, 4]).strip() == senha.strip():
                         st.session_state.logged_in = True
-                        st.session_state.user_id = u_id
+                        # Salvamos o NIP já com o zero à esquerda para não dar erro nos outros módulos
+                        st.session_state.user_id = u_id_limpo 
                         st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
                         st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
                         st.rerun()
                     else:
                         st.error("Senha incorreta.")
                 else:
-                    st.error("Usuário não cadastrado.")
+                    st.error(f"Usuário {u_id_limpo} não cadastrado.")
 
 # --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
 elif st.session_state.modulo_ativo is None:
@@ -1378,10 +1392,10 @@ else:
         ])
 
         # --- LÓGICA DE PERMISSÃO ---
-        user_nip = str(st.session_state.user_id).strip()
-        is_global = (user_nip == "95039023") # NIP da Rosilene (Corrigido conforme planilha)
+        # Garantimos que o NIP logado tenha sempre 8 dígitos (preenchendo com zero se necessário)
+        user_nip = str(st.session_state.user_id).strip().zfill(8)
+        is_global = (user_nip == "95039023") # Rosilene
 
-        # Mapa de Status para exibição amigável
         mapa_status_fisc = {
             1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
             4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
@@ -1394,58 +1408,76 @@ else:
             st.subheader("Meus contratos")
             df_ose_master = carregar_dados_cache(ABA_TABELA_A)
             
-            # Limpeza das colunas da Tabela-A
-            df_ose_master.columns = [c.strip().replace(' ', '_').upper() for c in df_ose_master.columns]
-            
-            # --- DEFINIÇÃO DA VARIÁVEL (O QUE ESTAVA FALTANDO) ---
-            # Criamos o nome aqui para o Python reconhecê-lo abaixo
-            col_nip = "NIP_DO_GESTOR_TITULAR" 
-            col_nip_sub = "NIP_DO_GESTOR_SUBSTITUTO" # Já deixei o substituto engatilhado
-
-
-            if is_global:
-                st.success(f"🔓 Perfil Global: Acesso Total")
-                df_fiscal = df_ose_master.copy()
+            if df_ose_master.empty:
+                st.error("Não foi possível carregar a Tabela-A. Verifique a conexão.")
             else:
-                # Se a coluna existir, fazemos a limpeza e o filtro
-                if col_nip in df_ose_master.columns:
-                    df_ose_master[col_nip] = df_ose_master[col_nip].apply(
-                        lambda x: str(x).split('.')[0].strip().zfill(8)
-                    )
-                    df_fiscal = df_ose_master[df_ose_master[col_nip] == user_nip].copy()
+                # Padronização das colunas
+                df_ose_master.columns = [c.strip().replace(' ', '_').upper() for c in df_ose_master.columns]
+                
+                col_nip = "NIP_DO_GESTOR_TITULAR" 
+                col_nip_sub = "NIP_DO_GESTOR_SUBSTITUTO"
+
+                if is_global:
+                    st.success(f"🔓 Perfil Global: Rosilene ({user_nip})")
+                    df_fiscal = df_ose_master.copy()
                 else:
-                    # Caso o nome mude na planilha, o sistema avisa em vez de dar erro
-                    st.error(f"❌ Erro Técnico: Coluna '{col_nip}' não encontrada na Tabela-A.")
-                    st.write("Colunas detectadas:", list(df_ose_master.columns))
-                    df_fiscal = pd.DataFrame()
-
-            if df_fiscal.empty:
-                st.warning(f"⚠️ Nenhum contrato vinculado ao NIP {user_nip}.")
-            else:
-                st.dataframe(df_fiscal[['CNPJ', 'RAZÃO_SOCIAL']], use_container_width=True)
-                st.divider()
-                
-                ose_sel = st.selectbox("Selecione a Organização:", [""] + df_fiscal['RAZÃO_SOCIAL'].tolist(), key="fisc_sel_v2")
-                
-                if ose_sel:
-                    cnpj_ose = str(df_fiscal[df_fiscal['RAZÃO_SOCIAL'] == ose_sel]['CNPJ'].iloc[0]).split('.')[0].strip()
-                    # Filtro exato de CNPJ para evitar erros
-                    df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_ose)].copy()
-                    
-                    if not df_proc_fisc.empty:
-                        df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
-                        st.write(f"📋 **Processos de {ose_sel}:**")
-                        st.dataframe(df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']].rename(columns={'situação_texto': 'Situação'}), use_container_width=True)
+                    # --- A "VACINA" DO ZERO À ESQUERDA ---
+                    # Verificamos se a coluna principal existe
+                    if col_nip in df_ose_master.columns:
+                        # Limpamos a coluna do Titular
+                        df_ose_master[col_nip] = df_ose_master[col_nip].apply(
+                            lambda x: str(x).split('.')[0].strip().zfill(8)
+                        )
                         
-                        # --- DASHBOARD ---
-                        c1, c2 = st.columns([1, 1])
-                        with c1:
-                            df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
-                            fig = px.pie(df_pizza, values='count', names='situação_texto', title="Status dos Processos", hole=0.4)
-                            st.plotly_chart(fig, use_container_width=True)
-                        with c2:
-                            df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
-                            st.metric("Total em Trâmite", f"R$ {df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum():,.2f}")
+                        # Criamos o filtro base (Titular)
+                        filtro = (df_ose_master[col_nip] == user_nip)
+                        
+                        # Se existir a coluna de Substituto, limpamos e adicionamos ao filtro
+                        if col_nip_sub in df_ose_master.columns:
+                            df_ose_master[col_nip_sub] = df_ose_master[col_nip_sub].apply(
+                                lambda x: str(x).split('.')[0].strip().zfill(8)
+                            )
+                            # Filtro: Titular OU Substituto
+                            filtro = filtro | (df_ose_master[col_nip_sub] == user_nip)
+                        
+                        df_fiscal = df_ose_master[filtro].copy()
+                    else:
+                        st.error(f"❌ Coluna '{col_nip}' não encontrada na Tabela-A.")
+                        df_fiscal = pd.DataFrame()
+
+                # --- EXIBIÇÃO ---
+                if df_fiscal.empty:
+                    st.warning(f"⚠️ Nenhum contrato vinculado ao NIP {user_nip}.")
+                else:
+                    st.write("**Contratos sob sua responsabilidade (Titular ou Substituto):**")
+                    st.dataframe(df_fiscal[['CNPJ', 'RAZÃO_SOCIAL']], use_container_width=True)
+                    st.divider()
+                    
+                    st.subheader("Situação geral")
+                    ose_sel = st.selectbox("Selecione a Organização:", [""] + df_fiscal['RAZÃO_SOCIAL'].tolist(), key="fisc_sel_v2")
+                    
+                    if ose_sel:
+                        # Pegamos o CNPJ da empresa escolhida
+                        cnpj_ose = str(df_fiscal[df_fiscal['RAZÃO_SOCIAL'] == ose_sel]['CNPJ'].iloc[0]).split('.')[0].strip()
+                        
+                        # Filtramos na base principal de processos
+                        df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_ose)].copy()
+                        
+                        if not df_proc_fisc.empty:
+                            df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
+                            st.write(f"📋 **Processos de {ose_sel}:**")
+                            st.dataframe(df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']].rename(columns={'situação_texto': 'Situação'}), use_container_width=True)
+                            
+                            # --- DASHBOARD ---
+                            c1, c2 = st.columns([1, 1])
+                            with c1:
+                                df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
+                                fig = px.pie(df_pizza, values='count', names='situação_texto', title="Status dos Processos", hole=0.4)
+                                st.plotly_chart(fig, use_container_width=True)
+                            with c2:
+                                df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
+                                tramito_val = df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum()
+                                st.metric("Total em Trâmite", f"R$ {tramito_val:,.2f}")
 
         # 2. ABA: EMPENHOS AGUARDANDO NF
         with tab_nf:
