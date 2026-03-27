@@ -1402,7 +1402,8 @@ else:
                 df_fiscal = df_ose_master.copy()
             else:
                 # Limpa NIP (remove .0) e filtra
-                df_ose_master['NIP_FISCAL'] = df_ose_master['NIP_FISCAL'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                # Versão compacta e segura:
+                df_ose_master['NIP_FISCAL'] = df_ose_master['NIP_FISCAL'].apply(lambda x: str(x).split('.')[0].strip().zfill(8))
                 df_fiscal = df_ose_master[df_ose_master['NIP_FISCAL'] == user_nip].copy()
 
             if df_fiscal.empty:
