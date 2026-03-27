@@ -1392,81 +1392,46 @@ else:
         # 1. ABA: VISÃO GERAL
         with tab_visao:
             st.subheader("Meus contratos")
-            df_ose_master = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+            df_ose_master = carregar_dados_cache(ABA_TABELA_A)
+            
+            # Limpeza das colunas da Tabela-A
+            df_ose_master.columns = [c.strip().replace(' ', '_').upper() for c in df_ose_master.columns]
             
             if is_global:
-                st.success(f"🔓 Perfil Fiscal Global: Rosilene ({user_nip}) - Acesso Total")
+                st.success(f"🔓 Perfil Global: Acesso Total")
                 df_fiscal = df_ose_master.copy()
             else:
-                df_fiscal = df_ose_master[df_ose_master['NIP_Fiscal'].astype(str) == user_nip].copy()
+                # Limpa NIP (remove .0) e filtra
+                df_ose_master['NIP_FISCAL'] = df_ose_master['NIP_FISCAL'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+                df_fiscal = df_ose_master[df_ose_master['NIP_FISCAL'] == user_nip].copy()
 
             if df_fiscal.empty:
-                st.warning(f"Nenhum contrato vinculado ao NIP {user_nip} na Tabela-A.")
+                st.warning(f"⚠️ Nenhum contrato vinculado ao NIP {user_nip}.")
             else:
-                st.write("**Empresas sob sua responsabilidade:**")
-                st.dataframe(df_fiscal[['CNPJ', 'Razão Social']], use_container_width=True)
-                
+                st.dataframe(df_fiscal[['CNPJ', 'RAZÃO_SOCIAL']], use_container_width=True)
                 st.divider()
-                st.subheader("Situação geral")
                 
-                ose_sel = st.selectbox("Selecione a Organização para ver os processos:", [""] + df_fiscal['Razão Social'].tolist(), key="fisc_visao_sel")
+                ose_sel = st.selectbox("Selecione a Organização:", [""] + df_fiscal['RAZÃO_SOCIAL'].tolist(), key="fisc_sel_v2")
                 
                 if ose_sel:
-                    cnpj_ose = df_fiscal[df_fiscal['Razão Social'] == ose_sel]['CNPJ'].iloc[0]
-                    cnpj_limpo = str(cnpj_ose).split('.')[0]
-                    
-                    df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_limpo)].copy()
+                    cnpj_ose = str(df_fiscal[df_fiscal['RAZÃO_SOCIAL'] == ose_sel]['CNPJ'].iloc[0]).split('.')[0].strip()
+                    # Filtro exato de CNPJ para evitar erros
+                    df_proc_fisc = df[df['cnpj'].astype(str).str.contains(cnpj_ose)].copy()
                     
                     if not df_proc_fisc.empty:
-                        # Preparação dos dados
                         df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
+                        st.write(f"📋 **Processos de {ose_sel}:**")
+                        st.dataframe(df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']].rename(columns={'situação_texto': 'Situação'}), use_container_width=True)
                         
-                        # --- EXIBIÇÃO DA TABELA ---
-                        st.write(f"📋 **Processos detalhados de {ose_sel}:**")
-                        cols_fisc = ['nup', 'cnpj', 'ose', 'Numero_da_fatura', 'situação_texto']
-                        st.dataframe(df_proc_fisc[cols_fisc].rename(columns={'situação_texto': 'Situação'}), use_container_width=True)
-                        
-                        st.divider()
-
-                        # --- NOVO: DASHBOARD ANALÍTICO ---
-                        st.subheader(f"📊 Painel de Controle: {ose_sel}")
-                        
-                        c_dash1, c_dash2 = st.columns([1.2, 0.8])
-                        
-                        with c_dash1:
-                            # Gráfico de Pizza (Rosca) por Status
+                        # --- DASHBOARD ---
+                        c1, c2 = st.columns([1, 1])
+                        with c1:
                             df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
-                            df_pizza.columns = ['Fase', 'Quantidade']
-                            
-                            fig_pizza = px.pie(
-                                df_pizza, 
-                                values='Quantidade', 
-                                names='Fase', 
-                                title="Processos por Fase do Ciclo",
-                                hole=0.5,
-                                color_discrete_sequence=px.colors.qualitative.Safe
-                            )
-                            # Ajuste de layout para legenda embaixo
-                            fig_pizza.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5))
-                            st.plotly_chart(fig_pizza, use_container_width=True)
-
-                        with c_dash2:
-                            # Métricas Financeiras
-                            df_proc_fisc['v_liq_num'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
-                            
-                            # Filtramos o que já foi concluído (Status 9) e o que está em andamento
-                            valor_pago = df_proc_fisc[df_proc_fisc['status'] == 9]['v_liq_num'].sum()
-                            valor_tramite = df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq_num'].sum()
-                            
-                            st.metric("Total de Processos", f"{len(df_proc_fisc)}")
-                            st.metric("Volume em Trâmite", f"R$ {valor_tramite:,.2f}")
-                            st.metric("Total Pago (Histórico)", f"R$ {valor_pago:,.2f}")
-                            
-                            # Alerta visual se houver faturas em atraso (Status < 9 e muitos dias)
-                            st.info("💡 As métricas acima refletem o valor líquido final após glosas.")
-
-                    else:
-                        st.info("Não há processos para este CNPJ.")
+                            fig = px.pie(df_pizza, values='count', names='situação_texto', title="Status dos Processos", hole=0.4)
+                            st.plotly_chart(fig, use_container_width=True)
+                        with c2:
+                            df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
+                            st.metric("Total em Trâmite", f"R$ {df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum():,.2f}")
 
         # 2. ABA: EMPENHOS AGUARDANDO NF
         with tab_nf:
