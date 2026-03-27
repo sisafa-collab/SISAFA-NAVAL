@@ -1451,36 +1451,39 @@ else:
         with tab_nf:
             st.markdown("### 🧾 NOTAS DE EMPENHO AGUARDANDO EMISSÃO DE NOTA FISCAL")
             
-            df_s6 = df[df['status'] == 6].copy()
+            # --- 1. DEFINIÇÃO DA BASE TOTAL (Evita o NameError) ---
+            df_s6_total = df[df['status'] == 6].copy()
             
-            # --- LÓGICA DE PRIVACIDADE ---
+            # --- 2. LÓGICA DE PRIVACIDADE ---
             if is_global:
+                # Rosilene vê tudo
                 df_s6 = df_s6_total
             else:
-                # Se o fiscal tiver contratos vinculados (definidos na Aba 1)
+                # Fiscais comuns só vêem o que está no df_fiscal (criado na Aba 1)
                 if 'df_fiscal' in locals() and not df_fiscal.empty:
-                    # Extraímos os CNPJs do fiscal para filtrar
+                    # Extraímos os CNPJs do fiscal (limpando para bater com a base)
                     meus_cnpjs = df_fiscal['CNPJ'].astype(str).str.split('.').str[0].unique().tolist()
-                    # Filtramos a base total para mostrar só o que é dele
-                    df_s6 = df_s6_total[df_s6_total['cnpj'].astype(str).str.contains('|'.join(meus_cnpjs))].copy()
+                    # Filtramos: CNPJ do processo deve estar na lista do fiscal
+                    df_s6 = df_s6_total[df_s6_total['cnpj'].astype(str).str.contains('|'.join(meus_cnpjs), na=False)].copy()
                 else:
-                    # Se não tiver contratos, a tabela fica vazia
+                    # Se não tem contratos vinculados, não vê nada
                     df_s6 = pd.DataFrame()
 
+            # --- 3. EXIBIÇÃO E INTERFACE ---
             if df_s6.empty:
-                st.info("Não há Notas de Empenho aguardando NF.")
+                st.info("Não há Notas de Empenho aguardando NF para os seus contratos.")
             else:
                 # Indicadores de Prazo (Coluna 14 / Índice 13)
                 df_s6['dt_mov'] = pd.to_datetime(df_s6.iloc[:, 13], dayfirst=True, errors='coerce')
                 df_s6['dias'] = (datetime.now() - df_s6['dt_mov']).dt.days.fillna(0).astype(int)
                 
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total NEs", len(df_s6['ne'].unique()))
+                c1.metric("Minhas NEs", len(df_s6['ne'].unique()))
                 c2.metric("🟢 Até 3d", len(df_s6[df_s6['dias'] <= 3]))
                 c3.metric("🟡 4-7d", len(df_s6[(df_s6['dias'] > 3) & (df_s6['dias'] <= 7)]))
                 c4.metric("🔴 >7d", len(df_s6[df_s6['dias'] > 7]))
 
-                st.dataframe(df_s6[['nup', 'ose', 'ne', 'dias']].sort_values(by='ne'), use_container_width=True)
+                st.dataframe(df_s6[['nup', 'ose', 'ne', 'dias']].sort_values(by='dias', ascending=False), use_container_width=True)
                 st.divider()
                 
                 ne_alvo = st.selectbox("Selecione a NE para gerenciar:", [""] + sorted(df_s6['ne'].unique().tolist()), key="fisc_sel_ne_final")
@@ -1491,23 +1494,33 @@ else:
                     faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).tolist())
                     ose_txt = df_ne_fisc['ose'].iloc[0]
                     
+                    st.markdown(f"#### 📝 Gestão da NE: **{ne_alvo}** ({ose_txt})")
+                    
                     col_f1, col_f2 = st.columns(2)
                     
                     with col_f1:
-                        st.markdown("#### 📤 1. Informar Nota Fiscal")
+                        st.markdown("##### 📤 1. Informar Nota Fiscal")
                         nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key="in_nf_fisc_final")
-                        if st.button("🚀 Enviar NF para Execução", use_container_width=True, key="btn_nf_fisc_final"):
+                        
+                        if st.button("🚀 Salvar NF e Enviar p/ Liquidação", use_container_width=True, key="btn_nf_fisc_final"):
                             if nf_in:
-                                with st.spinner("Gravando NF..."):
+                                with st.spinner("Atualizando processos..."):
                                     for n in df_ne_fisc['nup'].tolist():
                                         cell = aba_p.find(n)
                                         if cell:
-                                            aba_p.update_cell(cell.row, 16, nf_in) # Coluna P
+                                            # 1. Grava a NF na Coluna P (16)
+                                            aba_p.update_cell(cell.row, 16, nf_in) 
+                                            # 2. Move para Status 7 (Liquidação)
+                                            mover_status(n, 7)
+                                            # 3. Registra Log
                                             registrar_acao(n, "N/A", "NF_CADASTRADA_FISCAL", f"NF: {nf_in}")
-                                st.success(f"NF {nf_in} salva com sucesso!")
-                                time.sleep(1); st.rerun()
+                                            
+                                st.success(f"✅ NF {nf_in} salva! Processo movido para Liquidação.")
+                                time.sleep(1.5)
+                                st.rerun()
                             else:
-                                st.warning("Por favor, informe o número da NF.")
+                                st.warning("⚠️ Informe o número da NF.")
+
 
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
