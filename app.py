@@ -328,16 +328,28 @@ if not st.session_state.logged_in:
                 user_match = df_users[df_users.iloc[:, 0] == u_id_limpo]
                 
                 if not user_match.empty:
-                    # Validando a senha
-                    if str(user_match.iloc[0, 4]).strip() == senha.strip():
+                    # 1. Pegamos o valor bruto da coluna de senha (Índice 4 = Coluna E)
+                    # Forçamos para string e limpamos espaços no início e fim
+                    senha_na_planilha = str(user_match.iloc[0, 4]).strip()
+                    senha_digitada = senha.strip()
+
+                    # 2. Comparação exata
+                    if senha_na_planilha == senha_digitada:
                         st.session_state.logged_in = True
-                        # Salvamos o ID já formatado (com os zeros à esquerda)
                         st.session_state.user_id = u_id_limpo 
                         st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
                         st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
                         st.rerun()
                     else:
+                        # --- BOX DE DIAGNÓSTICO (Aparecerá apenas se a senha falhar) ---
                         st.error("Senha incorreta.")
+                        with st.expander("🔍 Detalhes do erro (Verifique sua Planilha)"):
+                            st.write(f"**ID Encontrado:** {u_id_limpo}")
+                            st.write(f"**Texto na Planilha:** `{senha_na_planilha}`")
+                            st.write(f"**Texto Digitado:** `{senha_digitada}`")
+                            st.write(f"**Tamanho Planilha:** {len(senha_na_planilha)} caracteres")
+                            st.write(f"**Tamanho Digitado:** {len(senha_digitada)} caracteres")
+                            st.info("Dica: Se os tamanhos forem diferentes e o texto parecer igual, há um espaço invisível na sua célula do Google Sheets.")
                 else:
                     st.error(f"Usuário {u_id_limpo} não cadastrado.")
 
