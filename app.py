@@ -1692,6 +1692,108 @@ else:
         st.metric("Economia", f"R$ {pd.to_numeric(df['glosa']).sum():,.2f}")
         st.bar_chart(df['status'].value_counts())
 
+
+
     elif st.session_state.modulo_ativo == "OSE":
-        st.header("🏥 Portal OSE")
-        st.dataframe(df[df['cnpj'] == st.session_state.user_id][['nup', 'status']])
+        st.header("🏥 Portal da Organização de Saúde Extra-Marinha (OSE)")
+        
+        # --- PREPARAÇÃO DE DADOS ---
+        user_cnpj = str(st.session_state.user_id).strip().split('.')[0]
+        
+        # Pegamos os dados do Fiscal na Tabela-A
+        df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
+        df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
+        
+        # Filtramos os dados da OSE logada
+        dados_minha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(user_cnpj)].copy()
+        
+        # Filtramos as faturas desta OSE na base principal
+        df_minhas_faturas = df[df['cnpj'].astype(str).str.contains(user_cnpj)].copy()
+
+        # Definição das Abas
+        tab_visao, tab_rel = st.tabs(["🔭 Visão Geral", "💬 Relacionamento e Dúvidas"])
+
+        # --- 1. ABA: VISÃO GERAL ---
+        with tab_visao:
+            # Seção: Fiscal do meu Contrato
+            st.subheader("👮 Fiscal do meu contrato")
+            if not dados_minha_ose.empty:
+                # Exibimos Titular e Substituto
+                cols_fiscal = {
+                    "NIP_DO_GESTOR_TITULAR": "NIP",
+                    "GESTOR_TITULAR": "Nome do Fiscal",
+                    "GESTOR_SUBSTITUTO": "Fiscal Substituto"
+                }
+                # Filtramos apenas as colunas que existem
+                existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
+                st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
+            else:
+                st.info("Informações do fiscal ainda não vinculadas na Tabela-A.")
+
+            st.divider()
+
+            # Seção: Minhas Faturas
+            st.subheader("📑 Minhas faturas")
+            if df_minhas_faturas.empty:
+                st.warning("Nenhuma fatura encontrada para este CNPJ.")
+            else:
+                # Mapeamento de Status para a OSE (Linguagem Amigável)
+                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
+                
+                # Seleção das colunas solicitadas
+                colunas_ose = [
+                    'Numero_da_fatura', 'valor_apresentado', 'valor_glosa', 
+                    'valor_liquido', 'mes', 'ano', 'ne', 'nf', 'ob', 'Situação'
+                ]
+                
+                # Filtramos apenas as que existem no DF para não dar erro
+                colunas_validas = [c for c in colunas_ose if c in df_minhas_faturas.columns]
+                
+                st.dataframe(
+                    df_minhas_faturas[colunas_validas].sort_values(by='ano', ascending=False),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+        # --- 2. ABA: RELACIONAMENTO ---
+        with tab_rel:
+            st.subheader("💬 Central de Relacionamento")
+            st.markdown("Utilize este espaço para tirar dúvidas sobre faturas específicas.")
+            
+            if df_minhas_faturas.empty:
+                st.info("Você precisa ter faturas cadastradas para iniciar um contato.")
+            else:
+                # OSE escolhe a fatura pelo NUP ou Número
+                opcoes_fatura = df_minhas_faturas['nup'].tolist()
+                nup_selecionado = st.selectbox("Sobre qual processo (NUP) você deseja falar?", [""] + opcoes_fatura)
+                
+                if nup_selecionado:
+                    # Busca dados da fatura para mostrar o contexto
+                    info_f = df_minhas_faturas[df_minhas_faturas['nup'] == nup_selecionado].iloc[0]
+                    st.info(f"Contexto: Fatura {info_f['Numero_da_fatura']} | Status Atual: {info_f['Situação']}")
+                    
+                    # Área de Mensagem
+                    with st.container(border=True):
+                        st.write("📤 **Nova Mensagem:**")
+                        assunto = st.text_input("Assunto da dúvida:", placeholder="Ex: Prazo de pagamento, Recurso de Glosa...")
+                        mensagem = st.text_area("Descreva sua solicitação:")
+                        
+                        if st.button("Enviar Mensagem Oficial"):
+                            if assunto and mensagem:
+                                with st.spinner("Enviando..."):
+                                    # Aqui usamos a função de registrar ação para que os militares vejam o log
+                                    registrar_acao(
+                                        nup_selecionado, 
+                                        info_f['Numero_da_fatura'], 
+                                        "CONTATO_OSE", 
+                                        f"Assunto: {assunto} | Msg: {mensagem}"
+                                    )
+                                    
+                                    # Se você tiver uma aba de mensagens específica (ABA_MENSAGENS)
+                                    # você pode adicionar um append_row aqui também.
+                                    
+                                st.success("Sua mensagem foi enviada para a equipe do HNBra!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.warning("Por favor, preencha o assunto e a mensagem.")
