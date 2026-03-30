@@ -1775,11 +1775,10 @@ else:
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # Mapeamento de Status
+                # 1. Mapeamento de Status
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 
-                # Seleção e Renomeação conforme seu pedido
-                # 'Mes_sigla' e 'Ano de Competência' mapeados de 'mes' e 'ano'
+                # 2. Dicionário de tradução (De: Planilha -> Para: Tela)
                 mapa_colunas_exibicao = {
                     'Numero_da_fatura': 'Nº da fatura',
                     'valor_apresentado': 'Valor Apresentado',
@@ -1793,10 +1792,19 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
+                # 3. Filtramos apenas as colunas que realmente existem na planilha
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
+                # --- A CORREÇÃO: ORDEM DAS OPERAÇÕES ---
+                # Primeiro filtramos -> Depois ordenamos pelo nome ORIGINAL -> Por fim, renomeamos
+                df_final = (
+                    df_minhas_faturas[colunas_validas]
+                    .sort_values(by='ano_competencia', ascending=False)
+                    .rename(columns=mapa_colunas_exibicao)
+                )
+
                 st.dataframe(
-                    df_minhas_faturas[colunas_validas].rename(columns=mapa_colunas_exibicao).sort_values(by='ano_competencia', ascending=False),
+                    df_final,
                     use_container_width=True,
                     hide_index=True
                 )
