@@ -44,7 +44,7 @@ def obter_cliente_google():
     """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
     return conectar_google()
 
-@st.cache_data(ttl=600)  # Guarda os dados por 10 minutos
+@st.cache_data(ttl=5)  # Guarda os dados por 10 minutos
 def carregar_dados_cache(nome_aba):
     """Lê dados da planilha e guarda na memória para economizar cota"""
     try:
