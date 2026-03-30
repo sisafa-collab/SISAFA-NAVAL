@@ -1734,6 +1734,20 @@ else:
         else:
             df_minhas_faturas = pd.DataFrame()
 
+
+        mapa_status_fisc = {
+        1: "1 - FATURA CADASTRADA", 
+        2: "2 - EM AUDITAGEM", 
+        3: "3 - AUDITADA",
+        4: "4 - AGUARDANDO EMISSÃO DE NE", 
+        5: "5 - FATURA EMPENHADA",
+        6: "6 - AGUARDANDO EMISSÃO DE NF", 
+        7: "7 - EM LIQUIDAÇÃO",
+        8: "8 - FATURA LIQUIDADA", 
+        9: "9 - FATURA PAGA"
+        }
+
+
         # --- 2. INTERFACE DAS ABAS ---
         tab_visao, tab_rel = st.tabs(["🔭 Visão Geral", "💬 Relacionamento"])
 
