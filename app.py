@@ -1775,16 +1775,16 @@ else:
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. Mapeamento de Status
+                # 1. Mapeamento de Status (Tradução dos números para texto)
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 
-                # 2. Dicionário de tradução (De: Planilha -> Para: Tela)
+                # 2. Dicionário de tradução (Ajustado para mes_competencia)
                 mapa_colunas_exibicao = {
                     'Numero_da_fatura': 'Nº da fatura',
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa',
                     'valor_liquido': 'Valor líquido',
-                    'mes_sigla': 'Mês de entrada no HNBra',
+                    'mes_competencia': 'Mês de entrada no HNBra', # Ajustado de mes_sigla para mes_competencia
                     'ano_competencia': 'Ano de Competência',
                     'ne': 'NE',
                     'nf': 'NF',
@@ -1792,14 +1792,13 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
-                # 3. Filtramos apenas as colunas que realmente existem na planilha
+                # 3. Filtramos apenas as colunas que realmente existem na sua aba do Google
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
-                # --- A CORREÇÃO: ORDEM DAS OPERAÇÕES ---
-                # Primeiro filtramos -> Depois ordenamos pelo nome ORIGINAL -> Por fim, renomeamos
+                # 4. Processamento Final: Ordenar antes de Renomear
                 df_final = (
                     df_minhas_faturas[colunas_validas]
-                    .sort_values(by='ano_competencia', ascending=False)
+                    .sort_values(by=['ano_competencia', 'mes_competencia'], ascending=[False, False])
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
