@@ -308,27 +308,30 @@ if not st.session_state.logged_in:
             df_users = carregar_dados_cache(ABA_USUARIOS)
             
             if not df_users.empty:
-                # --- A VACINA CONTRA O SUMIÇO DO ZERO ---
-                # 1. Limpa a coluna da planilha: tira o ".0", remove espaços e garante 8 dígitos
+                # --- DINÂMICA DE TAMANHO (NIP 8 | CNPJ 14) ---
+                # Identifica o tamanho correto com base na escolha do rádio 'tipo_acesso'
+                tamanho_id = 8 if "Interno" in tipo_acesso else 14
+                
+                # 1. Limpa a coluna da planilha (Primeira Coluna)
                 df_users.iloc[:, 0] = (
                     df_users.iloc[:, 0]
                     .astype(str)
                     .str.split('.').str[0]
                     .str.strip()
-                    .str.zfill(8)
+                    .str.zfill(tamanho_id)
                 )
                 
-                # 2. Limpa o NIP que o usuário digitou: garante que também tenha 8 dígitos
-                u_id_limpo = u_id.strip().zfill(8)
+                # 2. Limpa o ID digitado pelo usuário
+                u_id_limpo = u_id.strip().zfill(tamanho_id)
                 
-                # Procura o usuário usando os dados "vacinados"
+                # Procura o usuário usando os dados vacinados
                 user_match = df_users[df_users.iloc[:, 0] == u_id_limpo]
                 
                 if not user_match.empty:
-                    # Validando a senha (ajuste o índice se necessário)
+                    # Validando a senha
                     if str(user_match.iloc[0, 4]).strip() == senha.strip():
                         st.session_state.logged_in = True
-                        # Salvamos o NIP já com o zero à esquerda para não dar erro nos outros módulos
+                        # Salvamos o ID já formatado (com os zeros à esquerda)
                         st.session_state.user_id = u_id_limpo 
                         st.session_state.user_full_name = str(user_match.iloc[0, 1]).upper()
                         st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
