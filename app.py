@@ -1785,8 +1785,8 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa',
                     'valor_liquido': 'Valor líquido',
-                    'mes': 'Mês/Sigla',
-                    'ano': 'Ano de Competência',
+                    'mes_sigla': 'Mês de entrada no HNBra',
+                    'ano_competencia': 'Ano de Competência',
                     'ne': 'NE',
                     'nf': 'NF',
                     'ob': 'OB',
@@ -1796,7 +1796,7 @@ else:
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
                 st.dataframe(
-                    df_minhas_faturas[colunas_validas].rename(columns=mapa_colunas_exibicao).sort_values(by='Ano de Competência', ascending=False),
+                    df_minhas_faturas[colunas_validas].rename(columns=mapa_colunas_exibicao).sort_values(by='ano_competencia', ascending=False),
                     use_container_width=True,
                     hide_index=True
                 )
