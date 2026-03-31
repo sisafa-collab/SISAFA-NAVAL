@@ -2055,49 +2055,71 @@ else:
             st.subheader("⏱️ Produtividade e dados estatísticos")
             
             try:
-                # Carregamos o Histórico para o Process Mining
+                # 1. Carregamos o Histórico para o Process Mining
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist = pd.DataFrame(aba_h.get_all_records())
                 
                 if df_hist.empty:
                     st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
-                    # Preparação para cálculo de tempo (Process Mining Lite)
-                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], dayfirst=True)
-                    df_hist = df_hist.sort_values(['nup', 'timestamp'])
+                    # --- A VACINA DAS DATAS (Corrigido para evitar NameError/ValueError) ---
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
                     
-                    # Cálculo de tempo entre etapas
+                    # Removemos linhas com datas inválidas e ordenamos por NUP e Tempo
+                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    
+                    # 2. Cálculo de tempo entre etapas
                     df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
                     
                     st.write("### Tempo Médio por Transição")
-                    # Agrupamos por mudança de status
+                    
+                    # Criamos a label da transição (ex: "Status 4 ➔ Status 5")
                     df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
                     df_tempos['transicao'] = df_tempos['status_origem'].astype(str) + " ➔ " + df_tempos['status_destino'].astype(str)
                     
-                    # Convertendo timedelta para dias (float)
+                    # Convertendo timedelta para dias decimais
                     df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
                     
+                    # Média de dias por transição
                     resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
                     
-                    fig_tempo = px.bar(resumo_tempo, x='transicao', y='dias', title="Dias Médios entre Status",
-                                      labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
-                                      color='dias', color_continuous_scale='Viridis')
+                    # 3. Gráfico de Barras (Gargalos)
+                    fig_tempo = px.bar(
+                        resumo_tempo, 
+                        x='transicao', 
+                        y='dias', 
+                        title="Dias Médios entre Status",
+                        labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
+                        color='dias', 
+                        color_continuous_scale='Viridis',
+                        text_auto='.1f'
+                    )
                     st.plotly_chart(fig_tempo, use_container_width=True)
 
-                    # Métrica de eficiência
-                    total_faturas = df['nup'].nunique()
-                    faturas_pagas = df[df['status'] == 9]['nup'].nunique()
-                    taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
+                    st.divider()
+
+                    # 4. Métrica de eficiência
+                    c1, c2 = st.columns(2)
                     
-                    st.metric("Taxa de Conclusão (Eficiência do Fluxo)", f"{taxa_conclusao:.1f}%")
+                    with c1:
+                        total_faturas = df['nup'].nunique()
+                        faturas_pagas = df[df['status'] == 9]['nup'].nunique()
+                        taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
+                        st.metric("Taxa de Conclusão (Eficiência do Fluxo)", f"{taxa_conclusao:.1f}%")
                     
+                    with c2:
+                        # Lead Time Médio: soma dos tempos de transição por NUP
+                        lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
+                        st.metric("Lead Time Médio Geral", f"{lead_time_medio:.1f} dias")
+                    
+                    # 5. Detalhamento por processo
                     with st.expander("🔍 Detalhes do Lead Time por NUP"):
                         df_lead = df_hist.groupby('nup').agg(
                             inicio=('timestamp', 'min'),
                             fim=('timestamp', 'max')
                         )
                         df_lead['Lead Time (Dias)'] = (df_lead['fim'] - df_lead['inicio']).dt.days
-                        st.dataframe(df_lead, use_container_width=True)
+                        st.dataframe(df_lead.sort_values(by='Lead Time (Dias)', ascending=False), use_container_width=True)
 
             except Exception as e:
                 st.error(f"Erro ao processar dados de produtividade: {e}")
