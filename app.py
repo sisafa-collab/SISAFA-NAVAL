@@ -1281,7 +1281,7 @@ else:
             # =================================================================
             # SEÇÃO 1: LIQUIDAÇÃO (Status 7 -> 8)
             # =================================================================
-            st.markdown("### 🛠️ 1. Liquidar Faturas (Status 7 → 8)")
+            st.markdown("### 🛠️ 1. Liquidar Faturas")
             st.write("Marque as faturas que foram liquidadas no sistema financeiro.")
 
             df_status_7 = df[df['status'] == 7].copy()
@@ -1322,7 +1322,7 @@ else:
             # =================================================================
             # SEÇÃO 2: PAGAMENTO FINAL (Status 8 -> 9)
             # =================================================================
-            st.markdown("### 💰 2. Efetuar Pagamento (Status 8 → 9)")
+            st.markdown("### 💰 2. Efetuar Pagamento")
             st.write("Conclua o processo marcando as faturas como pagas.")
 
             df_status_8 = df[df['status'] == 8].copy()
