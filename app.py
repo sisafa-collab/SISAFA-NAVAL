@@ -1751,43 +1751,41 @@ else:
 
         # --- 1. ABA: VISÃO GERAL ---
         with tab_visao:
-            # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
-            mapeamento_path = carregar_imagem(caminho_mapeamento)
-            if mapeamento_path:
-                with open(mapeamento_path, "rb") as f:
-                    data = base64.b64encode(f.read()).decode()
-                    st.markdown(
-                        f'<img src="data:image/png;base64,{data}" '
-                        'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
-                        unsafe_allow_html=True
-                    )
+        # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
+        mapeamento_path = carregar_imagem(caminho_mapeamento)
+        if mapeamento_path:
+            with open(mapeamento_path, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+                st.markdown(
+                    f'<img src="data:image/png;base64,{data}" '
+                    'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
+                    unsafe_allow_html=True
+                )
 
-            # --- CSS PARA CENTRALIZAR ST.TABLE (Fiscal do Contrato) ---
-            st.markdown("""
-                <style>
-                th, td { text-align: center !important; }
-                </style>
-                """, unsafe_allow_html=True)
+        # --- CSS PARA CENTRALIZAR ST.TABLE (Fiscal do Contrato) ---
+        st.markdown("""
+            <style>
+            th, td { text-align: center !important; }
+            </style>
+            """, unsafe_allow_html=True)
 
-            # Seção: Fiscal do meu Contrato
-            st.subheader("👮 Fiscal do meu contrato")
-            if not dados_minha_ose.empty:
-                cols_fiscal = {
-                    "NIP_DO_GESTOR_TITULAR": "NIP",
-                    "GESTOR_TITULAR": "Nome do Fiscal do Contrato",
-                    "GESTOR_SUBSTITUTO": "Fiscal Substituto"
-                }
-                existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
-                # st.table é afetado pelo CSS acima
-                st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
-            else:
-                st.info("Informações do fiscal ainda não vinculadas para este CNPJ.")
+        # Seção: Fiscal do meu Contrato
+        st.subheader("👮 Fiscal do meu contrato")
+        if not dados_minha_ose.empty:
+            cols_fiscal = {
+                "NIP_DO_GESTOR_TITULAR": "NIP",
+                "GESTOR_TITULAR": "Nome do Fiscal do Contrato",
+                "GESTOR_SUBSTITUTO": "Fiscal Substituto"
+            }
+            existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
+            st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
+        else:
+            st.info("Informações do fiscal ainda não vinculadas para este CNPJ.")
 
-            st.divider()
+        st.divider()
 
-            # Seção: Minhas Faturas
-            st.subheader("📑 Minhas faturas")
-            if df_minhas_faturas.empty:
+        # Seção: Minhas Faturas (PREPARAÇÃO DE DADOS PARA TABELA E GRÁFICO)
+        if df_minhas_faturas.empty:
             st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
         else:
             # 1. Mapa de Status (Mapeamos primeiro para usar tanto na tabela quanto no gráfico)
