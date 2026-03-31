@@ -1935,9 +1935,9 @@ else:
 
 
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
-        st.header("📈 Análise Estratégica")
+        st.header("📈 Análise estratégica")
 
-        # --- 1. DICIONÁRIOS DE APOIO (VACINA CONTRA NAMEERROR) ---
+        # --- 1. DEFINIÇÕES GLOBAIS DO MÓDULO (VACINA NAMEERROR & ORDEM) ---
         mapa_status_fisc = {
             1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
             4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
@@ -1948,6 +1948,15 @@ else:
         mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
                             7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
 
+        # Definir a ordem oficial aqui fora para ser usada em qualquer lugar
+        cats_oficiais = [
+            "OSE", 
+            "HOSPITAL DAS FORÇAS ARMADAS (HFA)", 
+            "Base Administrativa do Comando de Operações Especiais (160098)", 
+            "Base Aérea de Anápolis (120624)", 
+            "HFAB (120096)"
+        ]
+
         tab_fin, tab_prod, tab_est = st.tabs([
             "💰 Situação Financeira", 
             "⏱️ Produtividade (Process Mining)", 
@@ -1955,73 +1964,53 @@ else:
         ])
 
         # =================================================================
-        # 1. ABA: SITUAÇÃO FINANCEIRA (Filtrado por Status 4)
+        # 1. ABA: SITUAÇÃO FINANCEIRA
         # =================================================================
         with tab_fin:
-            st.subheader("Créditos orçamentários comprometidos ainda não empenhados ou indicados")
+            st.subheader("Créditos orçamentários comprometidos")
 
-            # --- DICIONÁRIOS DE APOIO ---
-            mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
-                                7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
-
-            # --- LÓGICA DA TABELA DE CRÉDITOS ATUALIZADA ---
             def gerar_tabela_creditos_v4(df_input):
-                # 1. LIMPEZA E CONVERSÃO DE TIPOS (Evita erros de ordenação e comparação)
+                # 1. Garantir tipos numéricos
                 df_input['status'] = pd.to_numeric(df_input['status'], errors='coerce').fillna(0)
                 df_input['mes_competencia'] = pd.to_numeric(df_input['mes_competencia'], errors='coerce').fillna(0)
                 df_input['ano_competencia'] = pd.to_numeric(df_input['ano_competencia'], errors='coerce').fillna(0)
                 
-                # 2. FILTRO EXCLUSIVO: Apenas Status 4
+                # 2. Filtro Status 4
                 df_c = df_input[df_input['status'] == 4].copy()
                 df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
                 
-                # 3. CATEGORIZAÇÃO OFICIAL
                 def categorizar(nome):
                     n = str(nome).upper()
-                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: 
-                        return "HOSPITAL DAS FORÇAS ARMADAS (HFA)"
-                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: 
-                        return "Base Administrativa do Comando de Operações Especiais (160098)"
-                    elif "120624" in n or "ANÁPOLIS" in n: 
-                        return "Base Aérea de Anápolis (120624)"
-                    elif "120096" in n or "HFAB" in n: 
-                        return "HFAB (120096)"
-                    return "OSE"
+                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
+                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return cats_oficiais[2]
+                    elif "120624" in n or "ANÁPOLIS" in n: return cats_oficiais[3]
+                    elif "120096" in n or "HFAB" in n: return cats_oficiais[4]
+                    return cats_oficiais[0]
 
                 df_c['Categoria'] = df_c['ose'].apply(categorizar)
                 
-                # 4. AGRUPAMENTO E PIVOTAGEM (Garante ordem cronológica por usar números)
+                # 3. Pivotagem
                 df_long = df_c.groupby(['Categoria', 'ano_competencia', 'mes_competencia'])['v_liq'].sum().reset_index()
                 
                 if df_long.empty:
                     return pd.DataFrame(), df_long
 
-                # Pivotamos usando os números (que ordenam corretamente: 1, 2, 3...)
                 df_pivot = df_long.pivot(index='Categoria', columns=['ano_competencia', 'mes_competencia'], values='v_liq').fillna(0.0)
                 
-                # Reindexamos as linhas na ordem que você pediu
-                cats_oficiais = [
-                    "OSE", "HOSPITAL DAS FORÇAS ARMADAS (HFA)", 
-                    "Base Administrativa do Comando de Operações Especiais (160098)", 
-                    "Base Aérea de Anápolis (120624)", "HFAB (120096)"
-                ]
+                # Reindexar linhas pela ordem oficial
                 df_pivot = df_pivot.reindex(cats_oficiais).fillna(0.0)
                 
-                # 5. RENOMEAR COLUNAS (Transformando 1 em JAN, 2 em FEV...)
-                novas_cols = []
-                for ano, mes in df_pivot.columns:
-                    novas_cols.append((int(ano), mapa_meses_abrev.get(int(mes), "???")))
-                
-                df_pivot.columns = pd.MultiIndex.from_tuples(novas_cols, names=['Ano', 'Mês'])
+                # Renomear colunas
+                df_pivot.columns = [(int(ano), mapa_meses_abrev.get(int(mes))) for ano, mes in df_pivot.columns]
+                df_pivot.columns = pd.MultiIndex.from_tuples(df_pivot.columns, names=['Ano', 'Mês'])
 
-                # 6. OCULTAR COLUNAS ZERADAS
+                # AÇÃO: OCULTAR COLUNAS ZERADAS
                 df_pivot = df_pivot.loc[:, (df_pivot != 0).any(axis=0)]
 
-                # 7. COLUNA TOTAL NO CANTO ESQUERDO (Logo após o nome)
-                total_por_linha = df_pivot.sum(axis=1)
-                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), total_por_linha)
+                # AÇÃO: COLUNA TOTAL À ESQUERDA
+                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), df_pivot.sum(axis=1))
 
-                # 8. LINHA TOTALIZADORA NO RODAPÉ
+                # LINHA TOTAL GERAL
                 df_pivot.loc['TOTAL GERAL'] = df_pivot.sum()
                 
                 return df_pivot, df_long
@@ -2030,23 +2019,23 @@ else:
             df_creditos, df_grafico = gerar_tabela_creditos_v4(df)
 
             if df_creditos.empty:
-                st.info("Nenhuma fatura no Status 4 (Aguardando NE) para exibir.")
+                st.info("Nenhuma fatura no Status 4 encontrada.")
             else:
-                # EXIBIÇÃO DA TABELA (Cabeçalhos em Verde #2e6b54)
+                # Exibição da Tabela
                 st.dataframe(
                     df_creditos.style.format("R$ {:,.2f}").set_table_styles([
-                        {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold'), ('text-align', 'center')]}
+                        {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold')]}
                     ]),
                     use_container_width=True
                 )
 
                 st.divider()
 
-                # --- HISTOGRAMA (Ordenação Cronológica Garantida) ---
+                # --- HISTOGRAMA (Com Ordem Garantida) ---
                 if not df_grafico.empty:
-                    st.subheader("📊 Histórico de Dívida por Competência (Status 4)")
+                    st.subheader("📊 Histórico de Dívida por Competência")
                     
-                    # Criar label legível e ordenar
+                    # Rótulo de competência
                     df_grafico['Competência'] = df_grafico.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
                     df_grafico['ordem'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
                     df_grafico = df_grafico.sort_values('ordem')
@@ -2054,15 +2043,16 @@ else:
                     fig_divida = px.bar(
                         df_grafico, x='Competência', y='v_liq', color='Categoria',
                         title="Dívida Comprometida por Mês/Ano",
-                        labels={'v_liq': 'Valor da Dívida', 'Categoria': 'Órgão'},
+                        labels={'v_liq': 'Valor Total', 'Categoria': 'Órgão'},
                         color_discrete_map={
-                            "OSE": "#2e6b54",
-                            "HOSPITAL DAS FORÇAS ARMADAS (HFA)": "#cba30c",
-                            "Base Administrativa do Comando de Operações Especiais (160098)": "#1e3d33",
-                            "Base Aérea de Anápolis (120624)": "#d4af37",
-                            "HFAB (120096)": "#4a7c6a"
+                            cats_oficiais[0]: "#2e6b54",
+                            cats_oficiais[1]: "#cba30c",
+                            cats_oficiais[2]: "#1e3d33",
+                            cats_oficiais[3]: "#d4af37",
+                            cats_oficiais[4]: "#4a7c6a"
                         },
-                        category_orders={"Categoria": cats_oficiais}, # Força a ordem da legenda
+                        # AQUI É ONDE A MÁGICA DA ORDEM ACONTECE:
+                        category_orders={"Categoria": cats_oficiais}, 
                         template="plotly_white",
                         barmode='stack'
                     )
