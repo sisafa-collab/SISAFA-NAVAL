@@ -1934,21 +1934,17 @@ else:
     
 
 
+
+
+
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
         st.header("📈 Análise estratégica")
 
-        # --- 1. DEFINIÇÕES GLOBAIS DO MÓDULO (VACINA NAMEERROR & ORDEM) ---
-        mapa_status_fisc = {
-            1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
-            4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
-            6: "6 - AGUARDANDO EMISSÃO DE NF", 7: "7 - EM LIQUIDAÇÃO",
-            8: "8 - FATURA LIQUIDADA", 9: "9 - FATURA PAGA"
-        }
-        
+        # --- 1. DEFINIÇÕES GLOBAIS (VACINA DE ORDEM E NOMES) ---
         mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
                             7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
 
-        # Definir a ordem oficial aqui fora para ser usada em qualquer lugar
+        # Lista Oficial com os nomes EXATOS que você passou
         cats_oficiais = [
             "OSE", 
             "HOSPITAL DAS FORÇAS ARMADAS (HFA)", 
@@ -1957,28 +1953,22 @@ else:
             "HFAB (120096)"
         ]
 
-        tab_fin, tab_prod, tab_est = st.tabs([
-            "💰 Situação Financeira", 
-            "⏱️ Produtividade (Process Mining)", 
-            "📂 Estrutura do SISAFA"
-        ])
+        tab_fin, tab_prod, tab_est = st.tabs(["💰 Situação Financeira", "⏱️ Produtividade", "📂 Estrutura"])
 
-        # =================================================================
-        # 1. ABA: SITUAÇÃO FINANCEIRA
-        # =================================================================
         with tab_fin:
             st.subheader("Créditos orçamentários comprometidos")
 
-            def gerar_tabela_creditos_v4(df_input):
-                # 1. Garantir tipos numéricos
+            def gerar_tabela_creditos_final(df_input):
+                # 1. Limpeza e Conversão Rígida para Números
                 df_input['status'] = pd.to_numeric(df_input['status'], errors='coerce').fillna(0)
-                df_input['mes_competencia'] = pd.to_numeric(df_input['mes_competencia'], errors='coerce').fillna(0)
-                df_input['ano_competencia'] = pd.to_numeric(df_input['ano_competencia'], errors='coerce').fillna(0)
+                df_input['mes_competencia'] = pd.to_numeric(df_input['mes_competencia'], errors='coerce').fillna(0).astype(int)
+                df_input['ano_competencia'] = pd.to_numeric(df_input['ano_competencia'], errors='coerce').fillna(0).astype(int)
                 
                 # 2. Filtro Status 4
                 df_c = df_input[df_input['status'] == 4].copy()
                 df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
                 
+                # 3. Categorização (Match por parte do nome ou UG)
                 def categorizar(nome):
                     n = str(nome).upper()
                     if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
@@ -1989,75 +1979,85 @@ else:
 
                 df_c['Categoria'] = df_c['ose'].apply(categorizar)
                 
-                # 3. Pivotagem
+                # 4. Agrupamento (Mantendo os números para ordenar)
                 df_long = df_c.groupby(['Categoria', 'ano_competencia', 'mes_competencia'])['v_liq'].sum().reset_index()
                 
                 if df_long.empty:
                     return pd.DataFrame(), df_long
 
+                # 5. Pivotagem (O Pandas ordena automaticamente tuplas numéricas)
                 df_pivot = df_long.pivot(index='Categoria', columns=['ano_competencia', 'mes_competencia'], values='v_liq').fillna(0.0)
                 
-                # Reindexar linhas pela ordem oficial
+                # Forçamos a ordenação das colunas (Ano, Mês) para garantir o calendário
+                df_pivot = df_pivot.sort_index(axis=1, level=[0, 1])
+                
+                # Reindexamos as linhas na ordem oficial
                 df_pivot = df_pivot.reindex(cats_oficiais).fillna(0.0)
                 
-                # Renomear colunas
-                df_pivot.columns = [(int(ano), mapa_meses_abrev.get(int(mes))) for ano, mes in df_pivot.columns]
-                df_pivot.columns = pd.MultiIndex.from_tuples(df_pivot.columns, names=['Ano', 'Mês'])
+                # 6. Adição da Coluna TOTAL à Esquerda (Antes de renomear os meses)
+                total_linha = df_pivot.sum(axis=1)
+                
+                # 7. Renomear Colunas (Agora que já está ordenado numericamente)
+                novas_labels = []
+                for ano, mes in df_pivot.columns:
+                    novas_labels.append((int(ano), mapa_meses_abrev.get(int(mes), "???")))
+                
+                df_pivot.columns = pd.MultiIndex.from_tuples(novas_labels, names=['Ano', 'Mês'])
 
-                # AÇÃO: OCULTAR COLUNAS ZERADAS
+                # 8. Ocultar colunas zeradas
                 df_pivot = df_pivot.loc[:, (df_pivot != 0).any(axis=0)]
 
-                # AÇÃO: COLUNA TOTAL À ESQUERDA
-                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), df_pivot.sum(axis=1))
+                # 9. Inserir o Total no Início (Canto Esquerdo)
+                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), total_linha)
 
-                # LINHA TOTAL GERAL
+                # 10. Linha de Total Geral no rodapé
                 df_pivot.loc['TOTAL GERAL'] = df_pivot.sum()
                 
                 return df_pivot, df_long
 
             # Execução
-            df_creditos, df_grafico = gerar_tabela_creditos_v4(df)
+            df_creditos, df_grafico = gerar_tabela_creditos_final(df)
 
             if df_creditos.empty:
-                st.info("Nenhuma fatura no Status 4 encontrada.")
+                st.info("Nenhuma fatura no Status 4 para exibir.")
             else:
-                # Exibição da Tabela
+                # Estilização com a cor Naval #2e6b54
                 st.dataframe(
                     df_creditos.style.format("R$ {:,.2f}").set_table_styles([
-                        {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold')]}
+                        {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold'), ('text-align', 'center')]}
                     ]),
                     use_container_width=True
                 )
 
                 st.divider()
 
-                # --- HISTOGRAMA (Com Ordem Garantida) ---
+                # --- HISTOGRAMA (Com Ordem Cronológica de Calendário) ---
                 if not df_grafico.empty:
                     st.subheader("📊 Histórico de Dívida por Competência")
                     
-                    # Rótulo de competência
+                    # Criar label legível
                     df_grafico['Competência'] = df_grafico.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
-                    df_grafico['ordem'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
-                    df_grafico = df_grafico.sort_values('ordem')
+                    # Criar chave de ordenação (ex: 202401, 202402...)
+                    df_grafico['sort_key'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
+                    df_grafico = df_grafico.sort_values('sort_key')
 
-                    fig_divida = px.bar(
+                    fig_hist = px.bar(
                         df_grafico, x='Competência', y='v_liq', color='Categoria',
-                        title="Dívida Comprometida por Mês/Ano",
-                        labels={'v_liq': 'Valor Total', 'Categoria': 'Órgão'},
+                        title="Impacto Orçamentário Mensal",
+                        labels={'v_liq': 'Valor (R$)', 'Categoria': 'Tipo'},
                         color_discrete_map={
-                            cats_oficiais[0]: "#2e6b54",
-                            cats_oficiais[1]: "#cba30c",
-                            cats_oficiais[2]: "#1e3d33",
-                            cats_oficiais[3]: "#d4af37",
+                            cats_oficiais[0]: "#2e6b54", # OSE em Verde
+                            cats_oficiais[1]: "#cba30c", # HFA em Ouro
+                            cats_oficiais[2]: "#1e3d33", 
+                            cats_oficiais[3]: "#d4af37", 
                             cats_oficiais[4]: "#4a7c6a"
                         },
-                        # AQUI É ONDE A MÁGICA DA ORDEM ACONTECE:
-                        category_orders={"Categoria": cats_oficiais}, 
+                        category_orders={"Categoria": cats_oficiais, "Competência": df_grafico['Competência'].unique().tolist()},
                         template="plotly_white",
                         barmode='stack'
                     )
-                    fig_divida.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig_divida, use_container_width=True)
+                    fig_hist.update_layout(xaxis_tickangle=-45)
+                    st.plotly_chart(fig_hist, use_container_width=True)
 
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
