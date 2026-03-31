@@ -1583,8 +1583,8 @@ else:
 
                             df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
                             st.metric("Total em Trâmite", f"R$ {df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum():,.2f}")
-                        else:
-                            st.info(f"Nenhum processo encontrado para {ose_sel} na base de dados.")
+                    else:
+                        st.info(f"Nenhum processo encontrado para {ose_sel} na base de dados.")
 
         # 2. ABA: EMPENHOS AGUARDANDO NF
         with tab_nf:
