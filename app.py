@@ -1948,40 +1948,89 @@ else:
         # 1. ABA: SITUAÇÃO FINANCEIRA
         # =================================================================
         with tab_fin:
-            st.subheader("Análise de Valores e Glosas")
-            
-            # Limpeza de dados para cálculo
-            df_calc = df.copy()
-            df_calc['v_apres'] = df_calc['valor_apresentado'].apply(limpar_valor)
-            df_calc['v_glosa'] = df_calc['glosa'].apply(limpar_valor)
-            df_calc['v_liq'] = df_calc['valor_liquido'].apply(limpar_valor)
+            st.subheader("Créditos orçamentários comprometidos ainda não empenhados (Por competência)")
 
-            # Métricas Principais (Os Cards)
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.metric("Total Apresentado", f"R$ {df_calc['v_apres'].sum():,.2f}")
-            with c2:
-                total_glosa = df_calc['v_glosa'].sum()
-                st.metric("Economia (Glosas)", f"R$ {total_glosa:,.2f}", delta=f"{(total_glosa/df_calc['v_apres'].sum()*100):.1f}%", delta_color="normal")
-            with c3:
-                st.metric("Total Líquido", f"R$ {df_calc['v_liq'].sum():,.2f}")
+            # --- LÓGICA DA TABELA DE CRÉDITOS (TOTAL OSE vs MILITARES) ---
+            def gerar_tabela_creditos(df_input):
+                # 1. Filtramos apenas o que ainda não virou empenho (Status 1 a 4)
+                df_c = df_input[df_input['status'] < 5].copy()
+                df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
+                
+                # 2. FUNÇÃO DE CATEGORIZAÇÃO (A "Peneira")
+                def categorizar(nome):
+                    n = str(nome).upper()
+                    # Se for um dos 4 específicos, ganha linha própria
+                    if "HFA" in n and "112408" in n: 
+                        return "HFA (112408)"
+                    elif "BASE ADMINISTRATIVA" in n or "OPERACÕES ESPECIAIS" in n or "160098" in n: 
+                        return "Base Administrativa do Com. de Op. Esp. (160098)"
+                    elif "BASE AÉREA" in n or "ANÁPOLIS" in n or "120624" in n: 
+                        return "Base Aérea de Anápolis (120624)"
+                    elif "HFAB" in n or "120096" in n: 
+                        return "HFAB (120096)"
+                    # Tudo o que sobrar cai na linha "OSE" (Soma de todas as outras)
+                    return "OSE"
+
+                df_c['Categoria'] = df_c['ose'].apply(categorizar)
+                
+                # 3. Estrutura de colunas (Anos e Meses)
+                anos = [2024, 2025, 2026]
+                mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
+                                    7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
+                
+                meses_lista = [mapa_meses_abrev[m] for m in range(1, 13)]
+                colunas = pd.MultiIndex.from_product([anos, meses_lista], names=['Ano', 'Mês'])
+                
+                # Ordem das linhas conforme solicitado
+                categorias = [
+                    "OSE", 
+                    "HFA (112408)", 
+                    "Base Administrativa do Com. de Op. Esp. (160098)", 
+                    "Base Aérea de Anápolis (120624)", 
+                    "HFAB (120096)"
+                ]
+                
+                df_final = pd.DataFrame(0.0, index=categorias, columns=colunas)
+
+                # 4. Preenchimento (Agrupando por Categoria, Ano e Mês)
+                for _, row in df_c.iterrows():
+                    cat = row['Categoria']
+                    try:
+                        ano = int(row['ano_competencia'])
+                        mes_num = int(row['mes_competencia'])
+                        mes_txt = mapa_meses_abrev.get(mes_num)
+                        
+                        if ano in anos and mes_txt:
+                            df_final.loc[cat, (ano, mes_txt)] += row['v_liq']
+                    except:
+                        continue
+
+                # 5. Adição da linha de TOTAL geral
+                df_final.loc['TOTAL'] = df_final.sum()
+                return df_final
+
+            # Executa a geração da tabela
+            df_creditos = gerar_tabela_creditos(df)
+            
+            # Exibe com formatação de moeda
+            st.dataframe(
+                df_creditos.style.format("R$ {:,.2f}"),
+                use_container_width=True
+            )
 
             st.divider()
-
-            col_graf1, col_graf2 = st.columns(2)
             
-            with col_graf1:
-                st.write("**Glosas por OSE (Top 10)**")
-                df_ose_glosa = df_calc.groupby('ose')['v_glosa'].sum().sort_values(ascending=False).head(10).reset_index()
-                fig_glosa = px.bar(df_ose_glosa, x='v_glosa', y='ose', orientation='h', color='v_glosa', color_continuous_scale='Reds')
-                st.plotly_chart(fig_glosa, use_container_width=True)
-
-            with col_graf2:
-                st.write("**Distribuição por Status (Volume Financeiro)**")
-                df_status_val = df_calc.groupby('status')['v_liq'].sum().reset_index()
-                df_status_val['status_txt'] = df_status_val['status'].map(mapa_status_fisc)
-                fig_status = px.pie(df_status_val, values='v_liq', names='status_txt', hole=0.4)
-                st.plotly_chart(fig_status, use_container_width=True)
+            # --- DASHBOARD DE RESUMO (Opcional, logo abaixo da tabela) ---
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                val_ose = df_creditos.loc['OSE'].sum()
+                st.metric("Total Comprometido (OSE)", f"R$ {val_ose:,.2f}")
+            with c2:
+                val_mil = df_creditos.loc["HFA (112408)":"HFAB (120096)"].values.sum()
+                st.metric("Total Comprometido (Militares)", f"R$ {val_mil:,.2f}")
+            with c3:
+                val_total = df_creditos.loc['TOTAL'].sum()
+                st.metric("Carga Orçamentária Total", f"R$ {val_total:,.2f}")
 
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
