@@ -1935,9 +1935,115 @@ else:
 
 
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
-        st.header("📈 Dashboard")
-        st.metric("Economia", f"R$ {pd.to_numeric(df['glosa']).sum():,.2f}")
-        st.bar_chart(df['status'].value_counts())
+        st.header("📈 Dashboard Estratégico SISAFA")
+
+        # --- DEFINIÇÃO DAS ABAS ---
+        tab_fin, tab_prod, tab_est = st.tabs([
+            "💰 Situação Financeira", 
+            "⏱️ Produtividade e dados estatísticos", 
+            "📂 Estrutura do SISAFA"
+        ])
+
+        # =================================================================
+        # 1. ABA: SITUAÇÃO FINANCEIRA
+        # =================================================================
+        with tab_fin:
+            st.subheader("Análise de Valores e Glosas")
+            
+            # Limpeza de dados para cálculo
+            df_calc = df.copy()
+            df_calc['v_apres'] = df_calc['valor_apresentado'].apply(limpar_valor)
+            df_calc['v_glosa'] = df_calc['glosa'].apply(limpar_valor)
+            df_calc['v_liq'] = df_calc['valor_liquido'].apply(limpar_valor)
+
+            # Métricas Principais (Os Cards)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Total Apresentado", f"R$ {df_calc['v_apres'].sum():,.2f}")
+            with c2:
+                total_glosa = df_calc['v_glosa'].sum()
+                st.metric("Economia (Glosas)", f"R$ {total_glosa:,.2f}", delta=f"{(total_glosa/df_calc['v_apres'].sum()*100):.1f}%", delta_color="normal")
+            with c3:
+                st.metric("Total Líquido", f"R$ {df_calc['v_liq'].sum():,.2f}")
+
+            st.divider()
+
+            col_graf1, col_graf2 = st.columns(2)
+            
+            with col_graf1:
+                st.write("**Glosas por OSE (Top 10)**")
+                df_ose_glosa = df_calc.groupby('ose')['v_glosa'].sum().sort_values(ascending=False).head(10).reset_index()
+                fig_glosa = px.bar(df_ose_glosa, x='v_glosa', y='ose', orientation='h', color='v_glosa', color_continuous_scale='Reds')
+                st.plotly_chart(fig_glosa, use_container_width=True)
+
+            with col_graf2:
+                st.write("**Distribuição por Status (Volume Financeiro)**")
+                df_status_val = df_calc.groupby('status')['v_liq'].sum().reset_index()
+                df_status_val['status_txt'] = df_status_val['status'].map(mapa_status_fisc)
+                fig_status = px.pie(df_status_val, values='v_liq', names='status_txt', hole=0.4)
+                st.plotly_chart(fig_status, use_container_width=True)
+
+        # =================================================================
+        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
+        # =================================================================
+        with tab_prod:
+            st.subheader("⏱️ Produtividade e dados estatísticos")
+            
+            try:
+                # Carregamos o Histórico para o Process Mining
+                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                df_hist = pd.DataFrame(aba_h.get_all_records())
+                
+                if df_hist.empty:
+                    st.info("Aguardando dados históricos para calcular produtividade.")
+                else:
+                    # Preparação para cálculo de tempo (Process Mining Lite)
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], dayfirst=True)
+                    df_hist = df_hist.sort_values(['nup', 'timestamp'])
+                    
+                    # Cálculo de tempo entre etapas
+                    df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
+                    
+                    st.write("### Tempo Médio por Transição")
+                    # Agrupamos por mudança de status
+                    df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
+                    df_tempos['transicao'] = df_tempos['status_origem'].astype(str) + " ➔ " + df_tempos['status_destino'].astype(str)
+                    
+                    # Convertendo timedelta para dias (float)
+                    df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
+                    
+                    resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
+                    
+                    fig_tempo = px.bar(resumo_tempo, x='transicao', y='dias', title="Dias Médios entre Status",
+                                      labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
+                                      color='dias', color_continuous_scale='Viridis')
+                    st.plotly_chart(fig_tempo, use_container_width=True)
+
+                    # Métrica de eficiência
+                    total_faturas = df['nup'].nunique()
+                    faturas_pagas = df[df['status'] == 9]['nup'].nunique()
+                    taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
+                    
+                    st.metric("Taxa de Conclusão (Eficiência do Fluxo)", f"{taxa_conclusao:.1f}%")
+                    
+                    with st.expander("🔍 Detalhes do Lead Time por NUP"):
+                        df_lead = df_hist.groupby('nup').agg(
+                            inicio=('timestamp', 'min'),
+                            fim=('timestamp', 'max')
+                        )
+                        df_lead['Lead Time (Dias)'] = (df_lead['fim'] - df_lead['inicio']).dt.days
+                        st.dataframe(df_lead, use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Erro ao processar dados de produtividade: {e}")
+
+        # =================================================================
+        # 3. ABA: ESTRUTURA DO SISAFA
+        # =================================================================
+        with tab_est:
+            st.info("📂 Esta seção conterá a documentação técnica e o código-fonte do sistema.")
+            st.write("---")
+            st.markdown("**(Em desenvolvimento - Aguardando upload dos arquivos)**")
 
 
 
