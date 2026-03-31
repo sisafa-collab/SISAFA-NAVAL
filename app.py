@@ -1768,23 +1768,22 @@ else:
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
             st.subheader("💬 Central de Relacionamento (Gestão de OSEs)")
-            st.write("Aqui você acompanha e responde todas as interações das suas OSEs supervisionadas.")
-
+            
             try:
                 # 1. Carregamos as mensagens
                 aba_msg = sh.worksheet(ABA_MENSAGENS)
-                df_msg = pd.DataFrame(aba_msg.get_all_records())
+                dados_brutos = aba_msg.get_all_records()
+                df_msg = pd.DataFrame(dados_brutos)
                 
                 if df_msg.empty:
                     st.info("Nenhuma mensagem registrada no sistema.")
                 else:
-                    # --- FILTRO DE SUPERVISÃO DO FISCAL ---
-                    # 2. Aplicamos a vacina no CNPJ das mensagens para garantir a comparação
-                    df_msg['cnpj_limpo'] = df_msg['cnpj_ose'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
+                    # --- CORREÇÃO DOS NOMES (VACINA) ---
+                    # Trocamos 'cnpj_ose' por 'remetente' que é o nome real na sua aba
+                    df_msg['cnpj_limpo'] = df_msg['remetente'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
 
                     # 3. Se não for acesso Global (Admin), filtra apenas as OSEs do Fiscal
                     if not is_global:
-                        # Pegamos os CNPJs que este fiscal gerencia (já vacinados na Tabela-A)
                         cnpjs_meus = df_fiscal['CNPJ_LIMPO'].tolist()
                         df_msg_filtrado = df_msg[df_msg['cnpj_limpo'].isin(cnpjs_meus)].copy()
                     else:
@@ -1793,22 +1792,23 @@ else:
                     if df_msg_filtrado.empty:
                         st.info("📭 Nenhuma mensagem pendente das suas OSEs.")
                     else:
-                        # Métricas do Fiscal
-                        pendentes = len(df_msg_filtrado[df_msg_filtrado['status_resposta'] == 'PENDENTE'])
+                        # 2. Métricas (Trocado 'status_resposta' por 'status_msg')
+                        pendentes = len(df_msg_filtrado[df_msg_filtrado['status_msg'] == 'PENDENTE'])
+                        
                         c1, c2 = st.columns(2)
                         c1.metric("Total de Conversas", len(df_msg_filtrado))
-                        c2.metric("📩 Pendentes de Atenção", pendentes, delta_color="inverse")
+                        c2.metric("📩 Pendentes", pendentes, delta_color="inverse")
 
                         st.divider()
 
                         # 4. Tabela de Mensagens
                         st.write("**📥 Histórico de Interações:**")
-                        cols_fisc = ['nup', 'cnpj_ose', 'assunto', 'status_resposta']
-                        if 'numero_fatura' in df_msg_filtrado.columns:
-                            cols_fisc = ['numero_fatura'] + cols_fisc
+                        
+                        # Ajustado para os nomes reais: remetente, status_msg
+                        cols_fisc = ['Numero_da_fatura', 'nup', 'remetente', 'setor_destino', 'status_msg']
 
                         st.dataframe(
-                            df_msg_filtrado[cols_fisc].sort_values(by='status_resposta', ascending=False),
+                            df_msg_filtrado[cols_fisc].sort_values(by='status_msg', ascending=False),
                             use_container_width=True,
                             hide_index=True
                         )
@@ -1817,34 +1817,45 @@ else:
 
                         # 5. Área de Intervenção/Resposta
                         st.markdown("### ✍️ Responder ou Intervir")
-                        opcoes_nup = df_msg_filtrado['nup'].unique().tolist()
-                        nup_interacao = st.selectbox("Selecione o NUP para interagir:", [""] + opcoes_nup, key="sb_rel_fisc")
                         
-                        if nup_interacao:
-                            # Pegamos a última mensagem para contexto
-                            dados_m = df_msg_filtrado[df_msg_filtrado['nup'] == nup_interacao].iloc[-1]
+                        # Rótulo para o selectbox
+                        df_msg_filtrado['label_selecao'] = (
+                            "Fatura: " + df_msg_filtrado['Numero_da_fatura'].astype(str) + 
+                            " | ID: " + df_msg_filtrado['id_mensagem'].astype(str)
+                        )
+                        
+                        selecao_msg = st.selectbox("Selecione a mensagem para interagir:", [""] + df_msg_filtrado['label_selecao'].tolist(), key="sb_rel_fisc")
+                        
+                        if selecao_msg:
+                            dados_m = df_msg_filtrado[df_msg_filtrado['label_selecao'] == selecao_msg].iloc[0]
+                            id_msg_alvo = str(dados_m['id_mensagem'])
                             
                             with st.container(border=True):
-                                st.write(f"🏢 **OSE:** {dados_m['cnpj_ose']}")
-                                st.write(f"📑 **Assunto:** {dados_m['assunto']}")
-                                st.chat_message("user").write(f"**Mensagem da OSE:** {dados_m['mensagem_corpo']}")
+                                st.write(f"🏢 **OSE:** {dados_m['remetente']}")
+                                st.write(f"📍 **Setor Destino:** {dados_m['setor_destino']}")
+                                # Trocado 'mensagem_corpo' por 'texto'
+                                st.chat_message("user").write(f"**Mensagem da OSE:** {dados_m['texto']}")
                                 
-                                resp_fisc = st.text_area("Sua Resposta Oficial (Fiscal):", placeholder="O Fiscal tem autoridade para responder em qualquer fase do processo...")
+                                resp_fisc = st.text_area("Sua Resposta Oficial (Fiscal):", placeholder="Escreva aqui...")
                                 
                                 if st.button("📤 ENVIAR RESPOSTA DO FISCAL", use_container_width=True):
                                     if resp_fisc:
                                         with st.spinner("Enviando..."):
-                                            # Registra no log de ações (Tabela-B)
-                                            registrar_acao(nup_interacao, "N/A", "RESPOSTA_FISCAL", f"Fiscal respondeu: {resp_fisc[:50]}...")
+                                            registrar_acao(dados_m['nup'], dados_m['Numero_da_fatura'], "RESPOSTA_FISCAL", f"Fiscal respondeu ID {id_msg_alvo}")
                                             
-                                            # Aqui deve entrar a lógica de atualizar a ABA_MENSAGENS para 'RESPONDIDO'
+                                            # Localiza a linha pelo ID e atualiza
+                                            celula = aba_msg.find(id_msg_alvo)
+                                            linha_idx = celula.row
                                             
-                                            st.success("Resposta enviada com sucesso!")
+                                            agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                            # Colunas: data_resposta(8), status_msg(9), respondido_por_nip(10)
+                                            aba_msg.update_cell(linha_idx, 8, agora)
+                                            aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")
+                                            aba_msg.update_cell(linha_idx, 10, str(st.session_state.user_id))
+                                            
+                                            st.success("Resposta enviada!")
                                             time.sleep(1.5)
                                             st.rerun()
-                                    else:
-                                        st.warning("Por favor, digite sua resposta.")
-
             except Exception as e:
                 st.error(f"Erro no módulo de relacionamento do Fiscal: {e}")
     
