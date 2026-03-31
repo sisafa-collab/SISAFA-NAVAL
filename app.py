@@ -1715,12 +1715,27 @@ else:
         # --- 1. PREPARAÇÃO DOS DADOS (A VACINA DOS 14 DÍGITOS) ---
         user_cnpj = str(st.session_state.user_id).strip().zfill(14)
 
+        # Mapas de Tradução (Garantindo que existam no escopo)
+        mapa_status_fisc = {
+            1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
+            4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
+            6: "6 - AGUARDANDO EMISSÃO DE NF", 7: "7 - EM LIQUIDAÇÃO",
+            8: "8 - FATURA LIQUIDADA", 9: "9 - FATURA PAGA"
+        }
+
+        cores_map = {
+            "1 - FATURA CADASTRADA": "#95a5a6", "2 - EM AUDITAGEM": "#f39c12",
+            "3 - AUDITADA": "#3498db", "4 - AGUARDANDO EMISSÃO DE NE": "#f1c40f",
+            "5 - FATURA EMPENHADA": "#9b59b6", "6 - AGUARDANDO EMISSÃO DE NF": "#e67e22",
+            "7 - EM LIQUIDAÇÃO": "#e74c3c", "8 - FATURA LIQUIDADA": "#1abc9c",
+            "9 - FATURA PAGA": "#27ae60"
+        }
+
         # Preparando a Tabela-A (Dados do Fiscal)
         df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
         if 'CNPJ' in df_tabela_a.columns:
-            # Limpamos o CNPJ da Tabela-A
             df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
             dados_minha_ose = df_tabela_a[df_tabela_a['CNPJ_LIMPO'] == user_cnpj].copy()
         else:
@@ -1728,23 +1743,10 @@ else:
 
         # Preparando as Faturas (df principal)
         if 'cnpj' in df.columns:
-            # Limpamos o CNPJ da base de processos
             df['cnpj_limpo'] = df['cnpj'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
             df_minhas_faturas = df[df['cnpj_limpo'] == user_cnpj].copy()
         else:
             df_minhas_faturas = pd.DataFrame()
-
-        mapa_status_fisc = {
-        1: "1 - FATURA CADASTRADA", 
-        2: "2 - EM AUDITAGEM", 
-        3: "3 - AUDITADA",
-        4: "4 - AGUARDANDO EMISSÃO DE NE", 
-        5: "5 - FATURA EMPENHADA",
-        6: "6 - AGUARDANDO EMISSÃO DE NF", 
-        7: "7 - EM LIQUIDAÇÃO",
-        8: "8 - FATURA LIQUIDADA", 
-        9: "9 - FATURA PAGA"
-        }
 
         # --- 2. INTERFACE DAS ABAS ---
         tab_visao, tab_rel = st.tabs(["🔭 Visão Geral", "💬 Relacionamento"])
@@ -1791,7 +1793,7 @@ else:
                     names='Status', 
                     hole=0.4,
                     color='Status',
-                    color_discrete_map=cores_map # Agora ele acha o cores_map global!
+                    color_discrete_map=cores_map
                 )
                 fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5))
                 st.plotly_chart(fig, use_container_width=True)
