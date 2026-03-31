@@ -1734,8 +1734,6 @@ else:
         else:
             df_minhas_faturas = pd.DataFrame()
 
-        # --- NÃO SEI SE ESTÁ CERTO ---
-
         mapa_status_fisc = {
         1: "1 - FATURA CADASTRADA", 
         2: "2 - EM AUDITAGEM", 
@@ -1747,7 +1745,6 @@ else:
         8: "8 - FATURA LIQUIDADA", 
         9: "9 - FATURA PAGA"
         }
-
 
         # --- 2. INTERFACE DAS ABAS ---
         tab_visao, tab_rel = st.tabs(["🔭 Visão Geral", "💬 Relacionamento"])
@@ -1791,55 +1788,96 @@ else:
             # Seção: Minhas Faturas
             st.subheader("📑 Minhas faturas")
             if df_minhas_faturas.empty:
-                st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
-            else:
-                # 1. Mapa de Status
-                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
-                
-                # 2. Mapa de Meses (Número -> Sigla)
-                mapa_meses = {
-                    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
-                    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
-                    "1": "JAN", "2": "FEV", "3": "MAR", "4": "ABR", "5": "MAI", "6": "JUN",
-                    "7": "JUL", "8": "AGO", "9": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
-                }
-                
-                # Converte o número do mês para Sigla antes da exibição
-                if 'mes_competencia' in df_minhas_faturas.columns:
-                    # Guardamos uma cópia numérica para ordenação se necessário, 
-                    # mas aqui convertemos a principal para a tela
-                    df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
+            st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
+        else:
+            # 1. Mapa de Status (Mapeamos primeiro para usar tanto na tabela quanto no gráfico)
+            df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
 
-                # 3. Dicionário de tradução para cabeçalhos
-                mapa_colunas_exibicao = {
-                    'Numero_da_fatura': 'Nº da fatura',
-                    'valor_apresentado': 'Valor Apresentado',
-                    'valor_glosa': 'Glosa',
-                    'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês de entrada no HNBra', 
-                    'ano_competencia': 'Ano de Competência',
-                    'ne': 'NE',
-                    'nf': 'NF',
-                    'ob': 'OB',
-                    'Situação': 'Situação da Fatura'
-                }
-                
-                # 4. Filtramos as colunas que realmente existem
-                colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
-                
-                # 5. Processamento: Ordenar primeiro (por ano), Renomear depois
-                df_final = (
-                    df_minhas_faturas[colunas_validas]
-                    .sort_values(by=['ano_competencia'], ascending=False)
-                    .rename(columns=mapa_colunas_exibicao)
-                )
+            # -------------------------------------------------------
+            # --- NOVO: DASHBOARD RESUMO (Gráfico de Pizza) ---
+            # -------------------------------------------------------
+            st.subheader("📊 Resumo dos Processos")
+            
+            # Prepara os dados para o gráfico (Conta quantas faturas tem por situação)
+            df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
+            df_pizza.columns = ['Status', 'Quantidade']
 
-                # 6. Exibição com CENTRALIZAÇÃO dos dados via Pandas Style
-                st.dataframe(
-                    df_final.style.set_properties(**{'text-align': 'center'}),
-                    use_container_width=True,
-                    hide_index=True
-                )
+            # Define cores personalizadas padrão militar para o gráfico (Opcional, mas fica melhor)
+            cores_map = {
+                "9 - FATURA PAGA": "#2e6b54",          # Verde escuro
+                "2 - EM AUDITAGEM": "#f39c12",         # Laranja
+                "3 - AUDITADA": "#3498db",             # Azul
+                "1 - FATURA CADASTRADA": "#7f8c8d",    # Cinza
+                "7 - EM LIQUIDAÇÃO": "#e74c3c"         # Vermelho
+            }
+
+            # Cria o gráfico de pizza usando Plotly Express
+            fig = px.pie(
+                df_pizza, 
+                values='Quantidade', 
+                names='Status', 
+                # title='Distribuição de Faturas por Status', # Título já usamos o subheader
+                hole=0.4, # Transforma em gráfico de rosca (opcional, fica mais moderno)
+                color='Status', # Usa a coluna status para definir as cores
+                color_discrete_map=cores_map # Aplica o mapa de cores definido acima
+            )
+            
+            # Ajustes finos no layout do gráfico
+            fig.update_layout(
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), # Legenda horizontal embaixo
+                margin=dict(l=20, r=20, t=20, b=20) # Reduz as margens brancas
+            )
+
+            # Exibe o gráfico no Streamlit
+            st.plotly_chart(fig, use_container_width=True)
+            
+            st.divider() # Divisor antes da tabela detalhada
+
+            # --- SEÇÃO DA TABELA DETALHADA ---
+            st.subheader("📑 Detalhamento das Faturas")
+
+            # 2. Mapa de Meses (Número -> Sigla)
+            mapa_meses = {
+                1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+                7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
+                "1": "JAN", "2": "FEV", "3": "MAR", "4": "ABR", "5": "MAI", "6": "JUN",
+                "7": "JUL", "8": "AGO", "9": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
+            }
+            
+            if 'mes_competencia' in df_minhas_faturas.columns:
+                df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
+
+            # 3. Dicionário de tradução para cabeçalhos
+            mapa_colunas_exibicao = {
+                'Numero_da_fatura': 'Nº da fatura',
+                'valor_apresentado': 'Valor Apresentado',
+                'valor_glosa': 'Glosa',
+                'valor_liquido': 'Valor líquido',
+                'mes_exibicao': 'Mês de entrada no HNBra', 
+                'ano_competencia': 'Ano de Competência',
+                'ne': 'NE',
+                'nf': 'NF',
+                'ob': 'OB',
+                'Situação': 'Situação da Fatura'
+            }
+            
+            # 4. Filtramos as colunas válidas
+            colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
+            
+            # 5. Processamento: Ordenar primeiro (por ano), Renomear depois
+            df_final = (
+                df_minhas_faturas[colunas_validas]
+                .sort_values(by=['ano_competencia'], ascending=False)
+                .rename(columns=mapa_colunas_exibicao)
+            )
+
+            # 6. Exibição da Tabela CENTRALIZADA
+            st.dataframe(
+                df_final.style.set_properties(**{'text-align': 'center'}),
+                use_container_width=True,
+                hide_index=True
+            )
 
         # --- 2. ABA: RELACIONAMENTO ---
         with tab_rel:
