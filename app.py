@@ -1495,7 +1495,15 @@ else:
     elif "FISCAL" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
         st.header("📋 Fiscalização de Contratos em Saúde")
         
-        # --- DEFINIÇÃO DAS CORES (VACINA PARA O NAMEERROR) ---
+        # --- 1. DEFINIÇÃO DOS MAPAS (A BASE DO TREINO) ---
+        # Definir aqui garante que o NameError não apareça neste módulo
+        mapa_status_fisc = {
+            1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
+            4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
+            6: "6 - AGUARDANDO EMISSÃO DE NF", 7: "7 - EM LIQUIDAÇÃO",
+            8: "8 - FATURA LIQUIDADA", 9: "9 - FATURA PAGA"
+        }
+
         cores_map = {
             "1 - FATURA CADASTRADA": "#95a5a6", "2 - EM AUDITAGEM": "#f39c12",
             "3 - AUDITADA": "#3498db", "4 - AGUARDANDO EMISSÃO DE NE": "#f1c40f",
@@ -1504,7 +1512,7 @@ else:
             "9 - FATURA PAGA": "#27ae60"
         }
 
-        # --- PREPARAÇÃO DE DADOS (A VACINA DO FISCAL) ---
+        # --- 2. PREPARAÇÃO DE DADOS (VACINA DO CNPJ E NIP) ---
         df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
@@ -1512,14 +1520,13 @@ else:
             df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
         
         user_nip = str(st.session_state.user_id).strip().zfill(8)
-        is_global = (user_nip == "95039023") # Rosilene
+        is_global = (user_nip == "95039023")
 
         if is_global:
             df_fiscal = df_tabela_a.copy()
         else:
             col_nip = "NIP_DO_GESTOR_TITULAR"
             col_nip_sub = "NIP_DO_GESTOR_SUBSTITUTO"
-            # Aplica zfill nos NIPs da tabela para comparação
             for c in [col_nip, col_nip_sub]:
                 if c in df_tabela_a.columns:
                     df_tabela_a[c] = df_tabela_a[c].apply(lambda x: str(x).split('.')[0].strip().zfill(8) if x else "")
@@ -1527,12 +1534,10 @@ else:
             filtro = (df_tabela_a[col_nip] == user_nip) | (df_tabela_a[col_nip_sub] == user_nip)
             df_fiscal = df_tabela_a[filtro].copy()
 
+        # --- 3. DEFINIÇÃO DAS ABAS ---
         tab_visao, tab_nf, tab_rel = st.tabs(["🔭 Visão Geral", "🧾 Empenhos aguardando NF", "💬 Relacionamento"])
 
-        # --- 1. ABA: VISÃO GERAL ---
         with tab_visao:
-            # ... (seu código da imagem fixa aqui) ...
-            
             st.subheader("Meus contratos")
             if df_fiscal.empty:
                 st.warning(f"⚠️ Nenhum contrato vinculado ao NIP {user_nip}.")
@@ -1556,14 +1561,18 @@ else:
 
                 st.divider()
                 st.subheader("Situação geral")
-                ose_sel = st.selectbox("Selecione a Organização:", [""] + df_fiscal['RAZÃO_SOCIAL'].tolist(), key="fisc_sel_v4")
+                ose_sel = st.selectbox("Selecione a Organização:", [""] + df_fiscal['RAZÃO_SOCIAL'].tolist(), key="fisc_sel_final_v5")
 
                 if ose_sel:
+                    # Filtro de processos da OSE escolhida
                     cnpj_alvo = df_fiscal[df_fiscal['RAZÃO_SOCIAL'] == ose_sel]['CNPJ_LIMPO'].iloc[0]
+                    
+                    # Criamos a coluna vacinada no df principal para o match
                     df['cnpj_vacinado'] = df['cnpj'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
                     df_proc_fisc = df[df['cnpj_vacinado'] == cnpj_alvo].copy()
 
                     if not df_proc_fisc.empty:
+                        # TRADUÇÃO DOS STATUS (Onde dava o erro!)
                         df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
                         
                         c1, c2 = st.columns([2, 1])
@@ -1571,20 +1580,21 @@ else:
                             st.write(f"📋 **Processos de {ose_sel}:**")
                             st.dataframe(df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']], use_container_width=True, hide_index=True)
                         with c2:
-                            # --- AQUI ESTAVA O ERRO: AGORA O CORES_MAP EXISTE NESTE BLOCO ---
+                            # Gráfico de Pizza
                             df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
                             fig = px.pie(
                                 df_pizza, values='count', names='situação_texto', 
                                 hole=0.4, color='situação_texto', 
-                                color_discrete_map=cores_map # <-- FUNCIONA AGORA!
+                                color_discrete_map=cores_map
                             )
                             fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
                             st.plotly_chart(fig, use_container_width=True)
 
+                            # Métrica de Valor
                             df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
                             st.metric("Total em Trâmite", f"R$ {df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum():,.2f}")
                     else:
-                        st.info(f"Nenhum processo encontrado para {ose_sel} na base de dados.")
+                        st.info(f"Nenhum processo encontrado para {ose_sel}.")
 
         # 2. ABA: EMPENHOS AGUARDANDO NF
         with tab_nf:
