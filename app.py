@@ -2024,19 +2024,27 @@ else:
 
             st.divider()
 
-            # --- HISTOGRAMA COLORIDO ---
+            # --- HISTOGRAMA COLORIDO (CORRIGIDO) ---
             if not df_grafico.empty:
                 st.subheader("📊 Histórico de Dívida por Competência")
                 
+                # Criando a label de competência (Mês/Ano)
                 df_grafico['Competência'] = df_grafico.apply(
                     lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(x['ano_competencia'])[2:]}", axis=1
                 )
+                
+                # Ordenação cronológica
                 df_grafico['ordem'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
                 df_grafico = df_grafico.sort_values('ordem')
 
                 fig_divida = px.bar(
-                    df_grafico, x='Competência', y='Valor total por OSE', color='Categoria',
+                    df_grafico, 
+                    x='Competência', 
+                    y='v_liq',  # <--- O SEGREDO ESTÁ AQUI: O NOME REAL É 'v_liq'
+                    color='Categoria',
                     title="Distribuição Mensal da Dívida Comprometida",
+                    # Usamos labels para o nome aparecer bonito no gráfico sem dar erro
+                    labels={'v_liq': 'Valor Total por OSE', 'Categoria': 'Tipo'},
                     color_discrete_map={
                         "OSE": "#2e6b54",
                         "HOSPITAL DAS FORÇAS ARMADAS (HFA)": "#cba30c",
@@ -2046,6 +2054,9 @@ else:
                     },
                     template="plotly_white"
                 )
+                
+                # Melhora a visualização do eixo X
+                fig_divida.update_layout(xaxis_tickangle=-45)
                 st.plotly_chart(fig_divida, use_container_width=True)
 
         # =================================================================
