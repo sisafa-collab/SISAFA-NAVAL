@@ -1751,8 +1751,7 @@ else:
 
         # --- 1. ABA: VISÃO GERAL ---
         with tab_visao:
-            # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA ---
-            # Note que AGORA tudo está recuado para a direita em relação ao 'with'
+            # --- IMAGEM FIXA ---
             mapeamento_path = carregar_imagem(caminho_mapeamento)
             if mapeamento_path:
                 with open(mapeamento_path, "rb") as f:
@@ -1763,37 +1762,25 @@ else:
                         unsafe_allow_html=True
                     )
 
-            # --- CSS PARA CENTRALIZAR ST.TABLE (Fiscal do Contrato) ---
-            st.markdown("""
-                <style>
-                th, td { text-align: center !important; }
-                </style>
-                """, unsafe_allow_html=True)
-
-            # Seção: Fiscal do meu Contrato
+            # --- SEÇÃO FISCAL ---
             st.subheader("👮 Fiscal do meu contrato")
             if not dados_minha_ose.empty:
-                cols_fiscal = {
-                    "NIP_DO_GESTOR_TITULAR": "NIP",
-                    "GESTOR_TITULAR": "Nome do Fiscal do Contrato",
-                    "GESTOR_SUBSTITUTO": "Fiscal Substituto"
-                }
+                cols_fiscal = {"NIP_DO_GESTOR_TITULAR": "NIP", "GESTOR_TITULAR": "Nome do Fiscal", "GESTOR_SUBSTITUTO": "Fiscal Substituto"}
                 existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
                 st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
             else:
-                st.info("Informações do fiscal ainda não vinculadas para este CNPJ.")
+                st.info("Informações do fiscal ainda não vinculadas.")
 
             st.divider()
 
-            # Seção: Minhas Faturas
-            st.subheader("📑 Minhas faturas")
+            # --- SEÇÃO FATURAS & GRÁFICO ---
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. Mapa de Status
+                # Tradução de status
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
 
-                # --- DASHBOARD DE PIZZA ---
+                # Gráfico de Pizza
                 st.subheader("📊 Resumo dos Processos")
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
                 df_pizza.columns = ['Status', 'Quantidade']
@@ -1804,24 +1791,18 @@ else:
                     names='Status', 
                     hole=0.4,
                     color='Status',
-                    color_discrete_map=cores_map # Usa aquele mapa de cores completo que criamos
+                    color_discrete_map=cores_map # Agora ele acha o cores_map global!
                 )
-                fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5))
                 st.plotly_chart(fig, use_container_width=True)
                 
                 st.divider()
 
-                # --- TABELA DETALHADA ---
+                # Tabela Detalhada
                 st.subheader("📑 Detalhamento das Faturas")
-
-                # 2. Mapa de Meses (Número -> Sigla)
-                mapa_meses = {
-                    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
-                    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
-                    "1": "JAN", "2": "FEV", "3": "MAR", "4": "ABR", "5": "MAI", "6": "JUN",
-                    "7": "JUL", "8": "AGO", "9": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
-                }
                 
+                # Vacina dos meses
+                mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
 
@@ -1830,8 +1811,8 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa',
                     'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês de entrada no HNBra', 
-                    'ano_competencia': 'Ano de Competência',
+                    'mes_exibicao': 'Mês Competência', 
+                    'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB',
                     'Situação': 'Situação da Fatura'
                 }
