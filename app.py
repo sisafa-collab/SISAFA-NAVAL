@@ -1833,45 +1833,57 @@ else:
                     hide_index=True
                 )
 
-        # --- 2. ABA: RELACIONAMENTO ---
+        # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
         with tab_rel:
             st.subheader("💬 Central de Relacionamento")
-            st.markdown("Utilize este espaço para tirar dúvidas sobre faturas específicas.")
-            
+            st.markdown("Selecione a fatura para iniciar um contato com o HNBra.")
+
             if df_minhas_faturas.empty:
-                st.info("Você precisa ter faturas cadastradas para iniciar um contato.")
+                st.info("Nenhuma fatura encontrada para iniciar contato.")
             else:
-                # OSE escolhe a fatura pelo NUP ou Número
-                opcoes_fatura = df_minhas_faturas['nup'].tolist()
-                nup_selecionado = st.selectbox("Sobre qual processo (NUP) você deseja falar?", [""] + opcoes_fatura)
+                # Criamos uma etiqueta amigável: "Fatura 123/2026 - JAN"
+                df_minhas_faturas['label_fatura'] = (
+                    "Fatura: " + df_minhas_faturas['Numero_da_fatura'].astype(str) + 
+                    "/" + df_minhas_faturas['ano_competencia'].astype(str) + 
+                    " (" + df_minhas_faturas['mes_exibicao'] + ")"
+                )
                 
-                if nup_selecionado:
-                    # Busca dados da fatura para mostrar o contexto
-                    info_f = df_minhas_faturas[df_minhas_faturas['nup'] == nup_selecionado].iloc[0]
-                    st.info(f"Contexto: Fatura {info_f['Numero_da_fatura']} | Status Atual: {info_f['Situação']}")
-                    
-                    # Área de Mensagem
+                lista_opcoes = df_minhas_faturas['label_fatura'].tolist()
+                fatura_sel_label = st.selectbox("Sobre qual fatura deseja falar?", [""] + lista_opcoes)
+
+                if fatura_sel_label:
+                    # Recuperamos os dados reais da fatura selecionada
+                    dados_f = df_minhas_faturas[df_minhas_faturas['label_fatura'] == fatura_sel_label].iloc[0]
+                    nup_vinc = dados_f['nup']
+                    status_vinc = dados_f['status'] # O segredo do roteamento está aqui
+
+                    st.info(f"📌 **Contexto:** {fatura_sel_label} | **Status:** {dados_f['Situação']}")
+
                     with st.container(border=True):
-                        st.write("📤 **Nova Mensagem:**")
-                        assunto = st.text_input("Assunto da dúvida:", placeholder="Ex: Prazo de pagamento, Recurso de Glosa...")
-                        mensagem = st.text_area("Descreva sua solicitação:")
+                        assunto = st.text_input("Assunto:", placeholder="Ex: Divergência na Glosa")
+                        mensagem = st.text_area("Sua mensagem:")
                         
-                        if st.button("Enviar Mensagem Oficial"):
+                        if st.button("📤 ENVIAR MENSAGEM OFICIAL", use_container_width=True):
                             if assunto and mensagem:
-                                with st.spinner("Enviando..."):
-                                    # Aqui usamos a função de registrar ação para que os militares vejam o log
-                                    registrar_acao(
-                                        nup_selecionado, 
-                                        info_f['Numero_da_fatura'], 
-                                        "CONTATO_OSE", 
-                                        f"Assunto: {assunto} | Msg: {mensagem}"
-                                    )
+                                try:
+                                    aba_msg = sh.worksheet(ABA_MENSAGENS)
+                                    nova_linha = [
+                                        nup_vinc, 
+                                        user_cnpj, 
+                                        assunto, 
+                                        mensagem, 
+                                        datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                        "PENDENTE",
+                                        dados_f['Numero_da_fatura'],
+                                        status_vinc # Gravamos o status no momento do envio
+                                    ]
+                                    aba_msg.append_row(nova_linha)
                                     
-                                    # Se você tiver uma aba de mensagens específica (ABA_MENSAGENS)
-                                    # você pode adicionar um append_row aqui também.
+                                    # Também registramos no log geral (Tabela-B)
+                                    registrar_acao(nup_vinc, dados_f['Numero_da_fatura'], "CONTATO_OSE", f"Assunto: {assunto}")
                                     
-                                st.success("Sua mensagem foi enviada para a equipe do HNBra!")
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.warning("Por favor, preencha o assunto e a mensagem.")
+                                    st.success("Mensagem enviada com sucesso!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao enviar: {e}")
