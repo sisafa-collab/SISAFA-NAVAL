@@ -1751,131 +1751,92 @@ else:
 
         # --- 1. ABA: VISÃO GERAL ---
         with tab_visao:
-        # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
-        mapeamento_path = carregar_imagem(caminho_mapeamento)
-        if mapeamento_path:
-            with open(mapeamento_path, "rb") as f:
-                data = base64.b64encode(f.read()).decode()
-                st.markdown(
-                    f'<img src="data:image/png;base64,{data}" '
-                    'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
-                    unsafe_allow_html=True
+            # --- INCLUSÃO DO MAPEAMENTO COMO IMAGEM FIXA (Canto Inferior Direito) ---
+            mapeamento_path = carregar_imagem(caminho_mapeamento)
+            if mapeamento_path:
+                with open(mapeamento_path, "rb") as f:
+                    data = base64.b64encode(f.read()).decode()
+                    st.markdown(
+                        f'<img src="data:image/png;base64,{data}" '
+                        'style="position: fixed; bottom: 20px; right: 20px; width: 220px; z-index:998; opacity: 0.9; pointer-events: none;">',
+                        unsafe_allow_html=True
+                    )
+
+            # --- CSS PARA CENTRALIZAR ST.TABLE (Fiscal do Contrato) ---
+            st.markdown("""
+                <style>
+                th, td { text-align: center !important; }
+                </style>
+                """, unsafe_allow_html=True)
+
+            # Seção: Fiscal do meu Contrato
+            st.subheader("👮 Fiscal do meu contrato")
+            if not dados_minha_ose.empty:
+                cols_fiscal = {
+                    "NIP_DO_GESTOR_TITULAR": "NIP",
+                    "GESTOR_TITULAR": "Nome do Fiscal do Contrato",
+                    "GESTOR_SUBSTITUTO": "Fiscal Substituto"
+                }
+                existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
+                # st.table é afetado pelo CSS acima
+                st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
+            else:
+                st.info("Informações do fiscal ainda não vinculadas para este CNPJ.")
+
+            st.divider()
+
+            # Seção: Minhas Faturas
+            st.subheader("📑 Minhas faturas")
+            if df_minhas_faturas.empty:
+                st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
+            else:
+                # 1. Mapa de Status
+                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
+                
+                # 2. Mapa de Meses (Número -> Sigla)
+                mapa_meses = {
+                    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+                    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
+                    "1": "JAN", "2": "FEV", "3": "MAR", "4": "ABR", "5": "MAI", "6": "JUN",
+                    "7": "JUL", "8": "AGO", "9": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
+                }
+                
+                # Converte o número do mês para Sigla antes da exibição
+                if 'mes_competencia' in df_minhas_faturas.columns:
+                    # Guardamos uma cópia numérica para ordenação se necessário, 
+                    # mas aqui convertemos a principal para a tela
+                    df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
+
+                # 3. Dicionário de tradução para cabeçalhos
+                mapa_colunas_exibicao = {
+                    'Numero_da_fatura': 'Nº da fatura',
+                    'valor_apresentado': 'Valor Apresentado',
+                    'valor_glosa': 'Glosa',
+                    'valor_liquido': 'Valor líquido',
+                    'mes_exibicao': 'Mês de entrada no HNBra', 
+                    'ano_competencia': 'Ano de Competência',
+                    'ne': 'NE',
+                    'nf': 'NF',
+                    'ob': 'OB',
+                    'Situação': 'Situação da Fatura'
+                }
+                
+                # 4. Filtramos as colunas que realmente existem
+                colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
+                
+                # 5. Processamento: Ordenar primeiro (por ano), Renomear depois
+                df_final = (
+                    df_minhas_faturas[colunas_validas]
+                    .sort_values(by=['ano_competencia'], ascending=False)
+                    .rename(columns=mapa_colunas_exibicao)
                 )
 
-        # --- CSS PARA CENTRALIZAR ST.TABLE (Fiscal do Contrato) ---
-        st.markdown("""
-            <style>
-            th, td { text-align: center !important; }
-            </style>
-            """, unsafe_allow_html=True)
-
-        # Seção: Fiscal do meu Contrato
-        st.subheader("👮 Fiscal do meu contrato")
-        if not dados_minha_ose.empty:
-            cols_fiscal = {
-                "NIP_DO_GESTOR_TITULAR": "NIP",
-                "GESTOR_TITULAR": "Nome do Fiscal do Contrato",
-                "GESTOR_SUBSTITUTO": "Fiscal Substituto"
-            }
-            existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
-            st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
-        else:
-            st.info("Informações do fiscal ainda não vinculadas para este CNPJ.")
-
-        st.divider()
-
-        # Seção: Minhas Faturas (PREPARAÇÃO DE DADOS PARA TABELA E GRÁFICO)
-        if df_minhas_faturas.empty:
-            st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
-        else:
-            # 1. Mapa de Status (Mapeamos primeiro para usar tanto na tabela quanto no gráfico)
-            df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
-
-            # -------------------------------------------------------
-            # --- NOVO: DASHBOARD RESUMO (Gráfico de Pizza) ---
-            # -------------------------------------------------------
-            st.subheader("📊 Resumo dos Processos")
-            
-            # Prepara os dados para o gráfico (Conta quantas faturas tem por situação)
-            df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
-            df_pizza.columns = ['Status', 'Quantidade']
-
-            # Define cores personalizadas padrão militar para o gráfico (Opcional, mas fica melhor)
-            cores_map = {
-                "9 - FATURA PAGA": "#2e6b54",          # Verde escuro
-                "2 - EM AUDITAGEM": "#f39c12",         # Laranja
-                "3 - AUDITADA": "#3498db",             # Azul
-                "1 - FATURA CADASTRADA": "#7f8c8d",    # Cinza
-                "7 - EM LIQUIDAÇÃO": "#e74c3c"         # Vermelho
-            }
-
-            # Cria o gráfico de pizza usando Plotly Express
-            fig = px.pie(
-                df_pizza, 
-                values='Quantidade', 
-                names='Status', 
-                # title='Distribuição de Faturas por Status', # Título já usamos o subheader
-                hole=0.4, # Transforma em gráfico de rosca (opcional, fica mais moderno)
-                color='Status', # Usa a coluna status para definir as cores
-                color_discrete_map=cores_map # Aplica o mapa de cores definido acima
-            )
-            
-            # Ajustes finos no layout do gráfico
-            fig.update_layout(
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5), # Legenda horizontal embaixo
-                margin=dict(l=20, r=20, t=20, b=20) # Reduz as margens brancas
-            )
-
-            # Exibe o gráfico no Streamlit
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.divider() # Divisor antes da tabela detalhada
-
-            # --- SEÇÃO DA TABELA DETALHADA ---
-            st.subheader("📑 Detalhamento das Faturas")
-
-            # 2. Mapa de Meses (Número -> Sigla)
-            mapa_meses = {
-                1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
-                7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ",
-                "1": "JAN", "2": "FEV", "3": "MAR", "4": "ABR", "5": "MAI", "6": "JUN",
-                "7": "JUL", "8": "AGO", "9": "SET", "10": "OUT", "11": "NOV", "12": "DEZ"
-            }
-            
-            if 'mes_competencia' in df_minhas_faturas.columns:
-                df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
-
-            # 3. Dicionário de tradução para cabeçalhos
-            mapa_colunas_exibicao = {
-                'Numero_da_fatura': 'Nº da fatura',
-                'valor_apresentado': 'Valor Apresentado',
-                'valor_glosa': 'Glosa',
-                'valor_liquido': 'Valor líquido',
-                'mes_exibicao': 'Mês de entrada no HNBra', 
-                'ano_competencia': 'Ano de Competência',
-                'ne': 'NE',
-                'nf': 'NF',
-                'ob': 'OB',
-                'Situação': 'Situação da Fatura'
-            }
-            
-            # 4. Filtramos as colunas válidas
-            colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
-            
-            # 5. Processamento: Ordenar primeiro (por ano), Renomear depois
-            df_final = (
-                df_minhas_faturas[colunas_validas]
-                .sort_values(by=['ano_competencia'], ascending=False)
-                .rename(columns=mapa_colunas_exibicao)
-            )
-
-            # 6. Exibição da Tabela CENTRALIZADA
-            st.dataframe(
-                df_final.style.set_properties(**{'text-align': 'center'}),
-                use_container_width=True,
-                hide_index=True
-            )
+                # 6. Exibição com CENTRALIZAÇÃO dos dados via Pandas Style
+                st.dataframe(
+                    df_final.style.set_properties(**{'text-align': 'center'}),
+                    use_container_width=True,
+                    hide_index=True
+                )
 
         # --- 2. ABA: RELACIONAMENTO ---
         with tab_rel:
