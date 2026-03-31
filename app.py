@@ -1983,7 +1983,7 @@ else:
                     n = str(nome).upper()
                     if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
                     elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return cats_oficiais[2]
-                    elif "120624" in n or "ANÁPOLIS" in n: return cats_oficiais[3]
+                    elif "120624" in n or "Base Aérea de Anápolis (120624)" in n: return cats_oficiais[3]
                     elif "120096" in n or "HFAB" in n: return cats_oficiais[4]
                     return cats_oficiais[0]
 
