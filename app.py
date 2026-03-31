@@ -892,86 +892,95 @@ else:
 
     # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
         with t_rel:
-            st.subheader("💬 Central de Relacionamento (Inbox Auditoria)")
+            st.subheader("💬 Central de Relacionamento (Setor: AUDITORIA)")
             
             try:
-                # 1. Carregamos as mensagens da aba correspondente
+                # 1. Carregamos as mensagens
                 aba_msg = sh.worksheet(ABA_MENSAGENS)
-                df_msg = pd.DataFrame(aba_msg.get_all_records())
+                dados_brutos = aba_msg.get_all_records()
+                df_msg = pd.DataFrame(dados_brutos)
                 
                 if df_msg.empty:
                     st.info("Nenhuma mensagem registrada no sistema.")
                 else:
-                    # --- FILTRO INTELIGENTE PARA AUDITORIA ---
-                    # 2. Identificamos na base principal quais faturas estão com Auditoria (Status 2 ou 3)
-                    status_auditoria = [2, 3]
-                    nups_na_auditoria = df[df['status'].isin(status_auditoria)]['nup'].unique().tolist()
-                    
-                    # 3. Filtramos o inbox para mostrar apenas o que compete à Auditoria agora
-                    df_msg_auditoria = df_msg[df_msg['nup'].isin(nups_na_auditoria)].copy()
+                    # --- FILTRO POR SETOR ---
+                    # Mostra apenas o que é destinado à Auditoria
+                    df_msg_auditoria = df_msg[df_msg['setor_destino'] == "AUDITORIA"].copy()
 
                     if df_msg_auditoria.empty:
-                        st.info("✅ Não há mensagens pendentes para faturas em fase de Auditoria.")
+                        st.info("✅ Nenhuma mensagem pendente para a Auditoria.")
                     else:
-                        # Métricas focadas na Auditoria
-                        pendentes = len(df_msg_auditoria[df_msg_auditoria['status_resposta'] == 'PENDENTE'])
+                        # 2. Métricas do Setor
+                        pendentes = len(df_msg_auditoria[df_msg_auditoria['status_msg'] == 'PENDENTE'])
                         
                         c1, c2 = st.columns(2)
-                        c1.metric("Mensagens do Setor", len(df_msg_auditoria))
-                        c2.metric("📩 Aguardando Auditor", pendentes, delta_color="inverse")
+                        c1.metric("Mensagens Recebidas", len(df_msg_auditoria))
+                        c2.metric("📩 Aguardando Resposta", pendentes, delta_color="inverse")
                         
                         st.divider()
 
-                        # 4. Inbox de Mensagens (Mostrando o Número da Fatura no lugar do NUP bruto)
-                        st.write("**📥 Mensagens Vinculadas a Processos em Auditoria:**")
+                        # 3. Inbox de Mensagens (Usando os nomes das suas 10 colunas)
+                        st.write("**📥 Mensagens Destinadas à Auditoria:**")
                         
-                        # Se a coluna 'numero_fatura' existir no seu df_msg, usamos ela. 
-                        # Caso contrário, mostramos o NUP.
-                        colunas_inbox = ['nup', 'cnpj_ose', 'assunto', 'status_resposta']
-                        if 'numero_fatura' in df_msg_auditoria.columns:
-                            colunas_inbox = ['numero_fatura'] + colunas_inbox
-
+                        # Ordenamos para mostrar as PENDENTES no topo
+                        df_exibir = df_msg_auditoria.sort_values(by='status_msg', ascending=False)
+                        
                         st.dataframe(
-                            df_msg_auditoria[colunas_inbox].sort_values(by='status_resposta', ascending=False), 
+                            df_exibir[['Numero_da_fatura', 'nup', 'remetente', 'data_envio', 'status_msg']], 
                             use_container_width=True,
                             hide_index=True
                         )
 
                         st.markdown("---")
 
-                        # 5. Área de Resposta Técnica
+                        # 4. Área de Resposta Técnica
                         st.markdown("### ✍️ Responder à OSE")
                         
-                        # Criamos uma lista de seleção amigável
-                        opcoes_resposta = df_msg_auditoria['nup'].unique().tolist()
-                        nup_alvo = st.selectbox("Selecione o NUP/Processo para responder:", [""] + opcoes_resposta)
+                        # Criamos uma lista de seleção: "Fatura 123 (NUP: 000...)"
+                        df_msg_auditoria['label_selecao'] = (
+                            "Fatura: " + df_msg_auditoria['Numero_da_fatura'].astype(str) + 
+                            " | ID: " + df_msg_auditoria['id_mensagem'].astype(str)
+                        )
                         
-                        if nup_alvo:
-                            # Pegamos a mensagem mais recente desse NUP
-                            msg_data = df_msg_auditoria[df_msg_auditoria['nup'] == nup_alvo].iloc[-1]
+                        selecao = st.selectbox("Selecione a mensagem para responder:", [""] + df_msg_auditoria['label_selecao'].tolist())
+                        
+                        if selecao:
+                            # Localizamos os dados da mensagem selecionada
+                            msg_data = df_msg_auditoria[df_msg_auditoria['label_selecao'] == selecao].iloc[0]
+                            id_msg_alvo = str(msg_data['id_mensagem'])
                             
                             with st.container(border=True):
-                                st.write(f"🏢 **OSE:** {msg_data['cnpj_ose']}")
-                                st.write(f"📑 **Assunto:** {msg_data['assunto']}")
-                                st.chat_message("user").write(f"**Mensagem da OSE:** {msg_data['mensagem_corpo']}")
+                                st.write(f"🏢 **Remetente (OSE):** {msg_data['remetente']}")
+                                st.write(f"📑 **NUP vinculado:** {msg_data['nup']}")
+                                st.info(f"💬 **Mensagem da OSE:**\n\n{msg_data['texto']}")
                                 
-                                resposta_texto = st.text_area("Parecer Técnico do Auditor:", height=150, placeholder="Digite aqui a resposta que a OSE visualizará...")
+                                resposta_texto = st.text_area("Resposta Oficial do Auditor:", height=150, placeholder="Digite o parecer técnico...")
                                 
-                                if st.button("📤 ENVIAR RESPOSTA PARA O PORTAL OSE", use_container_width=True):
+                                if st.button("📤 ENVIAR RESPOSTA PARA A OSE", use_container_width=True):
                                     if resposta_texto:
-                                        with st.spinner("Registrando..."):
-                                            # Ação 1: Registrar no Log Geral (Tabela-B)
-                                            registrar_acao(nup_alvo, "N/A", "RESPOSTA_AUDITORIA", f"Auditor respondeu: {resposta_texto[:50]}...")
-                                            
-                                            # Ação 2: Atualizar o status na Planilha de Mensagens
-                                            # (Lógica para localizar a linha exata e marcar como RESPONDIDO)
-                                            # ... 
-                                            
-                                            st.success("Resposta enviada com sucesso!")
-                                            time.sleep(1.5)
-                                            st.rerun()
+                                        with st.spinner("Gravando resposta na planilha..."):
+                                            # --- AÇÃO 1: Registrar no Log Geral (Tabela-B) ---
+                                            registrar_acao(msg_data['nup'], msg_data['Numero_da_fatura'], "RESPOSTA_AUDITORIA", f"Auditor respondeu ID {id_msg_alvo}")
+
+                                            # --- AÇÃO 2: Atualizar a Aba de Mensagens ---
+                                            # Localizamos a linha pelo id_mensagem (Coluna A)
+                                            try:
+                                                celula = aba_msg.find(id_msg_alvo)
+                                                linha_idx = celula.row
+                                                
+                                                # Atualizamos: data_resposta (8), status_msg (9), respondido_por_nip (10)
+                                                agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                                aba_msg.update_cell(linha_idx, 8, agora)
+                                                aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")
+                                                aba_msg.update_cell(linha_idx, 10, str(st.session_state.user_id)) # NIP do Auditor logado
+
+                                                st.success("Resposta enviada com sucesso!")
+                                                time.sleep(1.5)
+                                                st.rerun()
+                                            except Exception as err:
+                                                st.error(f"Erro ao localizar linha para resposta: {err}")
                                     else:
-                                        st.warning("Por favor, escreva o parecer antes de enviar.")
+                                        st.warning("Por favor, escreva a resposta antes de enviar.")
 
             except Exception as e:
                 st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
@@ -1388,90 +1397,92 @@ else:
 
         # --- ABA 6: RELACIONAMENTO (Módulo Execução Financeira) ---
         with tab6:
-            st.subheader("🤝 Central de Relacionamento (Financeiro)")
-            st.write("Responda aqui dúvidas sobre Notas de Empenho, Liquidação e Pagamentos.")
+            st.subheader("🤝 Central de Relacionamento (Setor: FINANCEIRO)")
+            st.write("Dúvidas financeiras e questionamentos de faturas enviados pelas OSEs.")
 
             try:
                 # 1. Carregamos as mensagens da aba correspondente
                 aba_msg = sh.worksheet(ABA_MENSAGENS)
-                df_msg = pd.DataFrame(aba_msg.get_all_records())
+                dados_brutos = aba_msg.get_all_records()
+                df_msg = pd.DataFrame(dados_brutos)
                 
                 if df_msg.empty:
-                    st.info("Nenhuma mensagem pendente no sistema.")
+                    st.info("Nenhuma mensagem registrada no sistema.")
                 else:
-                    # --- ROTEAMENTO INTELIGENTE (O MAESTRO) ---
-                    # 2. Definimos os status que competem à Execução Financeira
-                    status_financeiro = [4, 5, 7, 8, 9]
-                    
-                    # 3. Filtramos na base principal quais processos estão com o Financeiro
-                    nups_no_financeiro = df[df['status'].isin(status_financeiro)]['nup'].unique().tolist()
-                    
-                    # 4. Filtramos o inbox para mostrar apenas o que é do setor
-                    df_msg_exec = df_msg[df_msg['nup'].isin(nups_no_financeiro)].copy()
+                    # --- FILTRO POR SETOR (FINANCEIRO) ---
+                    df_msg_exec = df_msg[df_msg['setor_destino'] == "FINANCEIRO"].copy()
 
                     if df_msg_exec.empty:
-                        st.info("✅ Tudo em dia! Nenhuma mensagem pendente para faturas em fase financeira.")
+                        st.info("✅ Tudo em dia! Nenhuma mensagem pendente para o setor Financeiro.")
                     else:
-                        # Métricas do Setor
-                        pendentes = len(df_msg_exec[df_msg_exec['status_resposta'] == 'PENDENTE'])
+                        # 2. Métricas do Setor
+                        pendentes = len(df_msg_exec[df_msg_exec['status_msg'] == 'PENDENTE'])
                         c1, c2 = st.columns(2)
-                        c1.metric("Mensagens do Financeiro", len(df_msg_exec))
-                        c2.metric("📩 Pendentes de Resposta", pendentes, delta_color="inverse")
+                        c1.metric("Mensagens Recebidas", len(df_msg_exec))
+                        c2.metric("📩 Pendentes", pendentes, delta_color="inverse")
                         
                         st.divider()
 
-                        # 5. Inbox de Mensagens (Filtro para ver as PENDENTES primeiro)
+                        # 3. Inbox de Mensagens (Usando os nomes das 10 colunas da sua planilha)
                         st.write("**📥 Inbox da Execução Financeira:**")
                         
-                        # Definimos as colunas para o militar não se perder
-                        cols_vistas = ['nup', 'cnpj_ose', 'assunto', 'data_envio', 'status_resposta']
-                        # Se você incluiu a coluna de número de fatura no OSE, mostramos aqui também
-                        if 'numero_fatura' in df_msg_exec.columns:
-                            cols_vistas = ['numero_fatura'] + cols_vistas
-
+                        # Ordenamos para ver o que é PENDENTE primeiro
+                        df_exibir = df_msg_exec.sort_values(by='status_msg', ascending=False)
+                        
                         st.dataframe(
-                            df_msg_exec[cols_vistas].sort_values(by='status_resposta', ascending=False),
+                            df_exibir[['Numero_da_fatura', 'nup', 'remetente', 'data_envio', 'status_msg']], 
                             use_container_width=True,
                             hide_index=True
                         )
 
                         st.markdown("---")
 
-                        # 6. Área de Resposta do Financeiro
+                        # 4. Área de Resposta do Financeiro
                         st.markdown("### ✍️ Dar Parecer Financeiro")
                         
-                        # Lista de seleção amigável (NUPs que pertencem a este filtro)
-                        nup_msg = st.selectbox(
-                            "Selecione o NUP/Processo para responder à OSE:", 
-                            [""] + df_msg_exec['nup'].unique().tolist(), 
-                            key="sel_msg_exec"
+                        # Criamos um rótulo amigável para seleção
+                        df_msg_exec['label_selecao'] = (
+                            "Fatura: " + df_msg_exec['Numero_da_fatura'].astype(str) + 
+                            " | ID: " + df_msg_exec['id_mensagem'].astype(str)
                         )
+                        
+                        selecao_msg = st.selectbox("Selecione a mensagem para responder:", [""] + df_msg_exec['label_selecao'].tolist(), key="sel_msg_exec")
 
-                        if nup_msg:
-                            # Pegamos a última mensagem enviada pela OSE para este NUP
-                            item = df_msg_exec[df_msg_exec['nup'] == nup_msg].iloc[-1]
+                        if selecao_msg:
+                            # Localizamos os dados da mensagem alvo
+                            item = df_msg_exec[df_msg_exec['label_selecao'] == selecao_msg].iloc[0]
+                            id_msg_alvo = str(item['id_mensagem'])
                             
                             with st.container(border=True):
-                                st.write(f"🏢 **OSE (CNPJ):** {item['cnpj_ose']}")
-                                st.write(f"📌 **Assunto:** {item['assunto']}")
-                                st.chat_message("user").write(f"**Dúvida da OSE:** {item['mensagem_corpo']}")
+                                st.write(f"🏢 **OSE (Remetente):** {item['remetente']}")
+                                st.write(f"📑 **NUP:** {item['nup']}")
+                                st.chat_message("user").write(f"**Dúvida da OSE:**\n\n{item['texto']}")
                                 
-                                resp_exec = st.text_area(
-                                    "Parecer da Execução Financeira:", 
-                                    placeholder="Digite aqui a resposta técnica sobre empenho ou pagamento..."
-                                )
+                                resp_exec = st.text_area("Parecer da Execução Financeira:", height=150, placeholder="Digite a resposta oficial...")
                                 
-                                if st.button("📤 ENVIAR PARECER PARA O PORTAL OSE", use_container_width=True):
+                                if st.button("📤 ENVIAR PARECER FINANCEIRO", use_container_width=True):
                                     if resp_exec:
-                                        with st.spinner("Registrando resposta..."):
-                                            # Registramos no Log da Tabela-B
-                                            registrar_acao(nup_msg, "N/A", "RESPOSTA_FINANCEIRA", f"Financeiro respondeu: {resp_exec[:50]}...")
+                                        with st.spinner("Gravando resposta..."):
+                                            # AÇÃO 1: Log na Tabela-B
+                                            registrar_acao(item['nup'], item['Numero_da_fatura'], "RESPOSTA_FINANCEIRA", f"Financeiro respondeu ID {id_msg_alvo}")
                                             
-                                            # Aqui você deve adicionar a lógica para marcar como 'RESPONDIDO' na ABA_MENSAGENS
-                                            
-                                            st.success("Resposta enviada para o portal da OSE!")
-                                            time.sleep(1.5)
-                                            st.rerun()
+                                            # AÇÃO 2: Atualizar a linha na ABA_MENSAGENS (As 10 Colunas)
+                                            try:
+                                                # Localizamos a linha exata pelo ID Único (Coluna A)
+                                                celula = aba_msg.find(id_msg_alvo)
+                                                linha_idx = celula.row
+                                                
+                                                # Atualizamos: data_resposta (8), status_msg (9), respondido_por_nip (10)
+                                                agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                                aba_msg.update_cell(linha_idx, 8, agora)
+                                                aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")
+                                                aba_msg.update_cell(linha_idx, 10, str(st.session_state.user_id)) # NIP do militar
+
+                                                st.success("Resposta enviada para o portal da OSE!")
+                                                time.sleep(1.5)
+                                                st.rerun()
+                                            except Exception as err:
+                                                st.error(f"Erro ao localizar mensagem na planilha: {err}")
                                     else:
                                         st.warning("Por favor, preencha o parecer antes de enviar.")
 
@@ -1973,54 +1984,68 @@ else:
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
         with tab_rel:
             st.subheader("💬 Central de Relacionamento")
-            st.markdown("Selecione a fatura para iniciar um contato com o HNBra.")
+            st.markdown("Utilize este espaço para tirar dúvidas sobre faturas específicas.")
 
             if df_minhas_faturas.empty:
-                st.info("Nenhuma fatura encontrada para iniciar contato.")
+                st.info("Você precisa ter faturas cadastradas para iniciar um contato.")
             else:
-                # Criamos uma etiqueta amigável: "Fatura 123/2026 - JAN"
+                # Criamos a etiqueta amigável para a OSE escolher a fatura
                 df_minhas_faturas['label_fatura'] = (
                     "Fatura: " + df_minhas_faturas['Numero_da_fatura'].astype(str) + 
                     "/" + df_minhas_faturas['ano_competencia'].astype(str) + 
                     " (" + df_minhas_faturas['mes_exibicao'] + ")"
                 )
                 
-                lista_opcoes = df_minhas_faturas['label_fatura'].tolist()
-                fatura_sel_label = st.selectbox("Sobre qual fatura deseja falar?", [""] + lista_opcoes)
+                fatura_sel_label = st.selectbox("Sobre qual fatura deseja falar?", [""] + df_minhas_faturas['label_fatura'].tolist())
 
                 if fatura_sel_label:
-                    # Recuperamos os dados reais da fatura selecionada
                     dados_f = df_minhas_faturas[df_minhas_faturas['label_fatura'] == fatura_sel_label].iloc[0]
-                    nup_vinc = dados_f['nup']
-                    status_vinc = dados_f['status'] # O segredo do roteamento está aqui
+                    
+                    # --- LÓGICA DE ROTEAMENTO AUTOMÁTICO ---
+                    # Define para qual setor a dúvida vai de acordo com o status atual
+                    status_atual = int(dados_f['status'])
+                    if status_atual in [2, 3]:
+                        setor_destino = "AUDITORIA"
+                    elif status_atual in [4, 5, 7, 8, 9]:
+                        setor_destino = "FINANCEIRO"
+                    else:
+                        setor_destino = "FISCALIZAÇÃO" # Caso esteja em outro status
 
-                    st.info(f"📌 **Contexto:** {fatura_sel_label} | **Status:** {dados_f['Situação']}")
+                    st.info(f"📌 **Contexto:** {fatura_sel_label} | **Destino:** {setor_destino}")
 
                     with st.container(border=True):
-                        assunto = st.text_input("Assunto:", placeholder="Ex: Divergência na Glosa")
-                        mensagem = st.text_area("Sua mensagem:")
+                        assunto = st.text_input("Assunto da dúvida:", placeholder="Ex: Recurso de Glosa")
+                        mensagem_texto = st.text_area("Descreva sua solicitação:")
                         
                         if st.button("📤 ENVIAR MENSAGEM OFICIAL", use_container_width=True):
-                            if assunto and mensagem:
+                            if assunto and mensagem_texto:
                                 try:
                                     aba_msg = sh.worksheet(ABA_MENSAGENS)
-                                    nova_linha = [
-                                        nup_vinc, 
-                                        user_cnpj, 
-                                        assunto, 
-                                        mensagem, 
-                                        datetime.now().strftime("%d/%m/%Y %H:%M"),
-                                        "PENDENTE",
-                                        dados_f['Numero_da_fatura'],
-                                        status_vinc # Gravamos o status no momento do envio
+                                    
+                                    # --- MONTAGEM DA LINHA (10 COLUNAS EXATAS) ---
+                                    # Ordem: id_mensagem, nup, Numero_da_fatura, remetente, setor_destino, texto, data_envio, data_resposta, status_msg, respondido_por_nip
+                                    nova_msg = [
+                                        str(int(time.time())),           # 1. id_mensagem (Usamos o timestamp como ID único)
+                                        dados_f['nup'],                  # 2. nup
+                                        dados_f['Numero_da_fatura'],     # 3. Numero_da_fatura
+                                        user_cnpj,                       # 4. remetente (CNPJ da OSE)
+                                        setor_destino,                   # 5. setor_destino
+                                        f"[{assunto}] {mensagem_texto}", # 6. texto (Juntei o assunto no corpo)
+                                        datetime.now().strftime("%d/%m/%Y %H:%M"), # 7. data_envio
+                                        "",                              # 8. data_resposta (Vazio)
+                                        "PENDENTE",                      # 9. status_msg
+                                        ""                               # 10. respondido_por_nip (Vazio)
                                     ]
-                                    aba_msg.append_row(nova_linha)
                                     
-                                    # Também registramos no log geral (Tabela-B)
-                                    registrar_acao(nup_vinc, dados_f['Numero_da_fatura'], "CONTATO_OSE", f"Assunto: {assunto}")
+                                    aba_msg.append_row(nova_msg)
                                     
-                                    st.success("Mensagem enviada com sucesso!")
+                                    # Registro no Log Geral (Tabela-B)
+                                    registrar_acao(dados_f['nup'], dados_f['Numero_da_fatura'], "CONTATO_OSE", f"Setor: {setor_destino}")
+                                    
+                                    st.success(f"Sua mensagem foi enviada para a {setor_destino} do HNBra!")
                                     time.sleep(1.5)
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro ao enviar: {e}")
+                                    st.error(f"Erro ao salvar na planilha: {e}")
+                            else:
+                                st.warning("Preencha o assunto e a mensagem.")
