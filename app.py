@@ -889,9 +889,9 @@ else:
                                    color_discrete_map={"🟢 Aceitável": "#2e6b54", "🟡 Atenção": "#f1c40f", "🔴 Em Atraso": "#e74c3c"})
                 st.plotly_chart(fig_saude, use_container_width=True)
 
-    # 6. ABA: RELACIONAMENTO
+    # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
         with t_rel:
-            st.subheader("💬 Central de Relacionamento (Inbox OSE)")
+            st.subheader("💬 Central de Relacionamento (Inbox Auditoria)")
             
             try:
                 # 1. Carregamos as mensagens da aba correspondente
@@ -899,52 +899,78 @@ else:
                 df_msg = pd.DataFrame(aba_msg.get_all_records())
                 
                 if df_msg.empty:
-                    st.info("Nenhuma mensagem ou questionamento pendente no momento.")
+                    st.info("Nenhuma mensagem registrada no sistema.")
                 else:
-                    # 2. Métricas Rápidas
-                    pendentes = len(df_msg[df_msg['status_resposta'] == 'PENDENTE'])
-                    media_reserva = "2.4 dias" # Placeholder para cálculo futuro
+                    # --- FILTRO INTELIGENTE PARA AUDITORIA ---
+                    # 2. Identificamos na base principal quais faturas estão com Auditoria (Status 2 ou 3)
+                    status_auditoria = [2, 3]
+                    nups_na_auditoria = df[df['status'].isin(status_auditoria)]['nup'].unique().tolist()
                     
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Total de Mensagens", len(df_msg))
-                    c2.metric("📩 Pendentes", pendentes, delta=f"{pendentes} aguardando", delta_color="inverse")
-                    c3.metric("⏱️ Tempo Médio de Resposta", media_reserva)
-                    
-                    st.divider()
+                    # 3. Filtramos o inbox para mostrar apenas o que compete à Auditoria agora
+                    df_msg_auditoria = df_msg[df_msg['nup'].isin(nups_na_auditoria)].copy()
 
-                    # 3. Inbox de Mensagens
-                    st.write("**📥 Mensagens Recebidas:**")
-                    # Filtramos para mostrar primeiro o que não foi respondido
-                    df_exibir = df_msg.sort_values(by='status_resposta', ascending=False)
-                    st.dataframe(
-                        df_exibir[['nup', 'cnpj_ose', 'assunto', 'data_envio', 'status_resposta']], 
-                        use_container_width=True
-                    )
-
-                    # 4. Área de Resposta Técnica
-                    st.markdown("### ✍️ Responder Questionamento")
-                    nup_alvo = st.selectbox("Selecione o NUP para responder:", [""] + df_msg['nup'].unique().tolist())
-                    
-                    if nup_alvo:
-                        msg_data = df_msg[df_msg['nup'] == nup_alvo].iloc[0]
+                    if df_msg_auditoria.empty:
+                        st.info("✅ Não há mensagens pendentes para faturas em fase de Auditoria.")
+                    else:
+                        # Métricas focadas na Auditoria
+                        pendentes = len(df_msg_auditoria[df_msg_auditoria['status_resposta'] == 'PENDENTE'])
                         
-                        with st.container(border=True):
-                            st.write(f"**De (OSE):** {msg_data['cnpj_ose']}")
-                            st.write(f"**Assunto:** {msg_data['assunto']}")
-                            st.info(f"**Mensagem da OSE:** {msg_data['mensagem_corpo']}")
+                        c1, c2 = st.columns(2)
+                        c1.metric("Mensagens do Setor", len(df_msg_auditoria))
+                        c2.metric("📩 Aguardando Auditor", pendentes, delta_color="inverse")
+                        
+                        st.divider()
+
+                        # 4. Inbox de Mensagens (Mostrando o Número da Fatura no lugar do NUP bruto)
+                        st.write("**📥 Mensagens Vinculadas a Processos em Auditoria:**")
+                        
+                        # Se a coluna 'numero_fatura' existir no seu df_msg, usamos ela. 
+                        # Caso contrário, mostramos o NUP.
+                        colunas_inbox = ['nup', 'cnpj_ose', 'assunto', 'status_resposta']
+                        if 'numero_fatura' in df_msg_auditoria.columns:
+                            colunas_inbox = ['numero_fatura'] + colunas_inbox
+
+                        st.dataframe(
+                            df_msg_auditoria[colunas_inbox].sort_values(by='status_resposta', ascending=False), 
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        st.markdown("---")
+
+                        # 5. Área de Resposta Técnica
+                        st.markdown("### ✍️ Responder à OSE")
+                        
+                        # Criamos uma lista de seleção amigável
+                        opcoes_resposta = df_msg_auditoria['nup'].unique().tolist()
+                        nup_alvo = st.selectbox("Selecione o NUP/Processo para responder:", [""] + opcoes_resposta)
+                        
+                        if nup_alvo:
+                            # Pegamos a mensagem mais recente desse NUP
+                            msg_data = df_msg_auditoria[df_msg_auditoria['nup'] == nup_alvo].iloc[-1]
                             
-                            resposta_texto = st.text_area("Resposta Oficial do Auditor:", height=150, placeholder="Digite aqui o parecer técnico...")
-                            
-                            col_env, _ = st.columns([1, 2])
-                            if col_env.button("📤 ENVIAR RESPOSTA OFICIAL", use_container_width=True):
-                                if resposta_texto:
-                                    # Lógica futura: Gravar resposta na planilha e disparar e-mail
-                                    registrar_acao(nup_alvo, "N/A", "RESPOSTA_OSE", f"Auditor respondeu questionamento via sistema.")
-                                    st.success("Resposta enviada com sucesso para o Portal da OSE!")
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                else:
-                                    st.warning("Escreva uma resposta antes de enviar.")
+                            with st.container(border=True):
+                                st.write(f"🏢 **OSE:** {msg_data['cnpj_ose']}")
+                                st.write(f"📑 **Assunto:** {msg_data['assunto']}")
+                                st.chat_message("user").write(f"**Mensagem da OSE:** {msg_data['mensagem_corpo']}")
+                                
+                                resposta_texto = st.text_area("Parecer Técnico do Auditor:", height=150, placeholder="Digite aqui a resposta que a OSE visualizará...")
+                                
+                                if st.button("📤 ENVIAR RESPOSTA PARA O PORTAL OSE", use_container_width=True):
+                                    if resposta_texto:
+                                        with st.spinner("Registrando..."):
+                                            # Ação 1: Registrar no Log Geral (Tabela-B)
+                                            registrar_acao(nup_alvo, "N/A", "RESPOSTA_AUDITORIA", f"Auditor respondeu: {resposta_texto[:50]}...")
+                                            
+                                            # Ação 2: Atualizar o status na Planilha de Mensagens
+                                            # (Lógica para localizar a linha exata e marcar como RESPONDIDO)
+                                            # ... 
+                                            
+                                            st.success("Resposta enviada com sucesso!")
+                                            time.sleep(1.5)
+                                            st.rerun()
+                                    else:
+                                        st.warning("Por favor, escreva o parecer antes de enviar.")
 
             except Exception as e:
                 st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
