@@ -2035,7 +2035,7 @@ else:
                 df_grafico = df_grafico.sort_values('ordem')
 
                 fig_divida = px.bar(
-                    df_grafico, x='Competência', y='v_liq', color='Categoria',
+                    df_grafico, x='Competência', y='Valor total por OSE', color='Categoria',
                     title="Distribuição Mensal da Dívida Comprometida",
                     color_discrete_map={
                         "OSE": "#2e6b54",
