@@ -1937,10 +1937,20 @@ else:
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
         st.header("📈 Dashboard Estratégico SISAFA")
 
-        # --- DEFINIÇÃO DAS ABAS ---
+        # --- 1. DICIONÁRIOS DE APOIO (VACINA CONTRA NAMEERROR) ---
+        mapa_status_fisc = {
+            1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
+            4: "4 - AGUARDANDO EMISSÃO DE NE", 5: "5 - FATURA EMPENHADA",
+            6: "6 - AGUARDANDO EMISSÃO DE NF", 7: "7 - EM LIQUIDAÇÃO",
+            8: "8 - FATURA LIQUIDADA", 9: "9 - FATURA PAGA"
+        }
+        
+        mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
+                            7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
+
         tab_fin, tab_prod, tab_est = st.tabs([
             "💰 Situação Financeira", 
-            "⏱️ Produtividade e dados estatísticos", 
+            "⏱️ Produtividade (Process Mining)", 
             "📂 Estrutura do SISAFA"
         ])
 
@@ -1948,111 +1958,95 @@ else:
         # 1. ABA: SITUAÇÃO FINANCEIRA
         # =================================================================
         with tab_fin:
-            st.subheader("Créditos orçamentários comprometidos ainda não empenhados (Faturas em trâmite)")
+            st.subheader("Créditos orçamentários comprometidos (Faturas em trâmite)")
 
-            # --- LÓGICA DA TABELA DE CRÉDITOS (TOTAL À ESQUERDA + OCULTAR ZEROS) ---
-            def gerar_tabela_creditos_v2(df_input):
-                # 1. Filtro inicial (Status < 5)
+            # --- LÓGICA DA TABELA DE CRÉDITOS ATUALIZADA ---
+            def gerar_tabela_creditos_v3(df_input):
+                # Filtro: Apenas o que não virou empenho (Status 1 a 4)
                 df_c = df_input[df_input['status'] < 5].copy()
                 df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
                 
+                # FUNÇÃO DE CATEGORIZAÇÃO COM OS NOMES OFICIAIS
                 def categorizar(nome):
                     n = str(nome).upper()
-                    if "HFA" in n and "112408" in n: return "HFA (112408)"
-                    elif "BASE ADMINISTRATIVA" in n or "160098" in n: return "Base Administrativa (160098)"
-                    elif "BASE AÉREA" in n or "120624" in n: return "Base Aérea Anápolis (120624)"
-                    elif "HFAB" in n or "120096" in n: return "HFAB (120096)"
+                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: 
+                        return "HOSPITAL DAS FORÇAS ARMADAS (HFA)"
+                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: 
+                        return "Base Administrativa do Comando de Operações Especiais (160098)"
+                    elif "120624" in n or "ANÁPOLIS" in n: 
+                        return "Base Aérea de Anápolis (120624)"
+                    elif "120096" in n or "HFAB" in n: 
+                        return "HFAB (120096)"
                     return "OSE"
 
                 df_c['Categoria'] = df_c['ose'].apply(categorizar)
                 
-                # 2. Criação da estrutura base
-                anos = [2024, 2025, 2026]
-                mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
-                                    7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
-                
-                categorias = ["OSE", "HFA (112408)", "Base Administrativa (160098)", 
-                              "Base Aérea Anápolis (120624)", "HFAB (120096)"]
-                
-                # Criamos um DataFrame longo para pivotar
+                # Criar Pivot Table
                 df_long = df_c.groupby(['Categoria', 'ano_competencia', 'mes_competencia'])['v_liq'].sum().reset_index()
-                
-                # Pivot table
                 df_pivot = df_long.pivot(index='Categoria', columns=['ano_competencia', 'mes_competencia'], values='v_liq').fillna(0.0)
                 
-                # Garantimos que todas as categorias apareçam
-                df_pivot = df_pivot.reindex(categorias).fillna(0.0)
+                # Garantir ordem e presença das categorias oficiais
+                cats_oficiais = [
+                    "OSE", 
+                    "HOSPITAL DAS FORÇAS ARMADAS (HFA)", 
+                    "Base Administrativa do Comando de Operações Especiais (160098)", 
+                    "Base Aérea de Anápolis (120624)", 
+                    "HFAB (120096)"
+                ]
+                df_pivot = df_pivot.reindex(cats_oficiais).fillna(0.0)
                 
-                # 3. RENOMEAR COLUNAS PARA MÊS ABREVIADO
+                # Renomear colunas para Mês/Ano
                 df_pivot.columns = [(int(ano), mapa_meses_abrev[int(mes)]) for ano, mes in df_pivot.columns]
                 df_pivot.columns = pd.MultiIndex.from_tuples(df_pivot.columns, names=['Ano', 'Mês'])
 
-                # 4. OCULTAR COLUNAS ONDE TUDO É 0.00
+                # AÇÃO: OCULTAR COLUNAS ZERADAS
                 df_pivot = df_pivot.loc[:, (df_pivot != 0).any(axis=0)]
 
-                # 5. INCLUIR COLUNA TOTAL NO CANTO ESQUERDO
-                col_total = df_pivot.sum(axis=1)
-                df_pivot.insert(0, ('TOTAL', 'GERAL'), col_total)
+                # AÇÃO: COLUNA TOTAL À ESQUERDA (Index 0)
+                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), df_pivot.sum(axis=1))
 
-                # 6. LINHA DE TOTALIZAÇÃO (RODAPÉ)
-                df_pivot.loc['TOTAL'] = df_pivot.sum()
+                # LINHA TOTALIZADORA (RODAPÉ)
+                df_pivot.loc['TOTAL GERAL'] = df_pivot.sum()
                 
                 return df_pivot, df_long
 
             # Execução
-            df_creditos_final, df_dados_grafico = gerar_tabela_creditos_v2(df)
+            df_creditos, df_grafico = gerar_tabela_creditos_v3(df)
 
-            # --- ESTILIZAÇÃO DA TABELA ---
-            # Aplicando a cor #2e6b54 nos cabeçalhos
-            estilo_tabela = df_creditos_final.style.format("R$ {:,.2f}").set_table_styles([
-                {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold'), ('text-align', 'center')]},
-                {'selector': 'td', 'props': [('text-align', 'right')]}
-            ])
-
-            st.dataframe(estilo_tabela, use_container_width=True)
+            # --- ESTILIZAÇÃO COM #2e6b54 ---
+            st.dataframe(
+                df_creditos.style.format("R$ {:,.2f}").set_table_styles([
+                    {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold')]},
+                    {'selector': 'td', 'props': [('border', '1px solid #eee')]}
+                ]),
+                use_container_width=True
+            )
 
             st.divider()
 
-            # --- HISTOGRAMA DE DÍVIDA (STACKED BAR CHART) ---
-            st.subheader("📊 Evolução Mensal da Dívida por Categoria")
-            
-            if not df_dados_grafico.empty:
-                mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
-                                    7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
+            # --- HISTOGRAMA COLORIDO ---
+            if not df_grafico.empty:
+                st.subheader("📊 Histórico de Dívida por Competência")
                 
-                # Criar label de competência para o eixo X
-                df_dados_grafico['Competência'] = df_dados_grafico.apply(
+                df_grafico['Competência'] = df_grafico.apply(
                     lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(x['ano_competencia'])[2:]}", axis=1
                 )
-                
-                # Ordenar por data real para o gráfico não bagunçar os meses
-                df_dados_grafico['sort_key'] = df_dados_grafico['ano_competencia'] * 100 + df_dados_grafico['mes_competencia']
-                df_dados_grafico = df_dados_grafico.sort_values('sort_key')
+                df_grafico['ordem'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
+                df_grafico = df_grafico.sort_values('ordem')
 
-                fig_hist = px.bar(
-                    df_dados_grafico, 
-                    x='Competência', 
-                    y='v_liq', 
-                    color='Categoria',
-                    title="Dívida Acumulada por Competência",
-                    labels={'v_liq': 'Valor Comprometido (R$)', 'Categoria': 'Tipo'},
+                fig_divida = px.bar(
+                    df_grafico, x='Competência', y='v_liq', color='Categoria',
+                    title="Distribuição Mensal da Dívida Comprometida",
                     color_discrete_map={
                         "OSE": "#2e6b54",
-                        "HFA (112408)": "#cba30c",
-                        "Base Administrativa (160098)": "#1e3d33",
-                        "Base Aérea Anápolis (120624)": "#d4af37",
+                        "HOSPITAL DAS FORÇAS ARMADAS (HFA)": "#cba30c",
+                        "Base Administrativa do Comando de Operações Especiais (160098)": "#1e3d33",
+                        "Base Aérea de Anápolis (120624)": "#d4af37",
                         "HFAB (120096)": "#4a7c6a"
                     },
-                    template="plotly_white",
-                    barmode='stack'
+                    template="plotly_white"
                 )
-                
-                fig_hist.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_hist, use_container_width=True)
-            else:
-                st.info("Dados insuficientes para gerar o histograma.")
-
-            st.divider()
+                st.plotly_chart(fig_divida, use_container_width=True)
 
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
