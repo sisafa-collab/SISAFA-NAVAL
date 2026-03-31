@@ -1183,15 +1183,15 @@ else:
             f_status_5 = df[df['status'] == 5].copy()
 
             if not f_status_5.empty:
-                # 1. BUSCA DE FISCAIS (Tudo aqui dentro precisa de um TAB de recuo)
-                df_users_fiscal = carregar_dados_cache(ABA_USUARIOS)
-                if not df_users_fiscal.empty:
-                    # Filtra perfis que contenham 'fiscalização' ou 'global'
+                # 1. BUSCA DE FISCAIS
+                # Usamos o nome direto da aba de usuários para evitar NameError
+                try:
+                    df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
                     fiscais_disp = df_users_fiscal[
                         df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalização de contrato|fiscal_global", na=False)
                     ]
                     lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
-                else:
+                except:
                     lista_fiscais = []
 
                 # 2. INTERFACE DE SELEÇÃO
@@ -1211,7 +1211,7 @@ else:
                         key="sb_fiscal_destino"
                     )
 
-                # --- BOTÕES DE AÇÃO (Lado a Lado) ---
+                # --- BOTÕES DE AÇÃO ---
                 col_env, col_canc = st.columns(2)
 
                 # AÇÃO A: ENCAMINHAR (STATUS 5 -> 6)
@@ -1236,22 +1236,29 @@ else:
                     if selecao_ne:
                         nups_para_cancelar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
                         with st.spinner("Cancelando e retornando status..."):
-                            aba_base = sh.worksheet(ABA_BASE) 
+                            # Acessamos a aba de processos pelo nome exato informado
+                            aba_proc = sh.worksheet("SISAFA-NAVAL-processos") 
+                            
                             for nup in nups_para_cancelar:
                                 dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
                                 ne_velha = dados_n['ne']
+                                fat_n = dados_n['Numero_da_fatura']
+                                v_momento = dados_n['valor_apresentado']
                                 
-                                mover_status(nup, 4) # Retorna para Aguardando NE
+                                # 1. Retorna para Status 4 (Aguardando NE)
+                                mover_status(nup, 4) 
                                 
+                                # 2. Localiza e apaga a NE (Coluna 15)
                                 try:
-                                    celula_nup = aba_base.find(str(nup))
-                                    col_ne_idx = df.columns.get_loc('ne') + 1
-                                    aba_base.update_cell(celula_nup.row, col_ne_idx, "")
-                                except:
-                                    pass
+                                    celula_nup = aba_proc.find(str(nup))
+                                    if celula_nup:
+                                        aba_proc.update_cell(celula_nup.row, 15, "") # Coluna 15 é a 'ne'
+                                except Exception as e:
+                                    st.error(f"Erro ao limpar NE na planilha: {e}")
 
-                                registrar_acao(nup, dados_n['Numero_da_fatura'], "CANCELAMENTO_NE", f"NE {ne_velha} cancelada.")
-                                registrar_historico(nup, dados_n['Numero_da_fatura'], "5", "4", dados_n['valor_apresentado'], f"NE {ne_velha} cancelada.")
+                                # 3. Atualiza Logs e Histórico conforme as colunas solicitadas
+                                registrar_acao(nup, fat_n, "CANCELAMENTO_NE", f"NE {ne_velha} cancelada. Retorno ao Status 4.")
+                                registrar_historico(nup, fat_n, "5", "4", v_momento, f"Cancelamento de NE {ne_velha}")
 
                             st.error(f"🚫 {len(nups_para_cancelar)} faturas retornaram para o Status 4.")
                             time.sleep(1.2)
@@ -1259,7 +1266,7 @@ else:
                     else:
                         st.warning("⚠️ Selecione as NEs para cancelar.")
 
-                # --- TABELA DE VISUALIZAÇÃO (Ainda dentro do IF principal) ---
+                # --- TABELA DE VISUALIZAÇÃO ---
                 st.subheader("📊 Faturas Empenhadas aguardando envio")
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 f_status_5['mes_sigla'] = f_status_5['mes_competencia'].map(mapa_meses)
@@ -1268,7 +1275,6 @@ else:
                 st.dataframe(f_status_5[cols_f].sort_values(by='ne'), use_container_width=True, hide_index=True)
 
             else:
-                # Este else agora está alinhado com o 'if not f_status_5.empty:'
                 st.info("Não há Notas de Empenho aguardando envio para fiscalização.")
 
 
