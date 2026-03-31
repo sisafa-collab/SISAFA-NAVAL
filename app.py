@@ -1177,142 +1177,99 @@ else:
             st.markdown("---") # Separador visual dentro da aba
 
             # --- SEÇÃO 2: ENVIO PARA FISCALIZAÇÃO (DENTRO DA ABA CORRETA) ---
-            # Certifique-se de que todo o código abaixo tenha 2 ou 3 "TABs" de recuo
-            # para ficar dentro do 'with tab6:' ou 'with tab_execucao:'
-        
             st.markdown("---")
             st.markdown("### 📤 2. Encaminhar para Fiscalização (ou Cancelar Empenho)")
 
             f_status_5 = df[df['status'] == 5].copy()
 
             if not f_status_5.empty:
-                # 1. BUSCA DE FISCAIS (Filtro para Auditoria/Financeiro verem)
-            df_users_fiscal = carregar_dados_cache(ABA_USUARIOS)
-            if not df_users_fiscal.empty:
-                # Filtra perfis que contenham 'fiscalização' ou 'global'
-                fiscais_disp = df_users_fiscal[
-                    df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalização de contrato|fiscal_global", na=False)
-                ]
-                lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
-            else:
-                lista_fiscais = []
-
-            # 2. INTERFACE DE SELEÇÃO
-            lista_nes_disponiveis = sorted(f_status_5['ne'].unique().tolist())
-
-            c_ne, c_fisc = st.columns([2, 1])
-            with c_ne:
-                selecao_ne = st.multiselect(
-                    "Selecione a(s) Nota(s) de Empenho:",
-                    options=lista_nes_disponiveis,
-                    key="multisel_envio_fiscal_ne"
-                )
-            with c_fisc:
-                fiscal_destinatario = st.selectbox(
-                    "Enviar para qual Fiscal?",
-                    options=[""] + lista_fiscais,
-                    key="sb_fiscal_destino"
-                )
-
-            # --- BOTÕES DE AÇÃO (Lado a Lado) ---
-            col_env, col_canc = st.columns(2)
-
-            # AÇÃO A: ENCAMINHAR (STATUS 5 -> 6)
-            if col_env.button("📧 Encaminhar p/ Fiscalização", use_container_width=True, type="primary"):
-                if selecao_ne and fiscal_destinatario:
-                    nups_para_enviar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
-                    with st.spinner("Encaminhando..."):
-                        for nup in nups_para_enviar:
-                            mover_status(nup, 6)
-                            dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
-                            registrar_acao(nup, dados_n['Numero_da_fatura'], "ENVIO_FISCALIZACAO", f"Fiscal: {fiscal_destinatario}")
-                            registrar_historico(nup, dados_n['Numero_da_fatura'], "5", "6", dados_n['valor_apresentado'], f"Enviado p/ {fiscal_destinatario}")
-                        
-                        st.success(f"✅ Sucesso! Empenhos enviados para {fiscal_destinatario}.")
-                        time.sleep(1.2)
-                        st.rerun()
+                # 1. BUSCA DE FISCAIS (Tudo aqui dentro precisa de um TAB de recuo)
+                df_users_fiscal = carregar_dados_cache(ABA_USUARIOS)
+                if not df_users_fiscal.empty:
+                    # Filtra perfis que contenham 'fiscalização' ou 'global'
+                    fiscais_disp = df_users_fiscal[
+                        df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalização de contrato|fiscal_global", na=False)
+                    ]
+                    lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
                 else:
-                    st.warning("⚠️ Selecione a NE e o Fiscal de destino.")
+                    lista_fiscais = []
 
-            # AÇÃO B: CANCELAR EMPENHO (STATUS 5 -> 4)
-            if col_canc.button("🚫 Cancelar Nota de Empenho", use_container_width=True):
-                if selecao_ne:
-                    nups_para_cancelar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
-                    with st.spinner("Cancelando e retornando status..."):
-                        aba_base = sh.worksheet(ABA_BASE) 
-                        for nup in nups_para_cancelar:
-                            dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
-                            ne_velha = dados_n['ne']
+                # 2. INTERFACE DE SELEÇÃO
+                lista_nes_disponiveis = sorted(f_status_5['ne'].unique().tolist())
+
+                c_ne, c_fisc = st.columns([2, 1])
+                with c_ne:
+                    selecao_ne = st.multiselect(
+                        "Selecione a(s) Nota(s) de Empenho:",
+                        options=lista_nes_disponiveis,
+                        key="multisel_envio_fiscal_ne"
+                    )
+                with c_fisc:
+                    fiscal_destinatario = st.selectbox(
+                        "Enviar para qual Fiscal?",
+                        options=[""] + lista_fiscais,
+                        key="sb_fiscal_destino"
+                    )
+
+                # --- BOTÕES DE AÇÃO (Lado a Lado) ---
+                col_env, col_canc = st.columns(2)
+
+                # AÇÃO A: ENCAMINHAR (STATUS 5 -> 6)
+                if col_env.button("📧 Encaminhar p/ Fiscalização", use_container_width=True, type="primary"):
+                    if selecao_ne and fiscal_destinatario:
+                        nups_para_enviar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
+                        with st.spinner("Encaminhando..."):
+                            for nup in nups_para_enviar:
+                                mover_status(nup, 6)
+                                dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
+                                registrar_acao(nup, dados_n['Numero_da_fatura'], "ENVIO_FISCALIZACAO", f"Fiscal: {fiscal_destinatario}")
+                                registrar_historico(nup, dados_n['Numero_da_fatura'], "5", "6", dados_n['valor_apresentado'], f"Enviado p/ {fiscal_destinatario}")
                             
-                            mover_status(nup, 4) # Retorna para Aguardando NE
-                            
-                            # Limpa a coluna da NE na planilha principal
-                            try:
-                                celula_nup = aba_base.find(str(nup))
-                                col_ne_idx = df.columns.get_loc('ne') + 1
-                                aba_base.update_cell(celula_nup.row, col_ne_idx, "")
-                            except:
-                                pass
+                            st.success(f"✅ Sucesso! Empenhos enviados para {fiscal_destinatario}.")
+                            time.sleep(1.2)
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Selecione a NE e o Fiscal de destino.")
 
-                            registrar_acao(nup, dados_n['Numero_da_fatura'], "CANCELAMENTO_NE", f"NE {ne_velha} cancelada.")
-                            registrar_historico(nup, dados_n['Numero_da_fatura'], "5", "4", dados_n['valor_apresentado'], f"NE {ne_velha} cancelada.")
+                # AÇÃO B: CANCELAR EMPENHO (STATUS 5 -> 4)
+                if col_canc.button("🚫 Cancelar Nota de Empenho", use_container_width=True):
+                    if selecao_ne:
+                        nups_para_cancelar = f_status_5[f_status_5['ne'].isin(selecao_ne)]['nup'].tolist()
+                        with st.spinner("Cancelando e retornando status..."):
+                            aba_base = sh.worksheet(ABA_BASE) 
+                            for nup in nups_para_cancelar:
+                                dados_n = f_status_5[f_status_5['nup'] == nup].iloc[0]
+                                ne_velha = dados_n['ne']
+                                
+                                mover_status(nup, 4) # Retorna para Aguardando NE
+                                
+                                try:
+                                    celula_nup = aba_base.find(str(nup))
+                                    col_ne_idx = df.columns.get_loc('ne') + 1
+                                    aba_base.update_cell(celula_nup.row, col_ne_idx, "")
+                                except:
+                                    pass
 
-                        st.error(f"🚫 {len(nups_para_cancelar)} faturas retornaram para o Status 4.")
-                        time.sleep(1.2)
-                        st.rerun()
-                else:
-                    st.warning("⚠️ Selecione as NEs para cancelar.")
+                                registrar_acao(nup, dados_n['Numero_da_fatura'], "CANCELAMENTO_NE", f"NE {ne_velha} cancelada.")
+                                registrar_historico(nup, dados_n['Numero_da_fatura'], "5", "4", dados_n['valor_apresentado'], f"NE {ne_velha} cancelada.")
 
-            # --- TABELA DE VISUALIZAÇÃO ---
-            st.subheader("📊 Faturas Empenhadas aguardando envio")
-            
-            # VACINA CONTRA NAMEERROR (Definindo o mapa aqui dentro para garantir)
-            mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
-            f_status_5['mes_sigla'] = f_status_5['mes_competencia'].map(mapa_meses)
-            
-            cols_f = ['ne', 'ose', 'nup', 'valor_liquido', 'mes_sigla', 'ano_competencia']
-            st.dataframe(f_status_5[cols_f].sort_values(by='ne'), use_container_width=True, hide_index=True)
+                            st.error(f"🚫 {len(nups_para_cancelar)} faturas retornaram para o Status 4.")
+                            time.sleep(1.2)
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Selecione as NEs para cancelar.")
+
+                # --- TABELA DE VISUALIZAÇÃO (Ainda dentro do IF principal) ---
+                st.subheader("📊 Faturas Empenhadas aguardando envio")
+                mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
+                f_status_5['mes_sigla'] = f_status_5['mes_competencia'].map(mapa_meses)
+                
+                cols_f = ['ne', 'ose', 'nup', 'valor_liquido', 'mes_sigla', 'ano_competencia']
+                st.dataframe(f_status_5[cols_f].sort_values(by='ne'), use_container_width=True, hide_index=True)
 
             else:
-            st.info("Não há Notas de Empenho aguardando envio para fiscalização.")
-
-        # --- ABA 3: GESTÃO DE PAGAMENTOS (Status 7 -> 8 -> 9) ---
-        with tab3:
-            st.subheader("💰 Ciclo Final de Pagamento")
-            
-            # Seção 1: Liquidação (Status 7 -> 8)
-            st.markdown("#### ⚖️ 1. Faturas em Liquidação (Retorno do Fiscal)")
-            f_status_7 = df[df['status'] == 7].copy()
-            if not f_status_7.empty:
-                lote_liq = st.multiselect("Selecionar para LIQUIDAR:", f_status_7['nup'].tolist(), key="liq_lote")
-                if st.button("✅ Confirmar Liquidação"):
-                    for n in lote_liq:
-                        mover_status(n, 8)
-                        fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                        registrar_acao(n, fatura_n, "LIQUIDADO", "Fatura liquidada e pronta para pagamento.")
-                    st.rerun()
-                st.dataframe(f_status_7[['nup', 'ose', 'valor_liquido','nf']], use_container_width=True)
-            else:
-                st.info("Nenhuma fatura aguardando liquidação.")
-
-            st.divider()
-
-            # Seção 2: Pagamento (Status 8 -> 9)
-            st.markdown("#### 💸 2. Faturas Liquidadas (Prontas para Pagar)")
-            f_status_8 = df[df['status'] == 8].copy()
-            if not f_status_8.empty:
-                lote_pag = st.multiselect("Selecionar para PAGAR (Encerrar):", f_status_8['nup'].tolist(), key="pag_lote")
-                if st.button("🏁 Confirmar Pagamento Efetuado"):
-                    for n in lote_pag:
-                        mover_status(n, 9) # Status 9: Encerrado/Pago
-                        fatura_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                        registrar_acao(n, fatura_n, "PAGAMENTO_EFETUADO", "Processo encerrado. Pagamento realizado.")
-                    st.success("Missão cumprida! Faturas pagas.")
-                    time.sleep(1)
-                    st.rerun()
-                st.dataframe(f_status_8[['nup', 'ose', 'valor_liquido','nf']], use_container_width=True)
-            else:
-                st.info("Nenhuma fatura pronta para pagamento.")
+                # Este else agora está alinhado com o 'if not f_status_5.empty:'
+                st.info("Não há Notas de Empenho aguardando envio para fiscalização.")
 
         # --- ABA 4: ESTATÍSTICAS E INDICADORES (KPIs Financeiros) ---
         with tab4:
