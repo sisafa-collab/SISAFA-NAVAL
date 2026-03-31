@@ -1788,7 +1788,7 @@ else:
             st.subheader("💬 Central de Relacionamento (Gestão de OSEs)")
             
             try:
-                # 1. Carregamos as mensagens
+                # 1. Carregamos as mensagens da planilha
                 aba_msg = sh.worksheet(ABA_MENSAGENS)
                 dados_brutos = aba_msg.get_all_records()
                 df_msg = pd.DataFrame(dados_brutos)
@@ -1796,21 +1796,26 @@ else:
                 if df_msg.empty:
                     st.info("Nenhuma mensagem registrada no sistema.")
                 else:
-                    # Aplicamos a vacina no campo 'remetente' das mensagens para bater com o Fiscal
-                    df_msg['cnpj_limpo_msg'] = df_msg['remetente'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
+                    # --- VACINA NAS MENSAGENS ---
+                    df_msg['remetente_limpo'] = df_msg['remetente'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
 
-                    # Filtra apenas as mensagens das OSEs deste fiscal
+                    # --- FILTRO DE SEGURANÇA ---
                     if not is_global:
-                        # Agora o df_fiscal['CNPJ_LIMPO'] existe, pois vacinamos lá no Passo 1
+                        # PROTEÇÃO: Se por algum motivo o df_fiscal perdeu a coluna, criamos aqui agora
+                        if 'CNPJ_LIMPO' not in df_fiscal.columns:
+                            # Tentamos achar a coluna original do CNPJ (pode ser 'CNPJ' ou 'CNPJ_OSE' dependendo da aba)
+                            col_base = 'CNPJ' if 'CNPJ' in df_fiscal.columns else df_fiscal.columns[0]
+                            df_fiscal['CNPJ_LIMPO'] = df_fiscal[col_base].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
+                        
                         cnpjs_meus = df_fiscal['CNPJ_LIMPO'].tolist()
-                        df_msg_filtrado = df_msg[df_msg['cnpj_limpo_msg'].isin(cnpjs_meus)].copy()
+                        df_msg_filtrado = df_msg[df_msg['remetente_limpo'].isin(cnpjs_meus)].copy()
                     else:
                         df_msg_filtrado = df_msg.copy()
 
                     if df_msg_filtrado.empty:
                         st.info("📭 Nenhuma mensagem pendente das suas OSEs.")
                     else:
-                        # Métricas
+                        # 2. Métricas (Ajustadas para o nome correto 'status_msg')
                         pendentes = len(df_msg_filtrado[df_msg_filtrado['status_msg'] == 'PENDENTE'])
                         c1, c2 = st.columns(2)
                         c1.metric("Total de Mensagens", len(df_msg_filtrado))
@@ -1818,7 +1823,7 @@ else:
 
                         st.divider()
 
-                        # Tabela de Mensagens
+                        # 3. Tabela de Mensagens
                         st.write("**📥 Histórico de Interações:**")
                         cols_vistas = ['Numero_da_fatura', 'nup', 'remetente', 'setor_destino', 'status_msg']
                         st.dataframe(
@@ -1829,14 +1834,14 @@ else:
 
                         st.markdown("---")
 
-                        # Área de Resposta
+                        # 4. Área de Resposta
                         st.markdown("### ✍️ Responder ou Intervir")
                         df_msg_filtrado['label_selecao'] = (
                             "Fatura: " + df_msg_filtrado['Numero_da_fatura'].astype(str) + 
                             " | ID: " + df_msg_filtrado['id_mensagem'].astype(str)
                         )
                         
-                        selecao_msg = st.selectbox("Selecione a mensagem para responder:", [""] + df_msg_filtrado['label_selecao'].tolist(), key="sb_rel_fisc_final")
+                        selecao_msg = st.selectbox("Selecione a mensagem para responder:", [""] + df_msg_filtrado['label_selecao'].tolist(), key="sb_rel_fisc_definitivo")
                         
                         if selecao_msg:
                             dados_m = df_msg_filtrado[df_msg_filtrado['label_selecao'] == selecao_msg].iloc[0]
@@ -1846,13 +1851,14 @@ else:
                                 st.write(f"🏢 **OSE:** {dados_m['remetente']}")
                                 st.chat_message("user").write(f"**Dúvida:** {dados_m['texto']}")
                                 
-                                resp_fisc = st.text_area("Sua Resposta Oficial (Fiscal):", key="txt_fisc_resp")
+                                resp_fisc = st.text_area("Sua Resposta Oficial (Fiscal):", key="txt_fisc_final")
                                 
                                 if st.button("📤 ENVIAR RESPOSTA DO FISCAL", use_container_width=True):
                                     if resp_fisc:
                                         with st.spinner("Enviando..."):
                                             registrar_acao(dados_m['nup'], dados_m['Numero_da_fatura'], "RESPOSTA_FISCAL", f"Fiscal respondeu ID {id_msg_alvo}")
                                             
+                                            # Busca a linha e atualiza as 10 colunas
                                             celula = aba_msg.find(id_msg_alvo)
                                             linha_idx = celula.row
                                             agora = datetime.now().strftime("%d/%m/%Y %H:%M")
