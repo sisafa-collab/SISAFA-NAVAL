@@ -1572,27 +1572,39 @@ else:
                     df_proc_fisc = df[df['cnpj_vacinado'] == cnpj_alvo].copy()
 
                     if not df_proc_fisc.empty:
-                        # TRADUÇÃO DOS STATUS (Onde dava o erro!)
                         df_proc_fisc['situação_texto'] = df_proc_fisc['status'].map(mapa_status_fisc)
                         
-                        c1, c2 = st.columns([2, 1])
-                        with c1:
-                            st.write(f"📋 **Processos de {ose_sel}:**")
-                            st.dataframe(df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']], use_container_width=True, hide_index=True)
-                        with c2:
-                            # Gráfico de Pizza
+                        # --- 1. TABELA EM CIMA ---
+                        st.write(f"📋 **Processos de {ose_sel}:**")
+                        st.dataframe(
+                            df_proc_fisc[['nup', 'Numero_da_fatura', 'situação_texto']].rename(columns={'situação_texto': 'Situação'}), 
+                            use_container_width=True, 
+                            hide_index=True
+                        )
+
+                        st.divider() # Uma linha para separar
+
+                        # --- 2. DASHBOARD EMBAIXO ---
+                        st.subheader("📊 Resumo dos Processos")
+                        
+                        col_metric, col_graph = st.columns([1, 2]) # Métrica na esquerda, gráfico na direita (dentro da linha de baixo)
+                        
+                        with col_metric:
+                            df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
+                            tramito = df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum()
+                            st.metric("Total em Trâmite", f"R$ {tramito:,.2f}")
+                        
+                        with col_graph:
                             df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
                             fig = px.pie(
                                 df_pizza, values='count', names='situação_texto', 
                                 hole=0.4, color='situação_texto', 
                                 color_discrete_map=cores_map
                             )
-                            fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=0, b=0))
+                            # Ajuste para o gráfico não ficar gigante embaixo
+                            fig.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0))
                             st.plotly_chart(fig, use_container_width=True)
 
-                            # Métrica de Valor
-                            df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
-                            st.metric("Total em Trâmite", f"R$ {df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum():,.2f}")
                     else:
                         st.info(f"Nenhum processo encontrado para {ose_sel}.")
 
