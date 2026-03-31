@@ -1495,15 +1495,33 @@ else:
     elif "FISCAL" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
         st.header("📋 Fiscalização de Contratos em Saúde")
 
-        # Definição das 3 abas solicitadas
+        # --- 1. PREPARAÇÃO DE DADOS (A VACINA DO FISCAL) ---
+        # Carregamos a Tabela-A (onde estão os contratos e fiscais)
+        df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
+        df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
+        
+        # Aplicamos a vacina para criar a coluna CNPJ_LIMPO aqui também
+        if 'CNPJ' in df_tabela_a.columns:
+            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
+        
+        # --- 2. LÓGICA DE PERMISSÃO ---
+        user_nip = str(st.session_state.user_id).strip().zfill(8)
+        is_global = (user_nip == "95039023") # Rosilene
+
+        # Filtramos as OSEs que pertencem a este fiscal específico
+        if is_global:
+            df_fiscal = df_tabela_a.copy()
+        else:
+            # Filtra onde o NIP logado é Titular ou Substituto
+            df_fiscal = df_tabela_a[
+                (df_tabela_a['NIP_DO_GESTOR_TITULAR'].astype(str) == user_nip) | 
+                (df_tabela_a['GESTOR_SUBSTITUTO'].astype(str) == user_nip)
+            ].copy()
+
+        # --- 3. DEFINIÇÃO DAS ABAS ---
         tab_visao, tab_nf, tab_rel = st.tabs([
             "🔭 Visão Geral", "🧾 Empenhos aguardando NF", "💬 Relacionamento"
         ])
-
-        # --- LÓGICA DE PERMISSÃO ---
-        # Garantimos que o NIP logado tenha sempre 8 dígitos (preenchendo com zero se necessário)
-        user_nip = str(st.session_state.user_id).strip().zfill(8)
-        is_global = (user_nip == "95039023") # Rosilene
 
         mapa_status_fisc = {
             1: "1 - FATURA CADASTRADA", 2: "2 - EM AUDITAGEM", 3: "3 - AUDITADA",
