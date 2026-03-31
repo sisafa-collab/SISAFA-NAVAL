@@ -1271,6 +1271,97 @@ else:
                 # Este else agora está alinhado com o 'if not f_status_5.empty:'
                 st.info("Não há Notas de Empenho aguardando envio para fiscalização.")
 
+
+
+        # --- ABA 3: GESTÃO DE PAGAMENTOS (Liquidação e Pagamento) ---
+        with tab3:
+            mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 
+                          7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
+
+            # =================================================================
+            # SEÇÃO 1: LIQUIDAÇÃO (Status 7 -> 8)
+            # =================================================================
+            st.markdown("### 🛠️ 1. Liquidar Faturas (Status 7 → 8)")
+            st.write("Marque as faturas que foram liquidadas no sistema financeiro.")
+
+            df_status_7 = df[df['status'] == 7].copy()
+
+            if not df_status_7.empty:
+                df_status_7['mes_sigla'] = df_status_7['mes_competencia'].map(mapa_meses)
+                
+                nups_para_liquidar = st.multiselect(
+                    "Selecione os NUPs liquidados:",
+                    options=df_status_7['nup'].tolist(),
+                    key="ms_liquidar"
+                )
+
+                if st.button("💎 Confirmar Liquidação", use_container_width=True, type="primary"):
+                    if nups_para_liquidar:
+                        with st.spinner("Processando liquidação..."):
+                            for nup in nups_para_liquidar:
+                                mover_status(nup, 8)
+                                dados_f = df_status_7[df_status_7['nup'] == nup].iloc[0]
+                                registrar_acao(nup, dados_f['Numero_da_fatura'], "LIQUIDACAO_EFETUADA", "Fatura marcada como liquidada.")
+                                registrar_historico(nup, dados_f['Numero_da_fatura'], "7", "8", dados_f['valor_apresentado'], "Liquidação concluída.")
+                            
+                            st.success(f"✅ {len(nups_para_liquidar)} faturas movidas para 'Liquidada'!")
+                            time.sleep(1.2)
+                            st.rerun()
+                    else:
+                        st.warning("Selecione ao menos um processo.")
+
+                st.dataframe(
+                    df_status_7[['nup', 'ose', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("Não há faturas aguardando liquidação.")
+
+            st.divider()
+
+            # =================================================================
+            # SEÇÃO 2: PAGAMENTO FINAL (Status 8 -> 9)
+            # =================================================================
+            st.markdown("### 💰 2. Efetuar Pagamento (Status 8 → 9)")
+            st.write("Conclua o processo marcando as faturas como pagas.")
+
+            df_status_8 = df[df['status'] == 8].copy()
+
+            if not df_status_8.empty:
+                df_status_8['mes_sigla'] = df_status_8['mes_competencia'].map(mapa_meses)
+
+                nups_para_pagar = st.multiselect(
+                    "Selecione os NUPs pagos:",
+                    options=df_status_8['nup'].tolist(),
+                    key="ms_pagar"
+                )
+
+                if st.button("🚀 Confirmar Pagamento Total", use_container_width=True):
+                    if nups_para_pagar:
+                        with st.spinner("Finalizando processos..."):
+                            for nup in nups_para_pagar:
+                                mover_status(nup, 9)
+                                dados_f = df_status_8[df_status_8['nup'] == nup].iloc[0]
+                                registrar_acao(nup, dados_f['Numero_da_fatura'], "PAGAMENTO_EFETUADO", "Processo finalizado com pagamento.")
+                                registrar_historico(nup, dados_f['Numero_da_fatura'], "8", "9", dados_f['valor_apresentado'], "Pagamento efetuado.")
+                            
+                            st.success(f"🎊 {len(nups_para_pagar)} processos finalizados com sucesso!")
+                            time.sleep(1.2)
+                            st.rerun()
+                    else:
+                        st.warning("Selecione ao menos um processo.")
+
+                st.dataframe(
+                    df_status_8[['nup', 'ose', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("Não há faturas aguardando confirmação de pagamento.")
+
+
+
+
+
         # --- ABA 4: ESTATÍSTICAS E INDICADORES (KPIs Financeiros) ---
         with tab4:
             st.header("📊 Estatística e Indicadores")
