@@ -1177,16 +1177,16 @@ else:
             st.markdown("---") # Separador visual dentro da aba
 
             # --- SEÇÃO 2: ENVIO PARA FISCALIZAÇÃO (DENTRO DA ABA CORRETA) ---
-        # Certifique-se de que todo o código abaixo tenha 2 ou 3 "TABs" de recuo
-        # para ficar dentro do 'with tab6:' ou 'with tab_execucao:'
+            # Certifique-se de que todo o código abaixo tenha 2 ou 3 "TABs" de recuo
+            # para ficar dentro do 'with tab6:' ou 'with tab_execucao:'
         
-        st.markdown("---")
-        st.markdown("### 📤 2. Encaminhar para Fiscalização (ou Cancelar Empenho)")
+            st.markdown("---")
+            st.markdown("### 📤 2. Encaminhar para Fiscalização (ou Cancelar Empenho)")
 
-        f_status_5 = df[df['status'] == 5].copy()
+            f_status_5 = df[df['status'] == 5].copy()
 
-        if not f_status_5.empty:
-            # 1. BUSCA DE FISCAIS (Filtro para Auditoria/Financeiro verem)
+            if not f_status_5.empty:
+                # 1. BUSCA DE FISCAIS (Filtro para Auditoria/Financeiro verem)
             df_users_fiscal = carregar_dados_cache(ABA_USUARIOS)
             if not df_users_fiscal.empty:
                 # Filtra perfis que contenham 'fiscalização' ou 'global'
@@ -1273,7 +1273,7 @@ else:
             cols_f = ['ne', 'ose', 'nup', 'valor_liquido', 'mes_sigla', 'ano_competencia']
             st.dataframe(f_status_5[cols_f].sort_values(by='ne'), use_container_width=True, hide_index=True)
 
-        else:
+            else:
             st.info("Não há Notas de Empenho aguardando envio para fiscalização.")
 
         # --- ABA 3: GESTÃO DE PAGAMENTOS (Status 7 -> 8 -> 9) ---
