@@ -2154,10 +2154,6 @@ else:
             except Exception as e:
                 st.error(f"Erro na aba financeira: {e}")
 
-# --- FINALIZA A ABA 1 (FECHAMENTO DO TRY/EXCEPT DA ABA ANTERIOR) ---
-                except Exception as e:
-                    st.error(f"Erro na aba financeira: {e}")
-
 # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
             # =================================================================
