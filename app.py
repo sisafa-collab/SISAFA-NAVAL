@@ -2139,13 +2139,22 @@ else:
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (VERSÃO FINAL)
         # =================================================================
                     # --- PROCESS MINING (PM4PY) ---
-                    st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
+                    st.markdown("### 🧭 Análise de Caminhos Reais")
                     
                     # DataFrame enxuto para o PM4Py não dar erro de fuso horário
                     df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
-                    df_pm = df_pm.rename(columns={'nup': 'case:concept:name', 'status_destino': 'concept:name', 'timestamp': 'time:timestamp'})
+                    df_pm = df_pm.rename(columns={
+                        'nup': 'case:concept:name', 
+                        'status_destino': 'concept:name', 
+                        'timestamp': 'time:timestamp'
+                    })
                     
-                    event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+                    event_log = pm4py.format_dataframe(
+                        df_pm, 
+                        case_id='case:concept:name', 
+                        activity_key='concept:name', 
+                        timestamp_key='time:timestamp'
+                    )
                     
                     # VARIANTES (Usando estatísticas oficiais para evitar erro de 'int')
                     from pm4py.statistics.traces.generic.log import case_statistics
@@ -2161,22 +2170,25 @@ else:
                         })
                     
                     df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
-                    st.write("**Fluxos de processos identificados:**")
+                    st.write("**Fluxos de processos identificados (Top 5):**")
                     st.table(df_variants.head(5))
 
-                    # 🗺️ MAPA DE FLUXO (Agora com Graphviz instalado!)
+                    # 🗺️ MAPA DE FLUXO (Blindado com o PATH do Linux)
                     try:
+                        # Reforço do caminho para encontrar o 'dot' que você instalou
+                        if "/usr/bin" not in os.environ["PATH"]:
+                            os.environ["PATH"] += os.pathsep + "/usr/bin"
+                        
                         dfg, sa, ea = pm4py.discover_dfg(event_log)
-                        # Gerando o arquivo da imagem
                         map_path = "mapa_naval_audit.png"
                         pm4py.save_vis_dfg(dfg, sa, ea, map_path)
                         st.image(map_path, caption="Mapa de Atividades Minerado (Fluxo Real)", use_container_width=True)
                     except Exception as e_map:
-                        st.warning(f"⚠️ O motor Graphviz está instalado, mas houve um erro ao desenhar: {e_map}")
+                        st.warning(f"⚠️ Erro ao desenhar o mapa: {e_map}")
+                        st.info("Dica: Tente rodar 'which dot' no terminal para conferir o caminho.")
 
             except Exception as e:
                 st.error(f"Erro na aba de produtividade: {e}")
-
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
         # =================================================================
