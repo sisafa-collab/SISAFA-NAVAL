@@ -13,6 +13,10 @@ import plotly.express as px
 import pm4py
 from pm4py.objects.log.util import dataframe_utils
 from pm4py.objects.conversion.log import converter as log_converter
+if "/usr/bin" not in os.environ["PATH"]:
+    os.environ["PATH"] += os.pathsep + "/usr/bin"
+if "/usr/local/bin" not in os.environ["PATH"]:
+    os.environ["PATH"] += os.pathsep + "/usr/local/bin"
 
 # --- python -m streamlit run app.py ---
 # --- CONFIGURAÇÕES E CAMINHOS ---
@@ -2134,42 +2138,6 @@ else:
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (VERSÃO FINAL)
         # =================================================================
-        with tab_prod:
-            st.subheader("⏱️ Inteligência de Processo e Gargalos")
-            
-            try:
-                # 1. CARGA DE DADOS
-                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                df_hist = pd.DataFrame(aba_h.get_all_records())
-                
-                if df_hist.empty:
-                    st.info("Aguardando registros no histórico para calcular produtividade.")
-                else:
-                    # --- LIMPEZA E VACINA DE DATAS ---
-                    # Remove fuso horário para evitar o erro .tz
-                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
-                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
-                    
-                    # --- CÁLCULO DE GARGALOS (ESTATÍSTICA PURA) ---
-                    df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
-                    df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
-                    df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
-                    
-                    # 📊 GRÁFICO DE GARGALOS (Apenas uma vez aqui)
-                    st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
-                    df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
-                    
-                    if not df_gargalo.empty:
-                        fig_gar = px.bar(
-                            df_gargalo, x='transicao', y='dias', 
-                            color='dias', color_continuous_scale='Reds',
-                            labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Fluxo'},
-                            text_auto='.1f'
-                        )
-                        st.plotly_chart(fig_gar, use_container_width=True)
-                    
-                    st.divider()
-
                     # --- PROCESS MINING (PM4PY) ---
                     st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
                     
