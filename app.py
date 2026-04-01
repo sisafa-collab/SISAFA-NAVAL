@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from google.oauth2 import service_account 
 import os
+import shutil  
 import base64
 import pandas as pd
 from datetime import datetime
@@ -13,10 +14,27 @@ import plotly.express as px
 import pm4py
 from pm4py.objects.log.util import dataframe_utils
 from pm4py.objects.conversion.log import converter as log_converter
-if "/usr/bin" not in os.environ["PATH"]:
-    os.environ["PATH"] += os.pathsep + "/usr/bin"
-if "/usr/local/bin" not in os.environ["PATH"]:
-    os.environ["PATH"] += os.pathsep + "/usr/local/bin"
+
+# =================================================================
+# CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
+# =================================================================
+# Tenta localizar o executável 'dot' automaticamente no sistema
+dot_path = shutil.which("dot")
+
+if dot_path:
+    # Se achou, forçamos a variável que o PM4Py exige
+    os.environ["GRAPHVIZ_DOT"] = dot_path
+    dot_dir = os.path.dirname(dot_path)
+    if dot_dir not in os.environ["PATH"]:
+        os.environ["PATH"] += os.pathsep + dot_dir
+else:
+    # Caso o sistema não informe o caminho, tentamos os padrões do Linux
+    caminhos_manuais = ["/usr/bin/dot", "/usr/local/bin/dot"]
+    for caminho in caminhos_manuais:
+        if os.path.exists(caminho):
+            os.environ["GRAPHVIZ_DOT"] = caminho
+            os.environ["PATH"] += os.pathsep + os.path.dirname(caminho)
+            break
 
 # --- python -m streamlit run app.py ---
 # --- CONFIGURAÇÕES E CAMINHOS ---
