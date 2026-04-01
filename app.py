@@ -2132,83 +2132,77 @@ else:
                     st.divider()
 
                     # --- FECHAMENTO DA ABA FINANCEIRA (Isso resolve o erro da linha 2226) ---
+# --- FINALIZA A ABA 1 (Certifique-se que o except está alinhado com o try da tab_fin) ---
             except Exception as e:
-                st.error(f"Erro ao carregar dados financeiros: {e}")
+                st.error(f"Erro na aba financeira: {e}")
 
-                    # =================================================================
-                    # 2. ABA: PRODUTIVIDADE E INTELIGÊNCIA (PM4PY APENAS)
-                    # =================================================================
-                    with tab_prod:
-                        st.subheader("🧭 Mineração de Processos (PM4PY)")
-                        st.caption("Análise de caminhos reais e fluxos minerados do SISAFA-NAVAL.")
+        # =================================================================
+        # 2. ABA: PRODUTIVIDADE (APENAS PROCESS MINING)
+        # =================================================================
+        with tab_prod:
+            st.subheader("🧭 Mineração de Processos (PM4PY)")
+            st.caption("Fluxo real de faturas minerado a partir do histórico do SISAFA-NAVAL.")
+            
+            try:
+                # 1. Carga dos dados (SISAFA-NAVAL-historico)
+                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                df_hist = pd.DataFrame(aba_h.get_all_records())
+                
+                if df_hist.empty:
+                    st.info("Aguardando registros no histórico para iniciar a mineração.")
+                else:
+                    # --- TRATAMENTO DE DADOS (VACINA TZ E TIPO) ---
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
+                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    
+                    # DataFrame enxuto para evitar erros de Timedelta no PM4Py
+                    df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
+                    df_pm = df_pm.rename(columns={
+                        'nup': 'case:concept:name', 
+                        'status_destino': 'concept:name', 
+                        'timestamp': 'time:timestamp'
+                    })
+                    
+                    # Conversão para Log de Eventos
+                    event_log = pm4py.format_dataframe(
+                        df_pm, 
+                        case_id='case:concept:name', 
+                        activity_key='concept:name', 
+                        timestamp_key='time:timestamp'
+                    )
+
+                    # --- ANÁLISE DE VARIANTES (SEM ERRO 'INT') ---
+                    from pm4py.statistics.traces.generic.log import case_statistics
+                    var_stats = case_statistics.get_variant_statistics(event_log)
+                    
+                    var_list = []
+                    total_cases = df_pm['case:concept:name'].nunique()
+                    for stat in var_stats:
+                        var_list.append({
+                            "Caminho Percorrido": " ➔ ".join(stat['variant']),
+                            "Qtd. Faturas": stat['count'],
+                            "Freq (%)": round((stat['count'] / total_cases) * 100, 1)
+                        })
+                    
+                    st.write("**Top 5 fluxos reais identificados:**")
+                    st.table(pd.DataFrame(var_list).sort_values("Qtd. Faturas", ascending=False).head(5))
+
+                    st.divider()
+
+                    # --- MAPA VISUAL (GRAPHVIZ) ---
+                    try:
+                        # Forçando o PATH do Graphviz que você instalou via apt-get
+                        os.environ["PATH"] += os.pathsep + "/usr/bin"
                         
-                        try:
-                            # 1. Carga dos dados do Histórico
-                            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                            df_hist = pd.DataFrame(aba_h.get_all_records())
-                            
-                            if df_hist.empty:
-                                st.info("Aguardando registros no histórico para iniciar a mineração.")
-                            else:
-                                # --- TRATAMENTO DE DADOS (VACINA TZ) ---
-                                # Removemos qualquer fuso horário para evitar o erro 'TimedeltaProperties'
-                                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
-                                df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
-                                
-                                # --- PREPARAÇÃO PM4PY ---
-                                # Selecionamos apenas o essencial para não dar erro de tipo em colunas extras
-                                df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
-                                df_pm = df_pm.rename(columns={
-                                    'nup': 'case:concept:name', 
-                                    'status_destino': 'concept:name', 
-                                    'timestamp': 'time:timestamp'
-                                })
-                                
-                                event_log = pm4py.format_dataframe(
-                                    df_pm, 
-                                    case_id='case:concept:name', 
-                                    activity_key='concept:name', 
-                                    timestamp_key='time:timestamp'
-                                )
+                        dfg, sa, ea = pm4py.discover_dfg(event_log)
+                        img_path = "mapa_processo_naval.png"
+                        pm4py.save_vis_dfg(dfg, sa, ea, img_path)
+                        st.image(img_path, caption="Mapa de Atividades Minerado", use_container_width=True)
+                    except Exception as e_vis:
+                        st.warning(f"⚠️ O motor Graphviz está instalado, mas falhou ao desenhar: {e_vis}")
 
-                                # --- ESTATÍSTICAS DE VARIANTES (SEM ERRO 'INT') ---
-                                from pm4py.statistics.traces.generic.log import case_statistics
-                                var_stats = case_statistics.get_variant_statistics(event_log)
-                                
-                                var_list = []
-                                total_cases = df_pm['case:concept:name'].nunique()
-                                for stat in var_stats:
-                                    var_list.append({
-                                        "Caminho Percorrido": " ➔ ".join(stat['variant']),
-                                        "Frequência": stat['count'],
-                                        "Proporção (%)": round((stat['count'] / total_cases) * 100, 1)
-                                    })
-                                
-                                st.write("**Variantes de Fluxo Identificadas:**")
-                                st.table(pd.DataFrame(var_list).sort_values("Frequência", ascending=False).head(5))
-
-                                st.divider()
-
-                                # --- MAPA VISUAL (COM FIX DE CAMINHO 'DOT') ---
-                                try:
-                                    # Força o sistema a achar o 'dot' nas pastas padrão do Linux
-                                    os.environ["PATH"] += os.pathsep + "/usr/bin"
-                                    os.environ["PATH"] += os.pathsep + "/usr/local/bin"
-                                    
-                                    # Descoberta do Modelo (DFG)
-                                    dfg, sa, ea = pm4py.discover_dfg(event_log)
-                                    
-                                    # Salva e exibe
-                                    img_path = "fluxo_sisafa.png"
-                                    pm4py.save_vis_dfg(dfg, sa, ea, img_path)
-                                    st.image(img_path, caption="Mapa de Fluxo Real Minerado", use_container_width=True)
-                                    
-                                except Exception as e_vis:
-                                    st.warning(f"⚠️ O Graphviz está instalado, mas falhou ao desenhar: {e_vis}")
-                                    st.info("💡 Isso geralmente ocorre quando a variável de ambiente PATH não atualizou. Tente reiniciar o Streamlit.")
-
-                        except Exception as e:
-                            st.error(f"Erro no processamento PM4PY: {e}")
+            except Exception as e:
+                st.error(f"Erro no processamento PM4PY: {e}")
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
