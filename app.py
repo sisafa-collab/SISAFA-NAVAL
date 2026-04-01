@@ -2159,13 +2159,13 @@ else:
                     st.error(f"Erro na aba financeira: {e}")
 
 # =================================================================
-            # PARTE 2: ABA PRODUTIVIDADE (PM4PY + FILTRO MÊS)
+            # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
             # =================================================================
             with tab_prod:
                 st.header("🧭 Inteligência de Processos")
                 
                 try:
-                    # 1. CARGA DE DADOS
+                    # 1. CARGA DE DADOS DO HISTÓRICO
                     aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                     df_hist_p = pd.DataFrame(aba_h.get_all_records())
                     
@@ -2183,7 +2183,7 @@ else:
                                              reverse=True)
                         
                         st.write("### 🔍 Filtros de Análise")
-                        mes_sel = st.selectbox("Selecione o mês:", ["Todos os Meses"] + lista_meses, key="sel_prod_mes")
+                        mes_sel = st.selectbox("Selecione o mês:", ["Todos os Meses"] + lista_meses, key="prod_mes_filter")
                         
                         if mes_sel != "Todos os Meses":
                             df_hist_p = df_hist_p[df_hist_p['mes_ano'] == mes_sel]
@@ -2219,12 +2219,12 @@ else:
                             for stat in var_stats:
                                 var_list.append({
                                     "Fluxo Realizado": " ➔ ".join(stat['variant']),
-                                    "Qtd": stat['count'],
+                                    "Faturas": stat['count'],
                                     "%": round((stat['count'] / total_n) * 100, 1)
                                 })
                             
                             st.write("#### 🔝 Principais Caminhos Detectados")
-                            st.table(pd.DataFrame(var_list).sort_values("Qtd", ascending=False).head(5))
+                            st.table(pd.DataFrame(var_list).sort_values("Faturas", ascending=False).head(5))
 
                             st.divider()
 
@@ -2244,7 +2244,6 @@ else:
 
                 except Exception as e:
                     st.error(f"Erro no processamento PM4PY: {e}")
-
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
