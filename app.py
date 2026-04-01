@@ -1963,7 +1963,7 @@ else:
 
 
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
-        st.header("📈 Análise estratégica")
+        st.header("📈 Análise Estratégica")
 
         # --- 1. DEFINIÇÕES GLOBAIS (VACINA DE ORDEM E NOMES) ---
         mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
@@ -2058,7 +2058,7 @@ else:
 
                 # --- HISTOGRAMA (Com Ordem Cronológica de Calendário) ---
                 if not df_grafico.empty:
-                    st.subheader("📊 Histórico de Dívida por Competência")
+                    st.subheader("📊 Dívida por Competência")
                     
                     # Criar label legível
                     df_grafico['Competência'] = df_grafico.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
@@ -2154,7 +2154,7 @@ else:
             except Exception as e:
                 st.error(f"Erro na aba financeira: {e}")
 
-# =================================================================
+            # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
             # =================================================================
             with tab_prod:
@@ -2225,7 +2225,7 @@ else:
                             st.divider()
 
                             # Mapa Visual
-                            st.write("#### 🗺️ Mapa de Atividades Minerado")
+                            st.write("#### 🗺️ Mineração de processos")
                             try:
                                 import shutil
                                 dot_exe = shutil.which("dot")
