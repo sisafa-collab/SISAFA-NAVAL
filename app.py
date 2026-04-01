@@ -2131,7 +2131,7 @@ else:
             except Exception as e:
                 st.error(f"Erro ao carregar dados financeiros: {e}")
 
-# =================================================================
+        # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
         # =================================================================
         with tab_prod:
@@ -2216,7 +2216,7 @@ else:
             except Exception as e:
                 st.error(f"Erro na análise de produtividade: {e}")
 
-                
+
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
         # =================================================================
