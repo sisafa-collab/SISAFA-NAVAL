@@ -2138,25 +2138,24 @@ else:
             st.subheader("⏱️ Produtividade e Inteligência de Processo")
             
             try:
-                # 1. Carregamento do Histórico
+                # 1. Carregamento do Histórico (Base: SISAFA-NAVAL-historico)
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist = pd.DataFrame(aba_h.get_all_records())
                 
                 if df_hist.empty:
                     st.info("Aguardando registros no histórico para calcular produtividade.")
                 else:
-                    # --- VACINA DE DATAS (O SEGREDO CONTRA O ERRO 'TZ') ---
-                    # Convertemos e removemos fuso horário IMEDIATAMENTE
+                    # --- LIMPEZA DE DADOS ---
+                    # Removemos fuso horário e garantimos ordem cronológica por NUP
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
                     df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # --- CÁLCULO DE GARGALOS (TEMPO MÉDIO) ---
-                    # Calculamos o delta e convertemos para dias de forma ultra-segura
+                    # --- CÁLCULO DE GARGALOS (GRÁFICO DE BARRAS) ---
                     df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
                     df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
                     df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
                     
-                    # EXIBIÇÃO ÚNICA DOS GARGALOS
+                    # Título único para Gargalos
                     st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
                     df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
                     
@@ -2164,19 +2163,17 @@ else:
                         fig_gar = px.bar(
                             df_gargalo, x='transicao', y='dias', 
                             color='dias', color_continuous_scale='Reds',
-                            title="Onde o processo trava? (Média de Dias)",
                             labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Fluxo'},
                             text_auto='.1f'
                         )
                         st.plotly_chart(fig_gar, use_container_width=True)
-
+                    
                     st.divider()
 
-                    # --- PROCESS MINING (PM4PY) - SEM O ERRO 'TZ' ---
+                    # --- PROCESS MINING (PM4PY) - VERSÃO BLINDADA ---
                     st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
                     
-                    # Criamos um DataFrame limpo APENAS com as 3 colunas que o PM4Py exige
-                    # Isso evita que a coluna 'delta' (que causava o erro .tz) entre na análise
+                    # Criamos um DataFrame enxuto para evitar erros de tipo
                     df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
                     df_pm = df_pm.rename(columns={
                         'nup': 'case:concept:name', 
@@ -2184,7 +2181,7 @@ else:
                         'timestamp': 'time:timestamp'
                     })
                     
-                    # O format_dataframe agora vai rodar liso
+                    # Converte para Event Log
                     event_log = pm4py.format_dataframe(
                         df_pm, 
                         case_id='case:concept:name', 
@@ -2192,32 +2189,34 @@ else:
                         timestamp_key='time:timestamp'
                     )
                     
-                    variants = pm4py.get_variants(event_log)
-                    var_data_list = []
-                    total_processos = df_pm['case:concept:name'].nunique()
+                    # Pegamos as estatísticas de variantes (mais seguro que get_variants direto)
+                    from pm4py.statistics.traces.generic.log import case_statistics
+                    variants_stats = case_statistics.get_variant_statistics(event_log)
                     
-                    for k, v in variants.items():
-                        contagem = len(list(v))
+                    var_data_list = []
+                    for stat in variants_stats:
                         var_data_list.append({
-                            "Caminho": " ➔ ".join(k),
-                            "Qtd": contagem,
-                            "Freq (%)": round((contagem / total_processos) * 100, 1)
+                            "Caminho Percorrido": " ➔ ".join(stat['variant']),
+                            "Qtd. Faturas": stat['count'],
+                            "Freq. (%)": round((stat['count'] / len(df_pm['case:concept:name'].unique())) * 100, 1)
                         })
                     
-                    df_variants = pd.DataFrame(var_data_list).sort_values("Qtd", ascending=False)
-                    st.write("**Top 5 caminhos mais frequentes:**")
+                    df_variants = pd.DataFrame(var_data_list).sort_values("Qtd. Faturas", ascending=False)
+                    st.write("**Top 5 caminhos mais frequentes (Variantes):**")
                     st.table(df_variants.head(5))
 
+                    # Mapa de Fluxo (DFG)
                     try:
                         dfg, sa, ea = pm4py.discover_dfg(event_log)
-                        pm4py.save_vis_dfg(dfg, sa, ea, "temp_map.png")
-                        st.image("temp_map.png", caption="Mapa de Fluxo Minerado", use_container_width=True)
+                        pm4py.save_vis_dfg(dfg, sa, ea, "mapa_naval.png")
+                        st.image("mapa_naval.png", caption="Mapa de Fluxo Minerado", use_container_width=True)
                     except:
-                        st.info("ℹ️ Mapa visual indisponível no servidor (Graphviz ausente).")
+                        st.info("ℹ️ Mapa visual indisponível (Graphviz não detectado no servidor).")
 
             except Exception as e:
-                st.error(f"Erro na aba de produtividade: {e}")
+                st.error(f"Erro na análise de produtividade: {e}")
 
+                
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
         # =================================================================
@@ -2229,7 +2228,7 @@ else:
 
         
 
-        
+
     elif st.session_state.modulo_ativo == "OSE":
         st.header("🏥 Portal da OSE")
         
