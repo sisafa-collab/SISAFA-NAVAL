@@ -2159,101 +2159,91 @@ else:
                     st.error(f"Erro na aba financeira: {e}")
 
 # =================================================================
-    # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
-    # =================================================================
-    with tab_prod:
-        st.header("🧭 Inteligência de Processos")
-        
-        try:
-            # 1. CARGA DE DADOS DO HISTÓRICO
-            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-            df_hist = pd.DataFrame(aba_h.get_all_records())
-            
-            if df_hist.empty:
-                st.info("Aguardando registros no histórico para iniciar a mineração.")
-            else:
-                # --- TRATAMENTO DE DATAS (VACINA TZ) ---
-                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
-                df_hist = df_hist.dropna(subset=['timestamp'])
+            # PARTE 2: ABA PRODUTIVIDADE (PM4PY + FILTRO MÊS)
+            # =================================================================
+            with tab_prod:
+                st.header("🧭 Inteligência de Processos")
                 
-                # --- FILTRO POR MÊS ---
-                df_hist['mes_ano'] = df_hist['timestamp'].dt.strftime('%m/%Y')
-                lista_meses = sorted(df_hist['mes_ano'].unique(), 
-                                     key=lambda x: pd.to_datetime(x, format='%m/%Y'), 
-                                     reverse=True)
-                
-                st.write("### 🔍 Filtros de Análise")
-                mes_selecionado = st.selectbox("Selecione o mês de referência:", ["Todos os Meses"] + lista_meses)
-                
-                if mes_selecionado != "Todos os Meses":
-                    df_hist = df_hist[df_hist['mes_ano'] == mes_selecionado]
-                
-                if df_hist.empty:
-                    st.warning("Não há dados para o período selecionado.")
-                else:
-                    # --- MAPEAMENTO DE NOMES (ETAPAS) ---
-                    mapa_nomes = {
-                        1: "1. FATURA CADASTRADA", 2: "2. EM AUDITAGEM",
-                        3: "3. AUDITADA", 4: "4. AGUARDANDO NE",
-                        5: "5. FATURA EMPENHADA", 6: "6. AGUARDANDO NF",
-                        7: "7. EM LIQUIDAÇÃO", 8: "8. FATURA LIQUIDADA",
-                        9: "9. FATURA PAGA"
-                    }
-
-                    # Prepara DataFrame para o PM4Py
-                    df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
-                    df_pm['status_destino'] = df_pm['status_destino'].map(mapa_nomes).fillna(df_pm['status_destino'])
+                try:
+                    # 1. CARGA DE DADOS
+                    aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                    df_hist_p = pd.DataFrame(aba_h.get_all_records())
                     
-                    df_pm = df_pm.rename(columns={
-                        'nup': 'case:concept:name', 
-                        'status_destino': 'concept:name', 
-                        'timestamp': 'time:timestamp'
-                    }).sort_values(['case:concept:name', 'time:timestamp'])
-
-                    # Process Mining
-                    event_log = pm4py.format_dataframe(
-                        df_pm, 
-                        case_id='case:concept:name', 
-                        activity_key='concept:name', 
-                        timestamp_key='time:timestamp'
-                    )
-
-                    # --- TABELA DE CAMINHOS ---
-                    from pm4py.statistics.traces.generic.log import case_statistics
-                    var_stats = case_statistics.get_variant_statistics(event_log)
-                    
-                    var_list = []
-                    total_nups = df_pm['case:concept:name'].nunique()
-                    for stat in var_stats:
-                        var_list.append({
-                            "Fluxo Realizado": " ➔ ".join(stat['variant']),
-                            "Qtd": stat['count'],
-                            "%": round((stat['count'] / total_nups) * 100, 1)
-                        })
-                    
-                    st.write("#### 🔝 Principais Caminhos Detectados")
-                    st.table(pd.DataFrame(var_list).sort_values("Qtd", ascending=False).head(5))
-
-                    st.divider()
-
-                    # --- MAPA VISUAL (GRAPHVIZ) ---
-                    st.write("#### 🗺️ Mapa de Atividades Minerado")
-                    try:
-                        import shutil
-                        dot_exe = shutil.which("dot")
-                        if dot_exe:
-                            os.environ["GRAPHVIZ_DOT"] = dot_exe
+                    if df_hist_p.empty:
+                        st.info("Aguardando registros no histórico para iniciar a mineração.")
+                    else:
+                        # --- TRATAMENTO (VACINA TZ) ---
+                        df_hist_p['timestamp'] = pd.to_datetime(df_hist_p['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
+                        df_hist_p = df_hist_p.dropna(subset=['timestamp'])
                         
-                        dfg, sa, ea = pm4py.discover_dfg(event_log)
-                        img_path = "mapa_sisafa_mensal.png"
-                        pm4py.save_vis_dfg(dfg, sa, ea, img_path)
-                        st.image(img_path, caption=f"Fluxo Minerado - {mes_selecionado}", use_container_width=True)
-                    except Exception as e_vis:
-                        st.warning("Visualização do mapa indisponível.")
+                        # --- FILTRO POR MÊS ---
+                        df_hist_p['mes_ano'] = df_hist_p['timestamp'].dt.strftime('%m/%Y')
+                        lista_meses = sorted(df_hist_p['mes_ano'].unique(), 
+                                             key=lambda x: pd.to_datetime(x, format='%m/%Y'), 
+                                             reverse=True)
+                        
+                        st.write("### 🔍 Filtros de Análise")
+                        mes_sel = st.selectbox("Selecione o mês:", ["Todos os Meses"] + lista_meses, key="sel_prod_mes")
+                        
+                        if mes_sel != "Todos os Meses":
+                            df_hist_p = df_hist_p[df_hist_p['mes_ano'] == mes_sel]
+                        
+                        if df_hist_p.empty:
+                            st.warning("Sem dados para este período.")
+                        else:
+                            # --- NOMES DAS ETAPAS ---
+                            mapa_nomes = {
+                                1: "1. CADASTRADA", 2: "2. EM AUDITAGEM", 3: "3. AUDITADA",
+                                4: "4. AGUARDANDO NE", 5: "5. EMPENHADA", 6: "6. AGUARDANDO NF",
+                                7: "7. EM LIQUIDAÇÃO", 8: "8. LIQUIDADA", 9: "9. PAGA"
+                            }
 
-        except Exception as e:
-            st.error(f"Erro no processamento PM4PY: {e}")
+                            df_pm = df_hist_p[['nup', 'status_destino', 'timestamp']].copy()
+                            df_pm['status_destino'] = df_pm['status_destino'].map(mapa_nomes).fillna(df_pm['status_destino'])
+                            
+                            df_pm = df_pm.rename(columns={
+                                'nup': 'case:concept:name', 
+                                'status_destino': 'concept:name', 
+                                'timestamp': 'time:timestamp'
+                            }).sort_values(['case:concept:name', 'time:timestamp'])
 
+                            # Process Mining
+                            event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+
+                            # Tabela de Caminhos
+                            from pm4py.statistics.traces.generic.log import case_statistics
+                            var_stats = case_statistics.get_variant_statistics(event_log)
+                            
+                            var_list = []
+                            total_n = df_pm['case:concept:name'].nunique()
+                            for stat in var_stats:
+                                var_list.append({
+                                    "Fluxo Realizado": " ➔ ".join(stat['variant']),
+                                    "Qtd": stat['count'],
+                                    "%": round((stat['count'] / total_n) * 100, 1)
+                                })
+                            
+                            st.write("#### 🔝 Principais Caminhos Detectados")
+                            st.table(pd.DataFrame(var_list).sort_values("Qtd", ascending=False).head(5))
+
+                            st.divider()
+
+                            # Mapa Visual
+                            st.write("#### 🗺️ Mapa de Atividades Minerado")
+                            try:
+                                import shutil
+                                dot_exe = shutil.which("dot")
+                                if dot_exe:
+                                    os.environ["GRAPHVIZ_DOT"] = dot_exe
+                                
+                                dfg, sa, ea = pm4py.discover_dfg(event_log)
+                                pm4py.save_vis_dfg(dfg, sa, ea, "mapa_prod.png")
+                                st.image("mapa_prod.png", caption=f"Fluxo Minerado - {mes_sel}", use_container_width=True)
+                            except Exception as e_vis:
+                                st.warning("Visualização do mapa indisponível.")
+
+                except Exception as e:
+                    st.error(f"Erro no processamento PM4PY: {e}")
 
 
         # =================================================================
