@@ -2062,6 +2062,9 @@ else:
                     fig_hist.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_hist, use_container_width=True)
 
+
+
+
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (Unificado)
         # =================================================================
@@ -2125,100 +2128,99 @@ else:
                     st.divider()
 
                     # =================================================================
-                # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
-                # =================================================================
-                with tab_prod:
-                    st.subheader("⏱️ Produtividade e Inteligência de Processo")
-                    
-                    try:
-                        # 1. Carregamento do Histórico
-                        aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                        df_hist = pd.DataFrame(aba_h.get_all_records())
+                    # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
+                    # =================================================================
+                    with tab_prod:
+                        st.subheader("⏱️ Produtividade e Inteligência de Processo")
                         
-                        if df_hist.empty:
-                            st.info("Aguardando registros no histórico para calcular produtividade.")
-                        else:
-                            # --- PREPARAÇÃO DE DADOS ---
-                            # Vacina das datas: formato misto e remoção de Fuso Horário (tz)
-                            df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
-                            df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                        try:
+                            # 1. Carregamento do Histórico
+                            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                            df_hist = pd.DataFrame(aba_h.get_all_records())
                             
-                            # --- CÁLCULO DE GARGALOS (O QUE VOCÊ GOSTOU) ---
-                            df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
-                            # Cálculo de dias blindado contra erros de atributo 'tz'
-                            df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
-                            df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
-                            
-                            st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
-                            # Filtramos dias > 0 para não contar o início do processo como 0
-                            df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
-                            
-                            fig_gar = px.bar(
-                                df_gargalo, x='transicao', y='dias', 
-                                color='dias', color_continuous_scale='Reds',
-                                title="Onde o processo trava? (Média de Dias)",
-                                labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Fluxo'},
-                                text_auto='.1f'
-                            )
-                            st.plotly_chart(fig_gar, use_container_width=True)
+                            if df_hist.empty:
+                                st.info("Aguardando registros no histórico para calcular produtividade.")
+                            else:
+                                # --- PREPARAÇÃO DE DADOS ---
+                                # Vacina das datas: formato misto e remoção de Fuso Horário (tz)
+                                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
+                                df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                                
+                                # --- CÁLCULO DE GARGALOS (O QUE VOCÊ GOSTOU) ---
+                                df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
+                                # Cálculo de dias blindado contra erros de atributo 'tz'
+                                df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
+                                df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
+                                
+                                st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
+                                # Filtramos dias > 0 para não contar o início do processo como 0
+                                df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
+                                
+                                fig_gar = px.bar(
+                                    df_gargalo, x='transicao', y='dias', 
+                                    color='dias', color_continuous_scale='Reds',
+                                    title="Onde o processo trava? (Média de Dias)",
+                                    labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Fluxo'},
+                                    text_auto='.1f'
+                                )
+                                st.plotly_chart(fig_gar, use_container_width=True)
 
-                            st.divider()
+                                st.divider()
 
-                            # --- PROCESS MINING (PM4PY) ---
-                            st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
-                            
-                            # Renomeando colunas para o padrão PM4Py
-                            df_pm = df_hist.rename(columns={
-                                'nup': 'case:concept:name',
-                                'status_destino': 'concept:name',
-                                'timestamp': 'time:timestamp'
-                            })
-                            
-                            event_log = pm4py.format_dataframe(
-                                df_pm, 
-                                case_id='case:concept:name', 
-                                activity_key='concept:name', 
-                                timestamp_key='time:timestamp'
-                            )
-                            
-                            # Variantes (Caminhos) - Correção do erro 'len(int)'
-                            variants = pm4py.get_variants(event_log)
-                            var_data_list = []
-                            total_processos = df_pm['case:concept:name'].nunique()
-                            
-                            for k, v in variants.items():
-                                contagem = len(list(v))
-                                var_data_list.append({
-                                    "Caminho": " ➔ ".join(k),
-                                    "Qtd": contagem,
-                                    "Freq (%)": round((contagem / total_processos) * 100, 1)
+                                # --- PROCESS MINING (PM4PY) ---
+                                st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
+                                
+                                # Renomeando colunas para o padrão PM4Py
+                                df_pm = df_hist.rename(columns={
+                                    'nup': 'case:concept:name',
+                                    'status_destino': 'concept:name',
+                                    'timestamp': 'time:timestamp'
                                 })
-                            
-                            df_variants = pd.DataFrame(var_data_list).sort_values("Qtd", ascending=False)
-                            st.write("**Top 5 caminhos mais frequentes:**")
-                            st.table(df_variants.head(5))
+                                
+                                event_log = pm4py.format_dataframe(
+                                    df_pm, 
+                                    case_id='case:concept:name', 
+                                    activity_key='concept:name', 
+                                    timestamp_key='time:timestamp'
+                                )
+                                
+                                # Variantes (Caminhos) - Correção do erro 'len(int)'
+                                variants = pm4py.get_variants(event_log)
+                                var_data_list = []
+                                total_processos = df_pm['case:concept:name'].nunique()
+                                
+                                for k, v in variants.items():
+                                    contagem = len(list(v))
+                                    var_data_list.append({
+                                        "Caminho": " ➔ ".join(k),
+                                        "Qtd": contagem,
+                                        "Freq (%)": round((contagem / total_processos) * 100, 1)
+                                    })
+                                
+                                df_variants = pd.DataFrame(var_data_list).sort_values("Qtd", ascending=False)
+                                st.write("**Top 5 caminhos mais frequentes:**")
+                                st.table(df_variants.head(5))
 
-                            # Mapa de Fluxo (Tratamento para Graphviz ausente)
-                            try:
-                                dfg, sa, ea = pm4py.discover_dfg(event_log)
-                                file_map = "temp_sisafa_map.png"
-                                pm4py.save_vis_dfg(dfg, sa, ea, file_map)
-                                st.image(file_map, caption="Mapa de Fluxo Minerado", use_container_width=True)
-                            except:
-                                st.info("ℹ️ Mapa visual indisponível no servidor (Graphviz ausente).")
+                                # Mapa de Fluxo (Tratamento para Graphviz ausente)
+                                try:
+                                    dfg, sa, ea = pm4py.discover_dfg(event_log)
+                                    file_map = "temp_sisafa_map.png"
+                                    pm4py.save_vis_dfg(dfg, sa, ea, file_map)
+                                    st.image(file_map, caption="Mapa de Fluxo Minerado", use_container_width=True)
+                                except:
+                                    st.info("ℹ️ Mapa visual indisponível no servidor (Graphviz ausente).")
 
-                    except Exception as e:
-                        st.error(f"Erro ao processar produtividade: {e}")
+                        except Exception as e:
+                            st.error(f"Erro ao processar produtividade: {e}")
 
-                # =================================================================
-                # 3. ABA: ESTRUTURA DO SISAFA
-                # =================================================================
-                with tab_est:
-                    st.subheader("📂 Estrutura e Documentação")
-                    st.info("Esta seção contém a documentação técnica e os manuais do SISAFA-NAVAL.")
-                    st.write("---")
-                    st.markdown("**(Módulo em desenvolvimento - Aguardando upload dos arquivos técnicos)**")
-
+                    # =================================================================
+                    # 3. ABA: ESTRUTURA DO SISAFA
+                    # =================================================================
+                    with tab_est:
+                        st.subheader("📂 Estrutura e Documentação")
+                        st.info("Esta seção contém a documentação técnica e os manuais do SISAFA-NAVAL.")
+                        st.write("---")
+                        st.markdown("**(Módulo em desenvolvimento - Aguardando upload dos arquivos técnicos)**")
 
 
     elif st.session_state.modulo_ativo == "OSE":
