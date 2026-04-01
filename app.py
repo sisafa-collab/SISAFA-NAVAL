@@ -2127,54 +2127,81 @@ else:
                     # =========================================================
                     # PARTE 2: PROCESS MINING (INTELIGÊNCIA PM4PY)
                     # =========================================================
-                    st.markdown("### 🧭 Mineração de Processo (PM4PY)")
+                    st.markdown("### 🧭 Mineração de Processo")
                     st.caption("Análise de variantes e caminhos reais percorridos pelas faturas.")
 
-                    # Preparação para o PM4Py
-                    df_pm = df_hist.copy()
-                    df_pm = df_pm.rename(columns={
-                        'nup': 'case:concept:name',
-                        'status_destino': 'concept:name',
-                        'timestamp': 'time:timestamp'
-                    })
-                    
-                    event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
-                    
-                    # Análise de Variantes
-                    variants = pm4py.get_variants(event_log)
-                    var_data = []
-                    for v, cases in variants.items():
-                        contagem = len(list(cases)) # Fix para evitar erro de len(int)
-                        var_data.append({
-                            "Caminho Realizado": " ➔ ".join(v),
-                            "Qtd. Faturas": contagem,
-                            "Freq. (%)": round((contagem / total_faturas) * 100, 1)
-                        })
-                    
-                    df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
-                    st.write("**Caminhos mais frequentes:**")
-                    st.table(df_variants.head(5))
-
-                    # Tentativa de Mapa de Fluxo
                     try:
-                        dfg, start_act, end_act = pm4py.discover_dfg(event_log)
-                        file_map = "temp_sisafa_map.png"
-                        pm4py.save_vis_dfg(dfg, start_act, end_act, file_map)
-                        st.image(file_map, caption="Mapa de Fluxo minerado (DFG)", use_container_width=True)
-                    except:
-                        st.warning("⚠️ Mapa visual indisponível (Graphviz ausente). Use a tabela de variantes acima.")
-
-                    # Detalhamento final (Expander)
-                    with st.expander("🔍 Detalhes do Lead Time Individual (por NUP)"):
-                        df_lead = df_hist.groupby('nup').agg(
-                            inicio=('timestamp', 'min'),
-                            fim=('timestamp', 'max')
+                        # 1. Preparação para o PM4Py
+                        df_pm = df_hist.copy()
+                        
+                        # VACINA PARA O ERRO 'tz': Remove qualquer informação de fuso horário
+                        df_pm['timestamp'] = pd.to_datetime(df_pm['timestamp']).dt.tz_localize(None)
+                        
+                        df_pm = df_pm.rename(columns={
+                            'nup': 'case:concept:name',
+                            'status_destino': 'concept:name',
+                            'timestamp': 'time:timestamp'
+                        })
+                        
+                        # Formata o log para o padrão PM4Py
+                        event_log = pm4py.format_dataframe(
+                            df_pm, 
+                            case_id='case:concept:name', 
+                            activity_key='concept:name', 
+                            timestamp_key='time:timestamp'
                         )
-                        df_lead['Dias em Trâmite'] = (df_lead['fim'] - df_lead['inicio']).dt.days
-                        st.dataframe(df_lead.sort_values(by='Dias em Trâmite', ascending=False), use_container_width=True)
+                        
+                        # 2. Análise de Variantes (Caminhos Reais)
+                        variants = pm4py.get_variants(event_log)
+                        var_data = []
+                        
+                        # Calculamos o total de NUPs únicos para a frequência
+                        total_nups_pm = df_pm['case:concept:name'].nunique()
+                        
+                        for v, cases in variants.items():
+                            # Fix para evitar erro de len(int): transformamos cases em lista
+                            contagem = len(list(cases)) 
+                            var_data.append({
+                                "Caminho Realizado": " ➔ ".join(v),
+                                "Qtd. Faturas": contagem,
+                                "Freq. (%)": round((contagem / total_nups_pm) * 100, 1)
+                            })
+                        
+                        df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
+                        st.write("**Caminhos mais frequentes encontrados:**")
+                        st.table(df_variants.head(5))
 
-            except Exception as e:
-                st.error(f"Erro ao processar dados de produtividade: {e}")
+                        # 3. Tentativa de Mapa de Fluxo (DFG)
+                        try:
+                            dfg, start_act, end_act = pm4py.discover_dfg(event_log)
+                            file_map = "temp_sisafa_map.png"
+                            pm4py.save_vis_dfg(dfg, start_act, end_act, file_map)
+                            st.image(file_map, caption="Mapa de Fluxo minerado (DFG)", use_container_width=True)
+                        except Exception:
+                            st.warning("⚠️ Mapa visual indisponível (Graphviz ausente no servidor). Analise as variantes na tabela acima.")
+
+                        # 4. Detalhamento final (Expander) com cálculo de dias blindado
+                        with st.expander("🔍 Detalhes do Lead Time Individual (por NUP)"):
+                            # Agrupamos garantindo que as datas estejam limpas
+                            df_lead = df_hist.copy()
+                            df_lead['timestamp'] = pd.to_datetime(df_lead['timestamp']).dt.tz_localize(None)
+                            
+                            df_resumo_nup = df_lead.groupby('nup').agg(
+                                inicio=('timestamp', 'min'),
+                                fim=('timestamp', 'max')
+                            ).reset_index()
+                            
+                            # Cálculo de dias usando apply para evitar o erro de 'TimedeltaProperties'
+                            df_resumo_nup['Dias em Trâmite'] = (df_resumo_nup['fim'] - df_resumo_nup['inicio']).apply(lambda x: x.days)
+                            
+                            st.dataframe(
+                                df_resumo_nup.sort_values(by='Dias em Trâmite', ascending=False), 
+                                use_container_width=True, 
+                                hide_index=True
+                            )
+
+                    except Exception as e:
+                        st.error(f"Erro na análise de Process Mining: {e}")
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
