@@ -2063,105 +2063,118 @@ else:
                     st.plotly_chart(fig_hist, use_container_width=True)
 
         # =================================================================
-        # 2. ABA: PRODUTIVIDADE E PROCESS MINING (PM4PY)
+        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (Unificado)
         # =================================================================
         with tab_prod:
             st.subheader("⏱️ Produtividade e dados estatísticos")
             
             try:
-                # 1. CARGA E PREPARAÇÃO DO EVENT LOG
+                # 1. CARREGAMENTO DOS DADOS
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist = pd.DataFrame(aba_h.get_all_records())
                 
                 if df_hist.empty:
-                    st.info("Aguardando dados históricos para minerar o processo.")
+                    st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
-                    # Vacina das datas (format mixed para evitar erro de dia/mês)
+                    # --- A VACINA DAS DATAS (ISO 8601) ---
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
-                    df_hist = df_hist.dropna(subset=['timestamp'])
+                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # --- PREPARAÇÃO PARA O PM4PY ---
-                    # O PM4PY precisa de nomes específicos de colunas
-                    df_pm = df_hist.copy()
-                    df_pm = df_pm.rename(columns={
-                        'nup': 'case:concept:name',        # ID do Processo
-                        'status_destino': 'concept:name', # Atividade realizada
-                        'timestamp': 'time:timestamp'      # Momento da ação
-                    })
+                    # =========================================================
+                    # PARTE 1: ESTATÍSTICAS DE TEMPO (O QUE VOCÊ GOSTOU!)
+                    # =========================================================
+                    st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
                     
-                    # Converte para o formato de log do PM4PY
-                    event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+                    # Cálculo de tempo entre etapas
+                    df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
+                    
+                    # Criamos a label da transição (ex: "Status 4 ➔ Status 5")
+                    df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
+                    df_tempos['transicao'] = df_tempos['status_origem'].astype(str) + " ➔ " + df_tempos['status_destino'].astype(str)
+                    
+                    # Convertendo timedelta para dias decimais
+                    df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
+                    
+                    # Média de dias por transição
+                    resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
+                    
+                    # Gráfico de Barras original (Gargalos)
+                    fig_tempo = px.bar(
+                        resumo_tempo, 
+                        x='transicao', 
+                        y='dias', 
+                        title="Dias Médios de Permanência em cada Etapa",
+                        labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
+                        color='dias', 
+                        color_continuous_scale='Reds', # Vermelho para destacar o que demora
+                        text_auto='.1f'
+                    )
+                    st.plotly_chart(fig_tempo, use_container_width=True)
 
-                    # --- SEÇÃO A: MAPA DE FLUXO REAL ---
-                    st.write("### 🧭 Mapa de Fluxo das Faturas")
-                    st.caption("As setas mais grossas indicam o caminho mais percorrido.")
-                    
-                    # Descoberta do grafo de frequências (DFG)
-                    dfg, start_activities, end_activities = pm4py.discover_dfg(event_log)
-                    
-                    # Tenta gerar a imagem (Requer Graphviz no servidor)
-                    try:
-                        temp_map = "process_map.png"
-                        pm4py.save_vis_dfg(dfg, start_activities, end_activities, temp_map)
-                        st.image(temp_map, caption="Fluxograma de Atividades Gerado pelo PM4PY", use_container_width=True)
-                    except:
-                        st.warning("⚠️ O mapa visual não pôde ser renderizado (Graphviz ausente). Analise as variantes abaixo.")
+                    # Métricas de eficiência logo abaixo do gráfico
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        total_faturas = df['nup'].nunique()
+                        faturas_pagas = df[df['status'] == 9]['nup'].nunique()
+                        taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
+                        st.metric("Taxa de Conclusão (Eficiência)", f"{taxa_conclusao:.1f}%")
+                    with c2:
+                        lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
+                        st.metric("Lead Time Médio Geral", f"{lead_time_medio:.1f} dias")
 
                     st.divider()
 
-                    # --- SEÇÃO B: VARIANTES DE PROCESSO (CAMINHOS) ---
-                    st.write("### 🛤️ Variantes de Caminho")
-                    st.caption("Caminhos percorridos pelas faturas, do cadastro ao pagamento.")
+                    # =========================================================
+                    # PARTE 2: PROCESS MINING (INTELIGÊNCIA PM4PY)
+                    # =========================================================
+                    st.markdown("### 🧭 Mineração de Processo (PM4PY)")
+                    st.caption("Análise de variantes e caminhos reais percorridos pelas faturas.")
+
+                    # Preparação para o PM4Py
+                    df_pm = df_hist.copy()
+                    df_pm = df_pm.rename(columns={
+                        'nup': 'case:concept:name',
+                        'status_destino': 'concept:name',
+                        'timestamp': 'time:timestamp'
+                    })
                     
+                    event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+                    
+                    # Análise de Variantes
                     variants = pm4py.get_variants(event_log)
-                    
-                    # Organizando variantes em um DataFrame para a Rosilene
                     var_data = []
-                    total_casos = len(df_pm['case:concept:name'].unique())
-                    
                     for v, cases in variants.items():
+                        contagem = len(list(cases)) # Fix para evitar erro de len(int)
                         var_data.append({
-                            "Caminho Percorrido": " ➔ ".join(v),
-                            "Qtd. Faturas": len(cases),
-                            "Frequência (%)": round((len(cases)/total_casos)*100, 1)
+                            "Caminho Realizado": " ➔ ".join(v),
+                            "Qtd. Faturas": contagem,
+                            "Freq. (%)": round((contagem / total_faturas) * 100, 1)
                         })
                     
                     df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
-                    st.table(df_variants.head(5)) # Mostra as 5 rotas mais frequentes
+                    st.write("**Caminhos mais frequentes:**")
+                    st.table(df_variants.head(5))
 
-                    st.divider()
+                    # Tentativa de Mapa de Fluxo
+                    try:
+                        dfg, start_act, end_act = pm4py.discover_dfg(event_log)
+                        file_map = "temp_sisafa_map.png"
+                        pm4py.save_vis_dfg(dfg, start_act, end_act, file_map)
+                        st.image(file_map, caption="Mapa de Fluxo minerado (DFG)", use_container_width=True)
+                    except:
+                        st.warning("⚠️ Mapa visual indisponível (Graphviz ausente). Use a tabela de variantes acima.")
 
-                    # --- SEÇÃO C: LEAD TIME E GARGALOS ---
-                    st.write("### 📊 Desempenho e Gargalos")
-                    
-                    col_m1, col_m2 = st.columns(2)
-                    
-                    # Cálculo de Lead Time Total via PM4Py
-                    durations = pm4py.get_all_case_durations(event_log)
-                    if durations:
-                        avg_days = (sum(durations)/len(durations)) / (24 * 3600)
-                        median_days = sorted(durations)[len(durations)//2] / (24 * 3600)
-                        
-                        col_m1.metric("Lead Time Médio", f"{avg_days:.1f} dias")
-                        col_m2.metric("Mediana de Tempo", f"{median_days:.1f} dias")
-
-                    # Gráfico de Barras de Gargalos (Pandas puro para precisão de transição)
-                    df_pm['tempo_etapa'] = df_pm.groupby('case:concept:name')['time:timestamp'].diff()
-                    df_mudancas = df_pm.dropna(subset=['tempo_etapa']).copy()
-                    df_mudancas['dias'] = df_mudancas['tempo_etapa'].dt.total_seconds() / (24 * 3600)
-                    df_mudancas['transicao'] = df_mudancas['status_origem'].astype(str) + " ➔ " + df_mudancas['concept:name'].astype(str)
-                    
-                    resumo_tempo = df_mudancas.groupby('transicao')['dias'].mean().reset_index()
-                    fig_bottleneck = px.bar(
-                        resumo_tempo, x='transicao', y='dias', color='dias',
-                        title="Onde o processo trava? (Média de Dias por Etapa)",
-                        labels={'dias': 'Dias Médios', 'transicao': 'Mudança de Status'},
-                        text_auto='.1f', color_continuous_scale='Reds'
-                    )
-                    st.plotly_chart(fig_bottleneck, use_container_width=True)
+                    # Detalhamento final (Expander)
+                    with st.expander("🔍 Detalhes do Lead Time Individual (por NUP)"):
+                        df_lead = df_hist.groupby('nup').agg(
+                            inicio=('timestamp', 'min'),
+                            fim=('timestamp', 'max')
+                        )
+                        df_lead['Dias em Trâmite'] = (df_lead['fim'] - df_lead['inicio']).dt.days
+                        st.dataframe(df_lead.sort_values(by='Dias em Trâmite', ascending=False), use_container_width=True)
 
             except Exception as e:
-                st.error(f"Erro na análise de Process Mining: {e}")
+                st.error(f"Erro ao processar dados de produtividade: {e}")
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
