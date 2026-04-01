@@ -2124,93 +2124,108 @@ else:
 
                     st.divider()
 
-                    # =========================================================
-                    # PARTE 2: PROCESS MINING (INTELIGÊNCIA PM4PY)
-                    # =========================================================
+                    # =================================================================
+        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
+        # =================================================================
+        with tab_prod:
+            st.subheader("⏱️ Produtividade e Inteligência de Processo")
+            
+            try:
+                # 1. Carregamos o Histórico para o Process Mining
+                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                df_hist = pd.DataFrame(aba_h.get_all_records())
+                
+                if df_hist.empty:
+                    st.info("Aguardando registros no histórico para calcular produtividade.")
+                else:
+                    # --- A VACINA DAS DATAS (ISO 8601) ---
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
+                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    
+                    # 2. Cálculo de tempo entre etapas (Gargalos que você curtiu!)
+                    df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
+                    df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
+                    
+                    df_mudancas = df_hist.dropna(subset=['tempo_etapa']).copy()
+                    # Vacina 'tz': convertendo para total_seconds direto
+                    df_mudancas['dias'] = df_mudancas['tempo_etapa'].dt.total_seconds() / 86400
+                    
+                    st.write("### 📊 Tempo Médio por Transição (Gargalos)")
+                    resumo_tempo = df_mudancas.groupby('transicao')['dias'].mean().reset_index()
+                    
+                    fig_tempo = px.bar(
+                        resumo_tempo, x='transicao', y='dias', 
+                        color='dias', color_continuous_scale='Reds',
+                        title="Onde o processo trava? (Média de Dias)",
+                        labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Fluxo'},
+                        text_auto='.1f'
+                    )
+                    st.plotly_chart(fig_tempo, use_container_width=True)
+
+                    st.divider()
+
+                    # 3. Process Mining (Inteligência PM4PY)
                     st.markdown("### 🧭 Mineração de Processo")
                     st.caption("Análise de variantes e caminhos reais percorridos pelas faturas.")
 
-                    try:
-                        # 1. Preparação para o PM4Py
-                        df_pm = df_hist.copy()
-                        
-                        # VACINA PARA O ERRO 'tz': Remove qualquer informação de fuso horário
-                        df_pm['timestamp'] = pd.to_datetime(df_pm['timestamp']).dt.tz_localize(None)
-                        
-                        df_pm = df_pm.rename(columns={
-                            'nup': 'case:concept:name',
-                            'status_destino': 'concept:name',
-                            'timestamp': 'time:timestamp'
+                    df_pm = df_hist.copy()
+                    # VACINA PARA O ERRO 'tz': Remove informação de fuso horário
+                    df_pm['timestamp'] = df_pm['timestamp'].dt.tz_localize(None)
+                    
+                    df_pm = df_pm.rename(columns={
+                        'nup': 'case:concept:name',
+                        'status_destino': 'concept:name',
+                        'timestamp': 'time:timestamp'
+                    })
+                    
+                    event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+                    
+                    # Análise de Variantes
+                    variants = pm4py.get_variants(event_log)
+                    var_data = []
+                    total_nups_pm = df_pm['case:concept:name'].nunique()
+                    
+                    for v, cases in variants.items():
+                        contagem = len(list(cases)) # Fix para evitar erro de len(int)
+                        var_data.append({
+                            "Caminho Realizado": " ➔ ".join(v),
+                            "Qtd. Faturas": contagem,
+                            "Freq. (%)": round((contagem / total_nups_pm) * 100, 1)
                         })
-                        
-                        # Formata o log para o padrão PM4Py
-                        event_log = pm4py.format_dataframe(
-                            df_pm, 
-                            case_id='case:concept:name', 
-                            activity_key='concept:name', 
-                            timestamp_key='time:timestamp'
-                        )
-                        
-                        # 2. Análise de Variantes (Caminhos Reais)
-                        variants = pm4py.get_variants(event_log)
-                        var_data = []
-                        
-                        # Calculamos o total de NUPs únicos para a frequência
-                        total_nups_pm = df_pm['case:concept:name'].nunique()
-                        
-                        for v, cases in variants.items():
-                            # Fix para evitar erro de len(int): transformamos cases em lista
-                            contagem = len(list(cases)) 
-                            var_data.append({
-                                "Caminho Realizado": " ➔ ".join(v),
-                                "Qtd. Faturas": contagem,
-                                "Freq. (%)": round((contagem / total_nups_pm) * 100, 1)
-                            })
-                        
-                        df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
-                        st.write("**Caminhos mais frequentes encontrados:**")
-                        st.table(df_variants.head(5))
+                    
+                    df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
+                    st.write("**Caminhos mais frequentes encontrados:**")
+                    st.table(df_variants.head(5))
 
-                        # 3. Tentativa de Mapa de Fluxo (DFG)
-                        try:
-                            dfg, start_act, end_act = pm4py.discover_dfg(event_log)
-                            file_map = "temp_sisafa_map.png"
-                            pm4py.save_vis_dfg(dfg, start_act, end_act, file_map)
-                            st.image(file_map, caption="Mapa de Fluxo minerado (DFG)", use_container_width=True)
-                        except Exception:
-                            st.warning("⚠️ Mapa visual indisponível (Graphviz ausente no servidor). Analise as variantes na tabela acima.")
+                    # Tentativa de Mapa de Fluxo (DFG)
+                    try:
+                        dfg, start_act, end_act = pm4py.discover_dfg(event_log)
+                        file_map = "temp_sisafa_map.png"
+                        pm4py.save_vis_dfg(dfg, start_act, end_act, file_map)
+                        st.image(file_map, caption="Mapa de Fluxo minerado (DFG)", use_container_width=True)
+                    except:
+                        st.warning("⚠️ Mapa visual indisponível (Graphviz ausente). Analise as variantes na tabela acima.")
 
-                        # 4. Detalhamento final (Expander) com cálculo de dias blindado
-                        with st.expander("🔍 Detalhes do Lead Time Individual (por NUP)"):
-                            # Agrupamos garantindo que as datas estejam limpas
-                            df_lead = df_hist.copy()
-                            df_lead['timestamp'] = pd.to_datetime(df_lead['timestamp']).dt.tz_localize(None)
-                            
-                            df_resumo_nup = df_lead.groupby('nup').agg(
-                                inicio=('timestamp', 'min'),
-                                fim=('timestamp', 'max')
-                            ).reset_index()
-                            
-                            # Cálculo de dias usando apply para evitar o erro de 'TimedeltaProperties'
-                            df_resumo_nup['Dias em Trâmite'] = (df_resumo_nup['fim'] - df_resumo_nup['inicio']).apply(lambda x: x.days)
-                            
-                            st.dataframe(
-                                df_resumo_nup.sort_values(by='Dias em Trâmite', ascending=False), 
-                                use_container_width=True, 
-                                hide_index=True
-                            )
+                    # 4. Detalhamento final (Expander)
+                    with st.expander("🔍 Detalhes do Lead Time Individual (por NUP)"):
+                        df_lead_resumo = df_hist.groupby('nup').agg(
+                            inicio=('timestamp', 'min'),
+                            fim=('timestamp', 'max')
+                        ).reset_index()
+                        df_lead_resumo['Dias em Trâmite'] = (df_lead_resumo['fim'] - df_lead_resumo['inicio']).dt.days
+                        st.dataframe(df_lead_resumo.sort_values(by='Dias em Trâmite', ascending=False), use_container_width=True, hide_index=True)
 
-                    except Exception as e:
-                        st.error(f"Erro na análise de Process Mining: {e}")
+            except Exception as e:
+                st.error(f"Erro ao processar dados de produtividade: {e}")
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
         # =================================================================
         with tab_est:
-            st.info("📂 Esta seção conterá a documentação técnica e o código-fonte do sistema.")
+            st.subheader("📂 Estrutura e Documentação")
+            st.info("Esta seção contém a documentação técnica e o código-fonte do SISAFA NAVAL.")
             st.write("---")
-            st.markdown("**(Em desenvolvimento - Aguardando upload dos arquivos)**")
-
+            st.markdown("**(Módulo em desenvolvimento - Aguardando upload dos arquivos técnicos)**")
 
 
     elif st.session_state.modulo_ativo == "OSE":
