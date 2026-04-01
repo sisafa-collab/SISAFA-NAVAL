@@ -2135,60 +2135,74 @@ else:
             except Exception as e:
                 st.error(f"Erro ao carregar dados financeiros: {e}")
 
-        # =================================================================
-        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (VERSÃO FINAL)
-        # =================================================================
-                    # --- PROCESS MINING (PM4PY) ---
-                    st.markdown("### 🧭 Análise de Caminhos Reais")
-                    
-                    # DataFrame enxuto para o PM4Py não dar erro de fuso horário
-                    df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
-                    df_pm = df_pm.rename(columns={
-                        'nup': 'case:concept:name', 
-                        'status_destino': 'concept:name', 
-                        'timestamp': 'time:timestamp'
-                    })
-                    
-                    event_log = pm4py.format_dataframe(
-                        df_pm, 
-                        case_id='case:concept:name', 
-                        activity_key='concept:name', 
-                        timestamp_key='time:timestamp'
-                    )
-                    
-                    # VARIANTES (Usando estatísticas oficiais para evitar erro de 'int')
-                    from pm4py.statistics.traces.generic.log import case_statistics
-                    variants_stats = case_statistics.get_variant_statistics(event_log)
-                    
-                    var_data = []
-                    total_nups = df_pm['case:concept:name'].nunique()
-                    for stat in variants_stats:
-                        var_data.append({
-                            "Caminho Realizado": " ➔ ".join(stat['variant']),
-                            "Qtd. Faturas": stat['count'],
-                            "Freq. (%)": round((stat['count'] / total_nups) * 100, 1)
-                        })
-                    
-                    df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
-                    st.write("**Fluxos de processos identificados (Top 5):**")
-                    st.table(df_variants.head(5))
-
-                    # 🗺️ MAPA DE FLUXO (Blindado com o PATH do Linux)
-                    try:
-                        # Reforço do caminho para encontrar o 'dot' que você instalou
-                        if "/usr/bin" not in os.environ["PATH"]:
-                            os.environ["PATH"] += os.pathsep + "/usr/bin"
+                    # =================================================================
+                    # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
+                    # =================================================================
+                    with tab_prod:
+                        st.subheader("⏱️ Inteligência de Processo e Gargalos")
                         
-                        dfg, sa, ea = pm4py.discover_dfg(event_log)
-                        map_path = "mapa_naval_audit.png"
-                        pm4py.save_vis_dfg(dfg, sa, ea, map_path)
-                        st.image(map_path, caption="Mapa de Atividades Minerado (Fluxo Real)", use_container_width=True)
-                    except Exception as e_map:
-                        st.warning(f"⚠️ Erro ao desenhar o mapa: {e_map}")
-                        st.info("Dica: Tente rodar 'which dot' no terminal para conferir o caminho.")
+                        try:
+                            # 1. CARGA DE DADOS
+                            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                            df_hist = pd.DataFrame(aba_h.get_all_records())
+                            
+                            if df_hist.empty:
+                                st.info("Aguardando registros no histórico.")
+                            else:
+                                # --- LIMPEZA ---
+                                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
+                                df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                                
+                                # --- GARGALOS ---
+                                df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
+                                df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
+                                df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
+                                
+                                st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
+                                df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
+                                
+                                if not df_gargalo.empty:
+                                    fig_gar = px.bar(df_gargalo, x='transicao', y='dias', color='dias', color_continuous_scale='Reds', text_auto='.1f')
+                                    st.plotly_chart(fig_gar, use_container_width=True)
+                                
+                                st.divider()
 
-            except Exception as e:
-                st.error(f"Erro na aba de produtividade: {e}")
+                                # --- PROCESS MINING (PM4PY) ---
+                                st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
+                                
+                                df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
+                                df_pm = df_pm.rename(columns={'nup': 'case:concept:name', 'status_destino': 'concept:name', 'timestamp': 'time:timestamp'})
+                                
+                                event_log = pm4py.format_dataframe(df_pm, case_id='case:concept:name', activity_key='concept:name', timestamp_key='time:timestamp')
+                                
+                                from pm4py.statistics.traces.generic.log import case_statistics
+                                variants_stats = case_statistics.get_variant_statistics(event_log)
+                                
+                                var_data = []
+                                total_nups = df_pm['case:concept:name'].nunique()
+                                for stat in variants_stats:
+                                    var_data.append({
+                                        "Caminho": " ➔ ".join(stat['variant']),
+                                        "Qtd": stat['count'],
+                                        "Freq (%)": round((stat['count'] / total_nups) * 100, 1)
+                                    })
+                                
+                                st.table(pd.DataFrame(var_data).sort_values("Qtd", ascending=False).head(5))
+
+                                # MAPA VISUAL
+                                try:
+                                    if "/usr/bin" not in os.environ["PATH"]:
+                                        os.environ["PATH"] += os.pathsep + "/usr/bin"
+                                    
+                                    dfg, sa, ea = pm4py.discover_dfg(event_log)
+                                    pm4py.save_vis_dfg(dfg, sa, ea, "mapa_naval.png")
+                                    st.image("mapa_naval.png", caption="Fluxo Real Minerado", use_container_width=True)
+                                except Exception as e_map:
+                                    st.warning(f"⚠️ Erro ao desenhar mapa: {e_map}")
+
+                        except Exception as e:
+                            st.error(f"Erro na aba de produtividade: {e}")
+
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
         # =================================================================
