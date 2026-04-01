@@ -2131,32 +2131,33 @@ else:
             except Exception as e:
                 st.error(f"Erro ao carregar dados financeiros: {e}")
 
-        # =================================================================
-        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS
+# =================================================================
+        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (LIMPO E ÚNICO)
         # =================================================================
         with tab_prod:
-            st.subheader("⏱️ Produtividade e Inteligência de Processo")
+            st.subheader("⏱️ Inteligência de Processo e Gargalos")
             
             try:
-                # 1. Carregamento do Histórico (Base: SISAFA-NAVAL-historico)
+                # 1. CARGA DE DADOS (Base: SISAFA-NAVAL-historico)
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist = pd.DataFrame(aba_h.get_all_records())
                 
                 if df_hist.empty:
                     st.info("Aguardando registros no histórico para calcular produtividade.")
                 else:
-                    # --- LIMPEZA DE DADOS ---
-                    # Removemos fuso horário e garantimos ordem cronológica por NUP
+                    # --- LIMPEZA E VACINA DE DATAS ---
+                    # Remove fuso horário e ordena para o cálculo de tempo funcionar
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce').dt.tz_localize(None)
                     df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # --- CÁLCULO DE GARGALOS (GRÁFICO DE BARRAS) ---
+                    # --- CÁLCULO DE GARGALOS (SÓ APARECE UMA VEZ AQUI) ---
                     df_hist['delta'] = df_hist.groupby('nup')['timestamp'].diff()
+                    # Cálculo de dias ultra-seguro contra erro de Timedelta
                     df_hist['dias'] = df_hist['delta'].apply(lambda x: x.total_seconds() / 86400 if pd.notnull(x) else 0)
                     df_hist['transicao'] = df_hist['status_origem'].astype(str) + " ➔ " + df_hist['status_destino'].astype(str)
                     
-                    # Título único para Gargalos
                     st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
+                    # Só pegamos o que for mudança real (> 0 dias)
                     df_gargalo = df_hist[df_hist['dias'] > 0].groupby('transicao')['dias'].mean().reset_index()
                     
                     if not df_gargalo.empty:
@@ -2170,10 +2171,10 @@ else:
                     
                     st.divider()
 
-                    # --- PROCESS MINING (PM4PY) - VERSÃO BLINDADA ---
+                    # --- PROCESS MINING (PM4PY) - VERSÃO BLINDADA CONTRA 'INT' ERROR ---
                     st.markdown("### 🧭 Análise de Caminhos Reais (PM4PY)")
                     
-                    # Criamos um DataFrame enxuto para evitar erros de tipo
+                    # Criamos DataFrame enxuto para o PM4Py não se perder com colunas extras
                     df_pm = df_hist[['nup', 'status_destino', 'timestamp']].copy()
                     df_pm = df_pm.rename(columns={
                         'nup': 'case:concept:name', 
@@ -2181,7 +2182,7 @@ else:
                         'timestamp': 'time:timestamp'
                     })
                     
-                    # Converte para Event Log
+                    # Formatação do Log
                     event_log = pm4py.format_dataframe(
                         df_pm, 
                         case_id='case:concept:name', 
@@ -2189,33 +2190,35 @@ else:
                         timestamp_key='time:timestamp'
                     )
                     
-                    # Pegamos as estatísticas de variantes (mais seguro que get_variants direto)
+                    # MÉTODO SEGURO: case_statistics evita o erro de iteráveis (int)
                     from pm4py.statistics.traces.generic.log import case_statistics
                     variants_stats = case_statistics.get_variant_statistics(event_log)
                     
-                    var_data_list = []
+                    var_data = []
+                    total_nups = df_pm['case:concept:name'].nunique()
+                    
+                    # Construímos a tabela de variantes
                     for stat in variants_stats:
-                        var_data_list.append({
+                        var_data.append({
                             "Caminho Percorrido": " ➔ ".join(stat['variant']),
                             "Qtd. Faturas": stat['count'],
-                            "Freq. (%)": round((stat['count'] / len(df_pm['case:concept:name'].unique())) * 100, 1)
+                            "Freq. (%)": round((stat['count'] / total_nups) * 100, 1)
                         })
                     
-                    df_variants = pd.DataFrame(var_data_list).sort_values("Qtd. Faturas", ascending=False)
-                    st.write("**Top 5 caminhos mais frequentes (Variantes):**")
+                    df_variants = pd.DataFrame(var_data).sort_values("Qtd. Faturas", ascending=False)
+                    st.write("**Top 5 variantes (fluxos) mais comuns:**")
                     st.table(df_variants.head(5))
 
-                    # Mapa de Fluxo (DFG)
+                    # Tentativa de Mapa de Fluxo (Graphviz)
                     try:
                         dfg, sa, ea = pm4py.discover_dfg(event_log)
                         pm4py.save_vis_dfg(dfg, sa, ea, "mapa_naval.png")
-                        st.image("mapa_naval.png", caption="Mapa de Fluxo Minerado", use_container_width=True)
+                        st.image("mapa_naval.png", caption="Mapa de Fluxo (DFG)", use_container_width=True)
                     except:
-                        st.info("ℹ️ Mapa visual indisponível (Graphviz não detectado no servidor).")
+                        st.info("ℹ️ Mapa visual indisponível no servidor (Graphviz ausente).")
 
             except Exception as e:
-                st.error(f"Erro na análise de produtividade: {e}")
-
+                st.error(f"Erro na aba de produtividade: {e}")
 
         # =================================================================
         # 3. ABA: ESTRUTURA DO SISAFA
