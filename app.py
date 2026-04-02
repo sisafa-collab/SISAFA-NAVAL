@@ -1209,16 +1209,22 @@ else:
 
             if not f_status_5.empty:
                 # 1. BUSCA DE FISCAIS
+                # 1. BUSCA DE FISCAIS (MODO DIAGNÓSTICO)
                 try:
-                    df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
+                    # Forçamos o carregamento e garantimos que é um DataFrame
+                    raw_data = carregar_dados_cache("SISAFA-NAVAL-usuarios")
+                    df_users_fiscal = pd.DataFrame(raw_data)
                     
                     if not df_users_fiscal.empty:
-                        # --- LIMPEZA DE COLUNAS (A VACINA DEFINITIVA) ---
-                        # Isso remove espaços antes/depois e coloca tudo em MAIÚSCULO
+                        # --- LIMPEZA DE EMERGÊNCIA ---
+                        # Remove espaços e padroniza títulos para MAIÚSCULO
                         df_users_fiscal.columns = [str(c).strip().upper() for c in df_users_fiscal.columns]
                         
-                        # Agora filtramos sem medo de erro de digitação
-                        # Procuramos os fiscais na coluna que agora se chama 'PERFIL'
+                        # Mostra as colunas na tela só para a gente conferir (pode apagar depois)
+                        # st.write("Colunas lidas:", list(df_users_fiscal.columns)) 
+
+                        # Filtro usando os nomes que você me confirmou
+                        # Usamos 'PERFIL' e 'NOME'
                         fiscais_disp = df_users_fiscal[
                             df_users_fiscal['PERFIL'].astype(str).str.contains(
                                 "Fiscalização de contrato|FISCAL_GLOBAL", 
@@ -1227,18 +1233,17 @@ else:
                             )
                         ]
                         
-                        # Pegamos os nomes da coluna que agora se chama 'NOME'
                         lista_fiscais = sorted(fiscais_disp['NOME'].unique().tolist())
                     else:
                         lista_fiscais = []
                         
                 except Exception as e:
-                    # Se ainda der erro, ele vai imprimir os nomes das colunas que ele achou
-                    colunas_encontradas = list(df_users_fiscal.columns) if 'df_users_fiscal' in locals() else "Nenhuma"
-                    st.error(f"Erro ao filtrar fiscais: {e}")
-                    st.info(f"Colunas detectadas na planilha: {colunas_encontradas}")
+                    st.error(f"❌ Erro Crítico: {e}")
+                    # Se der erro, vamos mostrar o que tem dentro da tabela para descobrir o porquê
+                    if 'df_users_fiscal' in locals():
+                        st.write("Conteúdo detectado na planilha:", df_users_fiscal.head(3))
                     lista_fiscais = []
-
+               
                 # 2. INTERFACE DE SELEÇÃO
                 lista_nes_disponiveis = sorted(f_status_5['ne'].unique().tolist())
 
