@@ -1211,7 +1211,7 @@ else:
                 # 1. BUSCA DE FISCAIS
                 try:
                     # Carrega e força ser um DataFrame
-                    dados_usuarios = carregar_dados_cache("SISAFA-NAVAL-usuarios")
+                    dados_usuarios = carregar_dados_cache("SISAFA-NAVAL-Usuarios")
                     df_u = pd.DataFrame(dados_usuarios)
                     
                     if not df_u.empty:
