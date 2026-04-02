@@ -1209,39 +1209,42 @@ else:
 
             if not f_status_5.empty:
                 # 1. BUSCA DE FISCAIS
-                # 1. BUSCA DE FISCAIS (MODO DIAGNÓSTICO)
                 try:
-                    # Forçamos o carregamento e garantimos que é um DataFrame
-                    raw_data = carregar_dados_cache("SISAFA-NAVAL-usuarios")
-                    df_users_fiscal = pd.DataFrame(raw_data)
+                    # Carrega e força ser um DataFrame
+                    dados_usuarios = carregar_dados_cache("SISAFA-NAVAL-usuarios")
+                    df_u = pd.DataFrame(dados_usuarios)
                     
-                    if not df_users_fiscal.empty:
-                        # --- LIMPEZA DE EMERGÊNCIA ---
-                        # Remove espaços e padroniza títulos para MAIÚSCULO
-                        df_users_fiscal.columns = [str(c).strip().upper() for c in df_users_fiscal.columns]
+                    if not df_u.empty:
+                        # --- LIMPEZA DE COLUNAS ---
+                        # Tira espaços e põe tudo em MAIÚSCULO para não errar o nome
+                        df_u.columns = [str(c).strip().upper() for c in df_u.columns]
                         
-                        # Mostra as colunas na tela só para a gente conferir (pode apagar depois)
-                        # st.write("Colunas lidas:", list(df_users_fiscal.columns)) 
+                        # --- VERIFICAÇÃO DINÂMICA ---
+                        # Procuramos as colunas que contenham "PERFIL" e "NOME" no título
+                        col_perfil = next((c for c in df_u.columns if "PERFIL" in c), None)
+                        col_nome = next((c for c in df_u.columns if "NOME" in c), None)
 
-                        # Filtro usando os nomes que você me confirmou
-                        # Usamos 'PERFIL' e 'NOME'
-                        fiscais_disp = df_users_fiscal[
-                            df_users_fiscal['PERFIL'].astype(str).str.contains(
-                                "Fiscalização de contrato|FISCAL_GLOBAL", 
-                                case=False, 
-                                na=False
-                            )
-                        ]
-                        
-                        lista_fiscais = sorted(fiscais_disp['NOME'].unique().tolist())
+                        if col_perfil and col_nome:
+                            # Filtro: Busca os termos 'fiscalização' ou 'fiscal_global'
+                            fiscais_disp = df_u[
+                                df_u[col_perfil].astype(str).str.contains(
+                                    "fiscalização|fiscal_global", 
+                                    case=False, 
+                                    na=False
+                                )
+                            ]
+                            lista_fiscais = sorted(fiscais_disp[col_nome].unique().tolist())
+                        else:
+                            # Se ele não achou as colunas pelos nomes, ele avisa
+                            st.error(f"⚠️ Colunas 'NOME' ou 'PERFIL' não encontradas!")
+                            st.info(f"Colunas lidas na planilha: {list(df_u.columns)}")
+                            lista_fiscais = []
                     else:
+                        st.warning("⚠️ A planilha de usuários está vazia.")
                         lista_fiscais = []
                         
                 except Exception as e:
-                    st.error(f"❌ Erro Crítico: {e}")
-                    # Se der erro, vamos mostrar o que tem dentro da tabela para descobrir o porquê
-                    if 'df_users_fiscal' in locals():
-                        st.write("Conteúdo detectado na planilha:", df_users_fiscal.head(3))
+                    st.error(f"❌ Erro ao processar lista: {e}")
                     lista_fiscais = []
                
                 # 2. INTERFACE DE SELEÇÃO
