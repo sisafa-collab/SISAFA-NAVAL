@@ -1215,7 +1215,7 @@ else:
                     fiscais_disp = df_users_fiscal[
                         df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalização de contrato|fiscal_global", na=False)
                     ]
-                    lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
+                    lista_fiscais = sorted(fiscais_disp.iloc[:, 2].unique().tolist())
                 except:
                     lista_fiscais = []
 
