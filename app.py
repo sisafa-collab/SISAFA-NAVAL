@@ -1209,19 +1209,33 @@ else:
 
             if not f_status_5.empty:
                 # 1. BUSCA DE FISCAIS
-                try:
+                    try:
                     df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
                     
-                    # Filtramos na Coluna 2 (Setor/Cargo), mas usamos nomes simplificados para o filtro
-                    # A vacina do .str.normalize('NFKD') remove acentos para não dar erro
-                    fiscais_disp = df_users_fiscal[
-                        df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalizacao|fiscal_global|fiscalização", na=False)
-                    ]
-                    
-                    # IMPORTANTE: Pegamos o nome do Fiscal na Coluna 1 (índice 1)
-                    # Se na sua planilha o nome estiver em outra coluna, mude o .iloc[:, 1]
-                    lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
+                    # Verificamos se a tabela carregou algo e quantas colunas ela tem
+                    if not df_users_fiscal.empty:
+                        # DICA: Se você souber o nome da coluna na planilha (ex: 'Setor'), 
+                        # use df_users_fiscal['Setor'] em vez de iloc.
+                        
+                        # Se precisar usar índice, verificamos se a coluna existe (índice 2 = 3 colunas)
+                        num_cols = len(df_users_fiscal.columns)
+                        
+                        if num_cols >= 3:
+                            # Filtro robusto (coluna 2 para o Setor/Cargo e coluna 1 para o Nome)
+                            fiscais_disp = df_users_fiscal[
+                                df_users_fiscal.iloc[:, 2].astype(str).str.lower().str.contains("fiscalizacao|fiscal_global|fiscalização", na=False)
+                            ]
+                            lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
+                        elif num_cols >= 2:
+                            # Se tiver só 2 colunas, tentamos usar o que estiver disponível
+                            lista_fiscais = sorted(df_users_fiscal.iloc[:, 1].unique().tolist())
+                        else:
+                            lista_fiscais = []
+                    else:
+                        lista_fiscais = []
+                        
                 except Exception as e:
+                    # Isso vai te mostrar no app se o erro for nome de coluna ou falta de dados
                     st.error(f"Erro ao carregar fiscais: {e}")
                     lista_fiscais = []
 
