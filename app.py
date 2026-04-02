@@ -1209,14 +1209,20 @@ else:
 
             if not f_status_5.empty:
                 # 1. BUSCA DE FISCAIS
-                # Usamos o nome direto da aba de usuários para evitar NameError
                 try:
                     df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
+                    
+                    # Filtramos na Coluna 2 (Setor/Cargo), mas usamos nomes simplificados para o filtro
+                    # A vacina do .str.normalize('NFKD') remove acentos para não dar erro
                     fiscais_disp = df_users_fiscal[
-                        df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalização de contrato|fiscal_global", na=False)
+                        df_users_fiscal.iloc[:, 2].str.lower().str.contains("fiscalizacao|fiscal_global|fiscalização", na=False)
                     ]
-                    lista_fiscais = sorted(fiscais_disp.iloc[:, 2].unique().tolist())
-                except:
+                    
+                    # IMPORTANTE: Pegamos o nome do Fiscal na Coluna 1 (índice 1)
+                    # Se na sua planilha o nome estiver em outra coluna, mude o .iloc[:, 1]
+                    lista_fiscais = sorted(fiscais_disp.iloc[:, 1].unique().tolist())
+                except Exception as e:
+                    st.error(f"Erro ao carregar fiscais: {e}")
                     lista_fiscais = []
 
                 # 2. INTERFACE DE SELEÇÃO
