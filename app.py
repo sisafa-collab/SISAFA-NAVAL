@@ -1213,8 +1213,12 @@ else:
                     df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
                     
                     if not df_users_fiscal.empty:
-                        # Filtramos usando o nome exato da coluna 'PERFIL'
-                        # O regex busca tanto "Fiscalização de contrato" quanto "FISCAL_GLOBAL"
+                        # --- LIMPEZA DE COLUNAS (A VACINA DEFINITIVA) ---
+                        # Isso remove espaços antes/depois e coloca tudo em MAIÚSCULO
+                        df_users_fiscal.columns = [str(c).strip().upper() for c in df_users_fiscal.columns]
+                        
+                        # Agora filtramos sem medo de erro de digitação
+                        # Procuramos os fiscais na coluna que agora se chama 'PERFIL'
                         fiscais_disp = df_users_fiscal[
                             df_users_fiscal['PERFIL'].astype(str).str.contains(
                                 "Fiscalização de contrato|FISCAL_GLOBAL", 
@@ -1223,14 +1227,16 @@ else:
                             )
                         ]
                         
-                        # Pegamos os nomes da coluna 'NOME'
+                        # Pegamos os nomes da coluna que agora se chama 'NOME'
                         lista_fiscais = sorted(fiscais_disp['NOME'].unique().tolist())
                     else:
                         lista_fiscais = []
                         
                 except Exception as e:
-                    # Se der erro de nome de coluna, ele vai te avisar aqui
+                    # Se ainda der erro, ele vai imprimir os nomes das colunas que ele achou
+                    colunas_encontradas = list(df_users_fiscal.columns) if 'df_users_fiscal' in locals() else "Nenhuma"
                     st.error(f"Erro ao filtrar fiscais: {e}")
+                    st.info(f"Colunas detectadas na planilha: {colunas_encontradas}")
                     lista_fiscais = []
 
                 # 2. INTERFACE DE SELEÇÃO
