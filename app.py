@@ -1209,7 +1209,7 @@ else:
 
             if not f_status_5.empty:
                 # 1. BUSCA DE FISCAIS
-                    try:
+                try:
                     df_users_fiscal = carregar_dados_cache("SISAFA-NAVAL-usuarios")
                     
                     # Verificamos se a tabela carregou algo e quantas colunas ela tem
