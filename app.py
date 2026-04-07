@@ -2359,31 +2359,22 @@ else:
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. FUNÇÃO DE LIMPEZA PROFUNDA (A "VACINA")
-                def limpar_financeiro(valor):
-                    if pd.isna(valor) or valor == "" or str(valor).strip() in ["-", "None"]: 
-                        return 0.0
-                    # Remove R$, remove ponto de milhar, troca vírgula por ponto
-                    s = str(valor).replace("R$", "").replace(".", "").replace(",", ".").strip()
-                    try:
-                        return float(s)
-                    except:
-                        return 0.0
-
-                # Aplicamos a limpeza em todas as colunas que precisam de formato R$
-                colunas_dinheiro = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
-                for col in colunas_dinheiro:
+                # 1. Aplicando a SUA função de limpeza (limpar_valor)
+                cols_financeiras = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
+                for col in cols_financeiras:
                     if col in df_minhas_faturas.columns:
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_financeiro)
+                        # Chamando a sua função limpar_valor
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor)
 
-                # 2. CÁLCULOS DO DASHBOARD
+                # 2. Cálculos (Agora os 19,832.70 vão somar como 19 mil!)
                 valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
-                # Métricas de Topo
+                # 3. Métricas de Topo
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 with m1:
+                    # O formatador :,.2f agora vai funcionar perfeito porque o dado é float
                     st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
                 with m2:
                     st.metric("Total Pago", f"R$ {valor_pago:,.2f}")
