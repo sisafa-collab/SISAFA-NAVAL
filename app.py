@@ -2359,25 +2359,29 @@ else:
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. Limpeza e Conversão de Valores (A Vacina)
-                # Remove R$, pontos de milhar e troca vírgula por ponto decimal
-                def limpar_e_converter(valor):
-                    if pd.isna(valor) or valor == "": 
+                # 1. FUNÇÃO DE LIMPEZA PROFUNDA (A "VACINA")
+                def limpar_financeiro(valor):
+                    if pd.isna(valor) or valor == "" or str(valor).strip() in ["-", "None"]: 
                         return 0.0
+                    # Remove R$, remove ponto de milhar, troca vírgula por ponto
                     s = str(valor).replace("R$", "").replace(".", "").replace(",", ".").strip()
                     try:
                         return float(s)
                     except:
                         return 0.0
 
-                df_minhas_faturas['valor_num'] = df_minhas_faturas['valor_liquido'].apply(limpar_e_converter)
+                # Aplicamos a limpeza em todas as colunas que precisam de formato R$
+                colunas_dinheiro = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
+                for col in colunas_dinheiro:
+                    if col in df_minhas_faturas.columns:
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_financeiro)
 
-                # Agora sim, fazemos os cálculos matemáticos com números de verdade
-                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_num'].sum()
-                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_num'].sum()
+                # 2. CÁLCULOS DO DASHBOARD
+                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
+                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
-                # 2. Métricas de Topo
-                st.markdown(f"### 💰 Resumo Financeiro")
+                # Métricas de Topo
+                st.markdown(f"### 💰 Resumo Financeiro - {user_cnpj}")
                 m1, m2 = st.columns(2)
                 with m1:
                     st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
@@ -2386,7 +2390,7 @@ else:
 
                 st.divider()
 
-                # 3. Gráfico de Pizza
+                # 3. GRÁFICO DE PIZZA
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 st.subheader("📊 Resumo dos Processos")
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
@@ -2401,10 +2405,10 @@ else:
                 
                 st.divider()
 
-                # --- TABELA DETALHADA ---
+                # --- 4. TABELA DETALHADA ---
                 st.subheader("📑 Detalhamento das Faturas")
                 
-                # Vacina dos meses
+                # Mapeamento de meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
@@ -2414,22 +2418,22 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa', 
                     'valor_liquido': 'Valor líquido',
-                    'mes_sigla': 'Mês Competência', 
+                    'mes_exibicao': 'Mês Competência', 
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
-                    'status': 'Situação da Fatura'
+                    'Situação': 'Situação da Fatura'
                 }
                 
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
-                # Criamos o DF final já garantindo que os valores são floats
+                # Criamos o df_final
                 df_final = (
                     df_minhas_faturas[colunas_validas]
                     .sort_values(by=['ano_competencia'], ascending=False)
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
-                # A MÁGICA: Agora o format() vai funcionar porque os dados são float!
+                # A MÁGICA: Agora o .style.format não vai falhar porque os dados são float reais
                 st.dataframe(
                     df_final.style.format({
                         'Valor Apresentado': 'R$ {:,.2f}', 
