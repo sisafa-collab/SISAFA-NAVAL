@@ -1808,54 +1808,65 @@ else:
                     
                     col_f1, col_f2 = st.columns(2)
                     
+                    # --- COLUNA 1: REGISTRO DA NF (Lado Esquerdo) ---
                     with col_f1:
                         st.markdown("##### 📤 1. Informar Nota Fiscal")
                         nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key=f"nf_input_{ne_alvo}")
                         
-                        # Alteramos o rótulo do botão para ficar claro que ele não liquida ainda
-                        if st.button("💾 Registrar NF", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
+                        if st.button("💾 Registrar NF no SISAFA", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
                             if nf_in:
                                 with st.spinner("Gravando nota..."):
                                     for nup_item in df_ne_fisc['nup'].tolist():
                                         cell = aba_p.find(nup_item)
                                         if cell:
-                                            # Apenas grava a NF na Coluna P (16), não move o status
+                                            # Grava na planilha mas NÃO muda o status para 7 (conforme sua regra)
                                             aba_p.update_cell(cell.row, 16, nf_in) 
-                                            registrar_acao(nup_item, "N/A", "NF_INFORMADA_PELO_FISCAL", f"NF: {nf_in}")
+                                            registrar_acao(nup_item, "N/A", "NF_INFORMADA", f"NF: {nf_in}")
                                 
-                                st.success(f"✅ NF {nf_in} registrada! Aguardando aceite da Execução.")
+                                st.success(f"✅ NF {nf_in} registrada com sucesso!")
                                 time.sleep(1)
                                 st.rerun()
                             else:
-                                st.warning("⚠️ Informe o número da NF para registrar.")
+                                st.warning("⚠️ Informe o número da NF.")
 
-                    # --- COLUNA 2: SOLICITAÇÃO (MESMA LÓGICA DE RESET) ---
+                    # --- COLUNA 2: SOLICITAÇÃO DE NF (Lado Direito) ---
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
-                        # Recalcula o texto sempre "fresco" antes de desenhar os campos
+                        # Montagem do texto usando as variáveis que você já calculou lá no topo
                         assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
                         corpo_fresco = (
                             f"À Gerência de Faturamento da {ose_txt}\n"
                             f"CNPJ: {cnpj_alvo}\n\n"
                             f"Prezados,\n\n"
                             f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
-                            f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
-                            f"Atenciosamente,\n"
+                            f"referente às faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
+                            f"Solicitamos a emissão da respectiva Nota Fiscal e o envio do arquivo "
+                            f"conforme o trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
+                            f"Atenciosamente,\n\n"
                             f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
 
                         with st.container(border=True):
-                            # A KEY dinâmica garante que o texto mude ao trocar a NE
+                            # O segredo do reset: a key mudar com a ne_alvo
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
-                            msg_final = st.text_area("Mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
 
-                            if st.button("📧 Disparar Solicitação", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                with st.spinner("Enviando..."):
-                                    if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
-                                        st.success("E-mail enviado!")
+                            if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
+                                with st.spinner("Enviando e-mail..."):
+                                    # Chamada da sua função de e-mail
+                                    sucesso = enviar_email_generico(
+                                        destinatario=email_destino,
+                                        assunto=assunto_final,
+                                        corpo=msg_final,
+                                        cc=lista_cc
+                                    )
+                                    if sucesso:
+                                        st.success("E-mail enviado com sucesso!")
                                         time.sleep(1)
                                         st.rerun()
+                                    else:
+                                        st.error("Falha ao enviar e-mail.")
 
 
 
