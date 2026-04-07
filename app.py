@@ -1812,24 +1812,32 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
-                        # --- BUSCA DE DADOS E CONFIGURAÇÃO DE CONTATOS ---
+                        # --- 1. BUSCA DINÂMICA DE DADOS ---
                         try:
-                            # 1. Identificação da OSE e CNPJ (Vacina do zfill para manter os 14 dígitos)
-                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
-                            df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                            # Captura os dados básicos da seleção atual da fiscal
+                            ne_alvo = df_ne_fisc['ne'].iloc[0]
+                            ose_txt = df_ne_fisc['ose'].iloc[0]
+                            v_total = df_ne_fisc['valor_liquido'].sum()
+                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
+                            faturas_txt = ", ".join(faturas_lista)
                             
+                            # CNPJ com zfill(14) para não perder o zero à esquerda
+                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
+
+                            # Busca contatos na Tabela-A
+                            df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             
                             if not linha_ose.empty:
                                 info_ose = linha_ose.iloc[0]
-                                email_destino = info_ose.get('E-mail Principal da OSE', info_ose.get('Email Principal da OSE', ""))
-                                email_gestor_t = info_ose.get('E-mail do Gestor Titular', info_ose.get('Email do Gestor Titular', ""))
-                                email_gestor_s = info_ose.get('E-mail do Gestor Substituto', info_ose.get('Email do Gestor Substituto', ""))
+                                email_destino = info_ose.get('E-mail Principal da OSE', info_ose.get('Email Principal da OSE', "faturamento_ose@gmail.com"))
+                                email_gestor_t = info_ose.get('E-mail do Gestor Titular', "")
+                                email_gestor_s = info_ose.get('E-mail do Gestor Substituto', "")
                             else:
                                 email_destino = "faturamento_ose@gmail.com"
                                 email_gestor_t, email_gestor_s = "", ""
 
-                            # 2. Dados do Executor (Logado)
+                            # Dados do Executor
                             df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
                             user_id_atual = str(st.session_state.user_id).strip()
                             match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
@@ -1837,24 +1845,16 @@ else:
                             email_execucao = "hnbra.execucaofinanceira@gmail.com"
                             email_executor = match_user.iloc[0].get('E-mail', email_execucao) if not match_user.empty else email_execucao
                             
-                            # 3. Monta lista de CC (Removendo duplicatas)
+                            # Lista de CC sem duplicatas
                             lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, email_execucao] if e]))
                             cc_string = ", ".join(lista_cc)
 
-                            # 4. Cálculo dinâmico para os dados do corpo do e-mail
-                            v_total = df_ne_fisc['valor_liquido'].sum()
-                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
-                            faturas_txt = ", ".join(faturas_lista)
-                            ose_txt = df_ne_fisc['ose'].iloc[0]
-                            ne_alvo = df_ne_fisc['ne'].iloc[0]
-                            
                         except Exception as e:
-                            st.error(f"Erro ao processar contatos: {e}")
+                            st.error(f"Erro ao atualizar dados: {e}")
                             email_destino = "aguardando_dados@ose.com"
-                            cc_string = email_execucao
+                            cc_string = "hnbra.execucaofinanceira@gmail.com"
 
-                        # --- CONTEÚDO DO E-MAIL (REVISADO E DINÂMICO) ---
-                        # O texto abaixo se reconstrói toda vez que a NE selecionada muda
+                        # --- 2. CONTEÚDO DO E-MAIL (Mantendo sua estrutura de texto) ---
                         assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}".replace('\n', '').strip()
                         
                         corpo_email = (
@@ -1865,42 +1865,49 @@ else:
                             f"referente à competência das faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
                             f"Dessa forma, solicitamos a emissão da respectiva Nota Fiscal (XML e PDF) e o envio "
                             f"para o e-mail: {email_executor}, aos cuidados da Execução Financeira, "
-                            f"conforme trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
+                            f"conforme o trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
                             f"Atenciosamente,\n\n"
                             f"Fiscalização de Contratos - SISAFA-NAVAL\n"
                             f"Hospital Naval de Brasília (HN Bra)"
                         )
-                        
-                        # --- INTERFACE DE CONFERÊNCIA ---
+
+                        # --- 3. INTERFACE (O segredo das Keys Dinâmicas) ---
                         with st.container(border=True):
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
                             
-                            # O 'value=' garante que o texto mude quando a NE mudar
-                            assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key="email_sub_fisc_v3")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=280, key="email_body_fisc_v3")
-                        
-                        # --- BOTÃO DE ENVIO ---
-                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
-                            if not email_destino or email_destino == "aguardando_dados@ose.com":
-                                st.error("⚠️ Erro: E-mail de destino inválido ou OSE não encontrada.")
+                            # A chave (key) vinculada à NE força o reset do campo quando você troca de empenho
+                            assunto_final = st.text_input(
+                                "Assunto:", 
+                                value=assunto_sugerido, 
+                                key=f"input_assunto_{ne_alvo}"
+                            )
+                            
+                            msg_final = st.text_area(
+                                "Corpo da mensagem:", 
+                                value=corpo_email, 
+                                height=280, 
+                                key=f"area_corpo_{ne_alvo}"
+                            )
+
+                        # --- 4. BOTÃO DE ENVIO ---
+                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_alvo}"):
+                            if not email_destino or "@" not in email_destino:
+                                st.error("⚠️ E-mail de destino inválido.")
                             else:
-                                with st.spinner("Enviando e-mail..."):
+                                with st.spinner("Enviando..."):
                                     sucesso = enviar_email_generico(
                                         destinatario=email_destino,
                                         assunto=assunto_final,
                                         corpo=msg_final,
                                         cc=lista_cc
                                     )
-                                    
                                     if sucesso:
                                         registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
-                                        st.success("Solicitação enviada com sucesso!")
+                                        st.success("Enviado!")
                                         time.sleep(1)
                                         st.rerun()
-                                    else:
-                                        st.error("❌ Falha técnica no servidor de e-mail.")
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
