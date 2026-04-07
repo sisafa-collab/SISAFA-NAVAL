@@ -251,6 +251,19 @@ def enviar_email_generico(destinatario, assunto, corpo, cc=None):
         st.error(f"Erro no envio técnico: {e}")
         return False
 
+def limpar_valor_v3(valor):
+                    if pd.isna(valor) or valor == "" or str(valor).strip() in ["-", "None", "nan"]: 
+                        return 0.0
+                    s = str(valor).replace("R$", "").replace(" ", "").strip()
+                    last_dot = s.rfind('.')
+                    last_comma = s.rfind(',')
+                    if last_comma > last_dot: # Padrão BR
+                        s = s.replace('.', '').replace(',', '.')
+                    else: # Padrão US (HFA)
+                        s = s.replace(',', '')
+                    try: return float(s)
+                    except: return 0.0
+
 def limpar_valor(valor):
     if isinstance(valor, (int, float)): 
         return float(valor)
@@ -2340,33 +2353,35 @@ else:
             st.subheader("👮 Fiscais do Contrato")
             if not dados_minha_ose.empty:
                 info = dados_minha_ose.iloc[0]
-                c1, c2, c3 = st.columns(3)
+                c1, c2 = st.columns(2)
                 with c1:
                     st.markdown(f"**Fiscal Titular**")
                     st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
-                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_TITULAR', 'Email não cadastrado')}")
+                    # DICA: Verifique se na planilha o nome é 'E-MAIL_DO_GESTOR_TITULAR' ou apenas 'EMAIL_TITULAR'
+                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_TITULAR', info.get('EMAIL_TITULAR', 'Email não cadastrado'))}")
                 with c2:
                     st.markdown(f"**Fiscal Substituto**")
                     st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
-                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', 'Email não cadastrado')}")
-
+                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', info.get('EMAIL_SUBSTITUTO', 'Email não cadastrado'))}")
             else:
                 st.info("Informações dos fiscais ainda não vinculadas.")
 
             st.divider()
 
-            # --- SEÇÃO DASHBOARD ---
+            # --- SEÇÃO DASHBOARD & DETALHAMENTO ---
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. Aplicando a SUA função de limpeza (limpar_valor)
+                # =========================================================
+                # 1. VACINA ÚNICA: Limpamos tudo ANTES de qualquer cálculo
+                # =========================================================
                 cols_financeiras = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
                 for col in cols_financeiras:
                     if col in df_minhas_faturas.columns:
-                        # Chamando a sua função limpar_valor
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor)
+                        # Usando a limpar_valor_v3 que é a mais robusta para HFA e outros
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor_v3)
 
-                # 2. Cálculos (Agora os 19,832.70 vão somar como 19 mil!)
+                # 2. Cálculos (Agora os valores estão 100% como float)
                 valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
@@ -2374,14 +2389,13 @@ else:
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 with m1:
-                    # O formatador :,.2f agora vai funcionar perfeito porque o dado é float
                     st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
                 with m2:
                     st.metric("Total Pago", f"R$ {valor_pago:,.2f}")
 
                 st.divider()
 
-                # 3. GRÁFICO DE PIZZA
+                # 4. GRÁFICO DE PIZZA
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 st.subheader("📊 Resumo dos Processos")
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
@@ -2396,17 +2410,10 @@ else:
                 
                 st.divider()
 
-                # --- 4. TABELA DETALHADA ---
+                # 5. TABELA DETALHADA
                 st.subheader("📑 Detalhamento das Faturas")
                 
-                # 1. VACINA: Limpamos as colunas ANTES de montar a tabela de exibição
-                # Usando a função que você já tem ou a v3 que conversamos
-                cols_dinheiro = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
-                for col in cols_dinheiro:
-                    if col in df_minhas_faturas.columns:
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor_v3)
-
-                # 2. Mapeamento de meses
+                # Mapeamento de meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
@@ -2424,14 +2431,13 @@ else:
                 
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
-                # 3. Criamos o df_final
                 df_final = (
                     df_minhas_faturas[colunas_validas]
                     .sort_values(by=['ano_competencia'], ascending=False)
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
-                # 4. EXIBIÇÃO: O .style.format agora funciona porque limpamos os dados no passo 1
+                # EXIBIÇÃO: O .style.format vai rodar liso porque a vacina foi aplicada no passo 1
                 st.dataframe(
                     df_final.style.format({
                         'Valor Apresentado': 'R$ {:,.2f}', 
