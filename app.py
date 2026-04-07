@@ -1812,38 +1812,36 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
-                        # --- 1. DADOS ATUAIS DA SELEÇÃO ---
                         try:
-                            # Pegamos a NE que a fiscal acabou de clicar
+                            # 1. Captura da NE atual
                             ne_alvo = str(df_ne_fisc['ne'].iloc[0])
                             
-                            # --- A MÁGICA DO RESET ---
-                            # Se a NE atual for diferente da última que processamos,
-                            # limpamos a memória para forçar o texto novo.
-                            if "ultima_ne_processada" not in st.session_state:
-                                st.session_state.ultima_ne_processada = ne_alvo
+                            # --- SINCRONIZADOR DE ESTADO (O SEGREDO) ---
+                            # Se a NE mudou, nós atualizamos o session_state MANUALMENTE
+                            if "ne_referencia" not in st.session_state:
+                                st.session_state.ne_referencia = ne_alvo
 
-                            if st.session_state.ultima_ne_processada != ne_alvo:
-                                # Removemos as chaves antigas da memória do Streamlit
-                                key_assunto_antiga = f"input_assunto_{st.session_state.ultima_ne_processada}"
-                                key_corpo_antiga = f"area_corpo_{st.session_state.ultima_ne_processada}"
+                            # Se o usuário trocou a NE no seletor...
+                            if st.session_state.ne_referencia != ne_alvo:
+                                # Forçamos a limpeza dos campos antigos
+                                if f"assunto_{st.session_state.ne_referencia}" in st.session_state:
+                                    del st.session_state[f"assunto_{st.session_state.ne_referencia}"]
+                                if f"corpo_{st.session_state.ne_referencia}" in st.session_state:
+                                    del st.session_state[f"corpo_{st.session_state.ne_referencia}"]
                                 
-                                if key_assunto_antiga in st.session_state:
-                                    del st.session_state[key_assunto_antiga]
-                                if key_corpo_antiga in st.session_state:
-                                    del st.session_state[key_corpo_antiga]
-                                
-                                # Atualizamos para a nova NE
-                                st.session_state.ultima_ne_processada = ne_alvo
-                            # -------------------------
+                                # Atualizamos a referência para a nova NE
+                                st.session_state.ne_referencia = ne_alvo
+                                # Damos um pequeno empurrão no Streamlit
+                                st.rerun() 
+                            # -------------------------------------------
 
+                            # 2. BUSCA DE DADOS (Tabela-A, etc.)
                             ose_txt = df_ne_fisc['ose'].iloc[0]
                             v_total = df_ne_fisc['valor_liquido'].sum()
                             faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
                             faturas_txt = ", ".join(faturas_lista)
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
 
-                            # Busca contatos
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             
@@ -1867,13 +1865,11 @@ else:
                             cc_string = ", ".join(lista_cc)
 
                         except Exception as e:
-                            st.error(f"Erro de atualização: {e}")
+                            st.error(f"Erro nos dados: {e}")
                             ne_alvo = "ERRO"
-                            email_destino = "aguardando_dados@ose.com"
 
-                        # --- 2. TEXTO DO E-MAIL ---
+                        # --- 3. MONTAGEM DO TEXTO ---
                         assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
-                        
                         corpo_email = (
                             f"À Gerência de Faturamento da {ose_txt}\n"
                             f"CNPJ: {cnpj_alvo}\n\n"
@@ -1886,22 +1882,23 @@ else:
                             f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
 
-                        # --- 3. INTERFACE ---
+                        # --- 4. INTERFACE ---
                         with st.container(border=True):
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
                             
-                            # A chave continua sendo dinâmica, mas o código acima limpa a memória se a NE mudar
-                            assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key=f"input_assunto_{ne_alvo}")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key=f"area_corpo_{ne_alvo}")
+                            # Usamos as keys baseadas na NE para garantir que são widgets "novos"
+                            assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key=f"assunto_{ne_alvo}")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=280, key=f"corpo_{ne_alvo}")
 
-                        # --- 4. BOTÃO DE ENVIO ---
-                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_alvo}"):
+                        # --- 5. BOTÃO DE ENVIO ---
+                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_{ne_alvo}"):
                             with st.spinner("Enviando..."):
                                 sucesso = enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc)
                                 if sucesso:
-                                    st.success("Enviado!")
+                                    registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
+                                    st.success("Enviado com sucesso!")
                                     time.sleep(1)
                                     st.rerun()
 
