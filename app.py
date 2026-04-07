@@ -1619,7 +1619,7 @@ else:
     # MÓDULO 4: FISCALIZAÇÃO DE CONTRATOS (Ajustado para FISCAL/FISCAL_GLOBAL)
     # =================================================================
     elif "FISCAL" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
-        st.header("📋 Fiscalização de Contratos")
+        st.header("📋 Fiscalização de Contratos (OSE)")
         
         # --- 1. DEFINIÇÃO DOS MAPAS (A BASE DO TREINO) ---
         # Definir aqui garante que o NameError não apareça neste módulo
