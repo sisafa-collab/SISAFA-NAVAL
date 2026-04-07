@@ -1812,70 +1812,50 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
 
+                        # 1. PREPARAÇÃO DOS DADOS (Sempre antes da interface)
                         try:
-                            # 1. PREPARAÇÃO DOS DADOS (Primeiro pegamos as informações)
+                            # Garantimos que os dados estão vindo da NE selecionada agora
                             ne_alvo = str(df_ne_fisc['ne'].iloc[0])
                             ose_txt = df_ne_fisc['ose'].iloc[0]
                             v_total = df_ne_fisc['valor_liquido'].sum()
-                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
-                            faturas_txt = ", ".join(faturas_lista)
+                            faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).unique())
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
 
                             # Busca contatos na Tabela-A
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
-                            
-                            if not linha_ose.empty:
-                                info_ose = linha_ose.iloc[0]
-                                email_destino = info_ose.get('E-mail Principal da OSE', "faturamento_ose@gmail.com")
-                                email_gestor_t = info_ose.get('E-mail do Gestor Titular', "")
-                                email_gestor_s = info_ose.get('E-mail do Gestor Substituto', "")
-                            else:
-                                email_destino = "faturamento_ose@gmail.com"
-                                email_gestor_t, email_gestor_s = "", ""
+                            email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com") if not linha_ose.empty else "faturamento@ose.com"
 
-                            # 2. MONTAGEM DO TEXTO "FRESH"
-                            assunto_novo = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
-                            corpo_novo = (
+                            # 2. MONTAGEM DO TEXTO (Variáveis puras)
+                            assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
+                            corpo_email = (
                                 f"À Gerência de Faturamento da {ose_txt}\n"
                                 f"CNPJ: {cnpj_alvo}\n\n"
                                 f"Prezados,\n\n"
                                 f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
-                                f"referente à competência das faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
-                                f"Atenciosamente,\n\n"
-                                f"Fiscalização de Contratos - SISAFA-NAVAL"
+                                f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
+                                f"Atenciosamente,\nFiscalização HN Bra"
                             )
 
-                            # 3. A MARRETA DO ESTADO (Injetamos na memória ANTES de criar os campos)
-                            key_assunto = f"txt_assunto_{ne_alvo}"
-                            key_corpo = f"txt_corpo_{ne_alvo}"
+                            # --- A OPÇÃO NUCLEAR: CONTAINER COM KEY DINÂMICA ---
+                            # Se a ne_alvo mudar, o Streamlit DESTROI tudo aqui dentro e recria
+                            with st.container(key=f"container_nf_{ne_alvo}"):
+                                st.write(f"📩 **Para:** {email_destino}")
+                                
+                                # Não usamos session_state aqui, usamos VALUE puro dentro do container resetável
+                                assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key=f"input_sub_{ne_alvo}")
+                                msg_final = st.text_area("Mensagem:", value=corpo_email, height=250, key=f"input_body_{ne_alvo}")
 
-                            if key_assunto not in st.session_state:
-                                st.session_state[key_assunto] = assunto_novo
-                            if key_corpo not in st.session_state:
-                                st.session_state[key_corpo] = corpo_novo
+                                if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_alvo}"):
+                                    with st.spinner("Enviando..."):
+                                        sucesso = enviar_email_generico(email_destino, assunto_final, msg_final)
+                                        if sucesso:
+                                            st.success("Enviado com sucesso!")
+                                            time.sleep(1)
+                                            st.rerun()
 
                         except Exception as e:
-                            st.error(f"Erro ao carregar dados da NE: {e}")
-                            ne_alvo = "ERRO"
-
-                        # --- 4. INTERFACE (O que aparece na tela) ---
-                        with st.container(border=True):
-                            st.write(f"📩 **Para:** {email_destino}")
-                            st.divider()
-                            
-                            # Agora sim, criamos os campos vinculados às chaves que já preenchemos
-                            assunto_final = st.text_input("Assunto:", key=key_assunto)
-                            msg_final = st.text_area("Corpo da mensagem:", height=280, key=key_corpo)
-
-                        # --- 5. BOTÃO DE ENVIO ---
-                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_{ne_alvo}"):
-                            with st.spinner("Enviando..."):
-                                sucesso = enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc)
-                                if sucesso:
-                                    st.success("Solicitação enviada!")
-                                    time.sleep(1)
-                                    st.rerun()
+                            st.error(f"Erro ao montar solicitação: {e}")
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
