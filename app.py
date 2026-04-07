@@ -2381,7 +2381,7 @@ else:
                 valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 # Métricas de Topo
-                st.markdown(f"### 💰 Resumo Financeiro - {user_cnpj}")
+                st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 with m1:
                     st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
