@@ -2337,73 +2337,109 @@ else:
                         unsafe_allow_html=True
                     )
 
-            # --- SEÇÃO FISCAL (COM E-MAILS) ---
+            # =========================================================
+            # 1. SEÇÃO FISCAL (AGORA COM E-MAILS E NIP)
+            # =========================================================
             st.subheader("👮 Fiscais do Contrato")
             if not dados_minha_ose.empty:
                 info = dados_minha_ose.iloc[0]
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.markdown(f"**Fiscal Titular**")
+                    st.markdown("**Fiscal Titular**")
                     st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
-                    # DICA: Verifique se na planilha o nome é 'E-MAIL_DO_GESTOR_TITULAR' ou apenas 'EMAIL_TITULAR'
-                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_TITULAR', info.get('EMAIL_TITULAR', 'Email não cadastrado'))}")
+                    # Tenta buscar o e-mail em diferentes variações de nome de coluna
+                    email_t = info.get('E-MAIL_DO_GESTOR_TITULAR', info.get('EMAIL_TITULAR', 'E-mail não cadastrado'))
+                    st.caption(f"📧 {email_t}")
                 with c2:
-                    st.markdown(f"**Fiscal Substituto**")
+                    st.markdown("**Fiscal Substituto**")
                     st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
-                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', info.get('EMAIL_SUBSTITUTO', 'Email não cadastrado'))}")
+                    email_s = info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', info.get('EMAIL_SUBSTITUTO', 'E-mail não cadastrado'))
+                    st.caption(f"📧 {email_s}")
+                
             else:
                 st.info("Informações dos fiscais ainda não vinculadas.")
 
             st.divider()
 
-            # --- SEÇÃO DASHBOARD & DETALHAMENTO ---
+            # =========================================================
+            # 2. PREPARAÇÃO E LIMPEZA DE DADOS (A VACINA V4)
+            # =========================================================
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. FUNÇÃO DE LIMPEZA (Converte para número real)
-                def converter_para_numero(valor):
+                # Função Robusta para não "comer" decimais do HFA nem do padrão BR
+                def limpar_ose_v4(valor):
                     if pd.isna(valor) or str(valor).strip() in ["", "-", "None", "nan"]:
                         return 0.0
                     s = str(valor).replace("R$", "").replace(" ", "").strip()
-                    # Identifica se o padrão é Americano (1,234.56) ou Brasileiro (1.234,56)
+                    
+                    # Localiza a posição dos sinais
                     ponto = s.rfind('.')
                     virgula = s.rfind(',')
-                    if virgula > ponto: # Padrão Brasileiro
-                        s = s.replace('.', '').replace(',', '.')
-                    else: # Padrão Americano (HFA)
-                        s = s.replace(',', '')
-                    try:
-                        return float(s)
-                    except:
-                        return 0.0
+                    
+                    if virgula != -1 and ponto != -1:
+                        if virgula > ponto: # Padrão BR (1.234,56)
+                            s = s.replace(".", "").replace(",", ".")
+                        else: # Padrão US/HFA (1,234.56)
+                            s = s.replace(",", "")
+                    elif virgula != -1: # Só tem vírgula (1234,56)
+                        s = s.replace(",", ".")
+                    # Se tiver só ponto (1.73), o Python já entende nativamente.
 
-                # 2. FUNÇÃO DE EXIBIÇÃO (Converte número para texto formatado em R$)
-                def formatar_para_real(n):
-                    return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    try: return float(s)
+                    except: return 0.0
 
-                # 3. APLICAÇÃO DA LIMPEZA
+                # Aplicamos a limpeza nas colunas de dinheiro
                 cols_fin = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
                 for col in cols_fin:
                     if col in df_minhas_faturas.columns:
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(converter_para_numero)
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_ose_v4)
 
-                # 4. CÁLCULOS DO DASHBOARD
+                # =========================================================
+                # 3. DASHBOARD FINANCEIRO
+                # =========================================================
+                # Cálculos matemáticos (Status 1 a 8 = processamento, 9 = pago)
                 v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
-                m1.metric("Valor total em processamento:", f"R$ {v_proc:,.2f}")
-                m2.metric("Total Pago", f"R$ {v_pago:,.2f}")
+                with m1:
+                    st.metric("Valor total em processamento:", f"R$ {v_proc:,.2f}")
+                with m2:
+                    st.metric("Total Pago", f"R$ {v_pago:,.2f}")
 
                 st.divider()
 
-                # 5. PREPARAÇÃO DA TABELA (Conversão manual para String)
-                mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
-                df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
+                # =========================================================
+                # 4. GRÁFICO DE PIZZA
+                # =========================================================
+                st.subheader("📊 Resumo dos Processos")
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
+                df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
+                df_pizza.columns = ['Status', 'Quantidade']
 
-                mapa_cols = {
+                fig = px.pie(
+                    df_pizza, values='Quantidade', names='Status', hole=0.4,
+                    color='Status', color_discrete_map=cores_map
+                )
+                fig.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0),
+                                  legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5))
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.divider()
+
+                # =========================================================
+                # 5. TABELA DETALHADA
+                # =========================================================
+                st.subheader("📑 Detalhamento das Faturas")
+                
+                # Mapeamento de meses
+                mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
+                if 'mes_competencia' in df_minhas_faturas.columns:
+                    df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
+
+                mapa_cols_exibicao = {
                     'Numero_da_fatura': 'Nº da fatura', 
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa', 
@@ -2414,18 +2450,20 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
-                validas = [c for c in mapa_cols.keys() if c in df_minhas_faturas.columns]
-                df_final = df_minhas_faturas[validas].copy().rename(columns=mapa_cols)
+                validas = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
+                
+                df_final = (
+                    df_minhas_faturas[validas]
+                    .sort_values(by=['ano_competencia'], ascending=False)
+                    .rename(columns=mapa_cols_exibicao)
+                )
 
-                # --- AQUI ESTÁ O SEGREDO: FORMATAMOS OS VALORES COMO TEXTO ANTES DA EXIBIÇÃO ---
-                for col_nome in ['Valor Apresentado', 'Valor líquido', 'Glosa']:
-                    if col_nome in df_final.columns:
-                        df_final[col_nome] = df_final[col_nome].apply(formatar_para_real)
-
-                # 6. EXIBIÇÃO (Sem o .style.format para evitar o erro de vez!)
-                st.subheader("📑 Detalhamento das Faturas")
                 st.dataframe(
-                    df_final,
+                    df_final.style.format({
+                        'Valor Apresentado': 'R$ {:,.2f}', 
+                        'Valor líquido': 'R$ {:,.2f}', 
+                        'Glosa': 'R$ {:,.2f}'
+                    }),
                     use_container_width=True, 
                     hide_index=True
                 )
