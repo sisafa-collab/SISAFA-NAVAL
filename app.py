@@ -1814,8 +1814,8 @@ else:
                         
                         # --- BUSCA DE DADOS E CONFIGURAÇÃO DE CONTATOS ---
                         try:
-                            # 1. Dados da Tabela-A
-                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0]
+                            # 1. Identificação da OSE e CNPJ (Vacina do zfill para manter os 14 dígitos)
+                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
@@ -1835,33 +1835,39 @@ else:
                             match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
                             
                             email_execucao = "hnbra.execucaofinanceira@gmail.com"
+                            email_executor = match_user.iloc[0].get('E-mail', email_execucao) if not match_user.empty else email_execucao
                             
-                            if not match_user.empty:
-                                email_executor = match_user.iloc[0].get('E-mail', match_user.iloc[0].get('Email', email_execucao))
-                            else:
-                                email_executor = email_execucao
-                            
-                            # 3. Monta lista de CC
+                            # 3. Monta lista de CC (Removendo duplicatas)
                             lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, email_execucao] if e]))
                             cc_string = ", ".join(lista_cc)
+
+                            # 4. Cálculo dinâmico para os dados do corpo do e-mail
+                            v_total = df_ne_fisc['valor_liquido'].sum()
+                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
+                            faturas_txt = ", ".join(faturas_lista)
+                            ose_txt = df_ne_fisc['ose'].iloc[0]
+                            ne_alvo = df_ne_fisc['ne'].iloc[0]
                             
                         except Exception as e:
                             st.error(f"Erro ao processar contatos: {e}")
                             email_destino = "aguardando_dados@ose.com"
                             cc_string = email_execucao
 
-                        # --- CONTEÚDO DO E-MAIL (LIMPO) ---
-                        # O .replace('\n', '') aqui evita o erro de 'Header values'
+                        # --- CONTEÚDO DO E-MAIL (REVISADO E DINÂMICO) ---
+                        # O texto abaixo se reconstrói toda vez que a NE selecionada muda
                         assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}".replace('\n', '').strip()
                         
                         corpo_email = (
-                            f"À Gerência de Faturamento da {ose_txt},\n\n"
-                            f"Informamos que a Nota de Empenho nº **{ne_alvo}**, no valor total de **R$ {v_total:,.2f}**, "
-                            f"referente às faturas **{faturas_txt}**, já encontra-se disponível.\n\n"
-                            f"Dessa forma, solicita-se a emissão e o envio da respectiva Nota Fiscal para o e-mail: {email_executor}, "
-                            f"conforme trâmite de liquidação e pagamento.\n\n"
+                            f"À Gerência de Faturamento da {ose_txt}\n"
+                            f"CNPJ: {cnpj_alvo}\n\n"
+                            f"Prezados,\n\n"
+                            f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
+                            f"referente à competência das faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
+                            f"Dessa forma, solicitamos a emissão da respectiva Nota Fiscal (XML e PDF) e o envio "
+                            f"para o e-mail: {email_executor}, aos cuidados da Execução Financeira, "
+                            f"conforme trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
                             f"Atenciosamente,\n\n"
-                            f"Fiscalização de Contratos - SISAFA-NAVAL"
+                            f"Fiscalização de Contratos - SISAFA-NAVAL\n"                            
                         )
                         
                         # --- INTERFACE DE CONFERÊNCIA ---
@@ -1869,17 +1875,17 @@ else:
                             st.write(f"📩 **Para:** {email_destino}")
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
-                            # Capturamos os inputs em variáveis para usar no envio
+                            
+                            # O 'value=' garante que o texto mude quando a NE mudar
                             assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key="email_sub_fisc_v3")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=250, key="email_body_fisc_v3")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=280, key="email_body_fisc_v3")
                         
                         # --- BOTÃO DE ENVIO ---
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key="btn_fisc_send_v3"):
                             if not email_destino or email_destino == "aguardando_dados@ose.com":
-                                st.error("⚠️ Erro: E-mail de destino inválido.")
+                                st.error("⚠️ Erro: E-mail de destino inválido ou OSE não encontrada.")
                             else:
                                 with st.spinner("Enviando e-mail..."):
-                                    # Chamada da função genérica com os dados conferidos/editados
                                     sucesso = enviar_email_generico(
                                         destinatario=email_destino,
                                         assunto=assunto_final,
