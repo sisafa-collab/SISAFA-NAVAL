@@ -2399,7 +2399,14 @@ else:
                 # --- 4. TABELA DETALHADA ---
                 st.subheader("📑 Detalhamento das Faturas")
                 
-                # Mapeamento de meses
+                # 1. VACINA: Limpamos as colunas ANTES de montar a tabela de exibição
+                # Usando a função que você já tem ou a v3 que conversamos
+                cols_dinheiro = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
+                for col in cols_dinheiro:
+                    if col in df_minhas_faturas.columns:
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor_v3)
+
+                # 2. Mapeamento de meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
@@ -2417,11 +2424,22 @@ else:
                 
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
                 
-                # Criamos o df_final
+                # 3. Criamos o df_final
                 df_final = (
                     df_minhas_faturas[colunas_validas]
                     .sort_values(by=['ano_competencia'], ascending=False)
                     .rename(columns=mapa_colunas_exibicao)
+                )
+
+                # 4. EXIBIÇÃO: O .style.format agora funciona porque limpamos os dados no passo 1
+                st.dataframe(
+                    df_final.style.format({
+                        'Valor Apresentado': 'R$ {:,.2f}', 
+                        'Valor líquido': 'R$ {:,.2f}', 
+                        'Glosa': 'R$ {:,.2f}'
+                    }),
+                    use_container_width=True, 
+                    hide_index=True
                 )
 
 
