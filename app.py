@@ -2344,11 +2344,11 @@ else:
                 with c1:
                     st.markdown(f"**Fiscal Titular**")
                     st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
-                    st.caption(f"📧 {info.get('EMAIL_DO_GESTOR_TITULAR', 'Email não cadastrado')}")
+                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_TITULAR', 'Email não cadastrado')}")
                 with c2:
                     st.markdown(f"**Fiscal Substituto**")
                     st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
-                    st.caption(f"📧 {info.get('EMAIL_DO_GESTOR_SUBSTITUTO', 'Email não cadastrado')}")
+                    st.caption(f"📧 {info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', 'Email não cadastrado')}")
 
             else:
                 st.info("Informações dos fiscais ainda não vinculadas.")
