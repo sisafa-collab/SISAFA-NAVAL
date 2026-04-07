@@ -2403,32 +2403,41 @@ else:
 
                 # --- TABELA DETALHADA ---
                 st.subheader("📑 Detalhamento das Faturas")
+                
+                # Vacina dos meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
 
                 mapa_colunas_exibicao = {
-                    'Numero_da_fatura': 'Nº da fatura', 'valor_apresentado': 'Valor Apresentado',
-                    'valor_glosa': 'Glosa', 'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês Competência', 'ano_competencia': 'Ano',
-                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 'Situação': 'Situação da Fatura'
+                    'Numero_da_fatura': 'Nº da fatura', 
+                    'valor_apresentado': 'Valor Apresentado',
+                    'valor_glosa': 'Glosa', 
+                    'valor_liquido': 'Valor líquido',
+                    'mes_sigla': 'Mês Competência', 
+                    'ano_competencia': 'Ano',
+                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
+                    'status': 'Situação da Fatura'
                 }
                 
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
+                
+                # Criamos o DF final já garantindo que os valores são floats
                 df_final = (
                     df_minhas_faturas[colunas_validas]
                     .sort_values(by=['ano_competencia'], ascending=False)
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
-                # Formata a tabela para exibição bonita
+                # A MÁGICA: Agora o format() vai funcionar porque os dados são float!
                 st.dataframe(
                     df_final.style.format({
                         'Valor Apresentado': 'R$ {:,.2f}', 
                         'Valor líquido': 'R$ {:,.2f}', 
                         'Glosa': 'R$ {:,.2f}'
                     }),
-                    use_container_width=True, hide_index=True
+                    use_container_width=True, 
+                    hide_index=True
                 )
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
