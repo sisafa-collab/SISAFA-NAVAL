@@ -1841,30 +1841,40 @@ else:
 
                     # --- COLUNA 2: SOLICITAÇÃO DE NF (Lado Direito) ---
                     with col_f2:
-                        st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
-                        
-                        # Montagem do texto usando as variáveis que você já calculou lá no topo
-                        assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
-                        corpo_fresco = (
-                            f"À Gerência de Faturamento da {ose_txt}\n"
-                            f"CNPJ: {cnpj_alvo}\n\n"
-                            f"Prezados,\n\n"
-                            f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
-                            f"referente às faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
-                            f"Solicitamos a emissão da respectiva Nota Fiscal e o envio do arquivo "
-                            f"conforme o trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
-                            f"Atenciosamente,\n\n"
-                            f"Fiscalização de Contratos - SISAFA-NAVAL"
-                        )
+                    st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
 
-                        with st.container(border=True):
-                            # O segredo do reset: a key mudar com a ne_alvo
-                            assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
+                    # --- BOTÃO DE SINCRONIZAÇÃO MANUAL ---
+                    if st.button("🔄 Sincronizar Texto", help="Força a atualização dos dados desta NE", key=f"sync_{ne_alvo}"):
+                        for k in [f"sub_{ne_alvo}", f"body_{ne_alvo}"]:
+                            if k in st.session_state:
+                                del st.session_state[k]
+                        st.rerun()
 
-                            if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
+                    # Montagem do texto (v_total e faturas_txt calculados antes)
+                    assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}".strip()
+                    
+                    corpo_fresco = (
+                        f"À Gerência de Faturamento da {ose_txt}\n"
+                        f"CNPJ: {cnpj_alvo}\n\n"
+                        f"Prezados,\n\n"
+                        f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
+                        f"referente às faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
+                        f"Solicitamos a emissão da respectiva Nota Fiscal e o envio do arquivo "
+                        f"conforme o trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
+                        f"Atenciosamente,\n\n"
+                        f"Fiscalização de Contratos - SISAFA-NAVAL"
+                    )
+
+                    with st.container(border=True):
+                        # O uso das keys com o ne_alvo é essencial para o reset automático
+                        assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
+                        msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
+
+                        if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
+                            if not email_destino or "@" not in str(email_destino):
+                                st.error("⚠️ E-mail de destino inválido ou não encontrado.")
+                            else:
                                 with st.spinner("Enviando e-mail..."):
-                                    # Chamada da sua função de e-mail
                                     sucesso = enviar_email_generico(
                                         destinatario=email_destino,
                                         assunto=assunto_final,
@@ -1872,11 +1882,13 @@ else:
                                         cc=lista_cc
                                     )
                                     if sucesso:
+                                        # Registro de ação para auditoria do SISAFA
+                                        registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
                                         st.success("E-mail enviado com sucesso!")
                                         time.sleep(1)
                                         st.rerun()
                                     else:
-                                        st.error("Falha ao enviar e-mail.")
+                                        st.error("❌ Falha técnica ao enviar e-mail. Verifique o servidor SMTP.")
 
 
 
