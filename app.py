@@ -1812,50 +1812,61 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
 
-                        # 1. PREPARAÇÃO DOS DADOS (Sempre antes da interface)
+                        # --- 1. PRIMEIRO: CALCULA TUDO (Lógica no topo) ---
                         try:
-                            # Garantimos que os dados estão vindo da NE selecionada agora
-                            ne_alvo = str(df_ne_fisc['ne'].iloc[0])
+                            # Pega os dados da seleção atual
+                            ne_atual = str(df_ne_fisc['ne'].iloc[0])
                             ose_txt = df_ne_fisc['ose'].iloc[0]
-                            v_total = df_ne_fisc['valor_liquido'].sum()
-                            faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).unique())
+                            # v_total com limpeza para não travar nos 106 mil
+                            v_total = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum() 
+                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
+                            faturas_txt = ", ".join(faturas_lista)
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
 
-                            # Busca contatos na Tabela-A
+                            # Busca e-mail na Tabela-A
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com") if not linha_ose.empty else "faturamento@ose.com"
 
-                            # 2. MONTAGEM DO TEXTO (Variáveis puras)
-                            assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
-                            corpo_email = (
+                            # Prepara o texto com os dados novos
+                            assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_atual} - {ose_txt}"
+                            corpo_fresco = (
                                 f"À Gerência de Faturamento da {ose_txt}\n"
                                 f"CNPJ: {cnpj_alvo}\n\n"
                                 f"Prezados,\n\n"
-                                f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
+                                f"Informamos que a Nota de Empenho nº {ne_atual}, no valor total de R$ {v_total:,.2f}, "
                                 f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
                                 f"Atenciosamente,\nFiscalização HN Bra"
                             )
-
-                            # --- A OPÇÃO NUCLEAR: CONTAINER COM KEY DINÂMICA ---
-                            # Se a ne_alvo mudar, o Streamlit DESTROI tudo aqui dentro e recria
-                            with st.container(key=f"container_nf_{ne_alvo}"):
-                                st.write(f"📩 **Para:** {email_destino}")
-                                
-                                # Não usamos session_state aqui, usamos VALUE puro dentro do container resetável
-                                assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key=f"input_sub_{ne_alvo}")
-                                msg_final = st.text_area("Mensagem:", value=corpo_email, height=250, key=f"input_body_{ne_alvo}")
-
-                                if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_alvo}"):
-                                    with st.spinner("Enviando..."):
-                                        sucesso = enviar_email_generico(email_destino, assunto_final, msg_final)
-                                        if sucesso:
-                                            st.success("Enviado com sucesso!")
-                                            time.sleep(1)
-                                            st.rerun()
-
                         except Exception as e:
-                            st.error(f"Erro ao montar solicitação: {e}")
+                            st.error(f"Erro ao processar dados: {e}")
+                            assunto_fresco = "Erro ao carregar"
+                            corpo_fresco = ""
+
+                        # --- 2. DEPOIS: DESENHA A INTERFACE (Usando os dados acima) ---
+                        with st.container(border=True):
+                            st.write(f"📩 **Para:** {email_destino}")
+                            
+                            # O segredo: a KEY muda com a NE, forçando o reset
+                            assunto_final = st.text_input(
+                                "Assunto:", 
+                                value=assunto_fresco, 
+                                key=f"sub_{ne_atual}"
+                            )
+                            
+                            msg_final = st.text_area(
+                                "Corpo da mensagem:", 
+                                value=corpo_fresco, 
+                                height=250, 
+                                key=f"body_{ne_atual}"
+                            )
+
+                            if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_atual}"):
+                                with st.spinner("Enviando..."):
+                                    if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
+                                        st.success("Enviado!")
+                                        time.sleep(1)
+                                        st.rerun()
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
