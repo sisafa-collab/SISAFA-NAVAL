@@ -1813,35 +1813,20 @@ else:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
                         try:
-                            # 1. Captura da NE atual
+                            # 1. PEGA A NE ATUAL (O Gatilho)
                             ne_alvo = str(df_ne_fisc['ne'].iloc[0])
                             
-                            # --- SINCRONIZADOR DE ESTADO (O SEGREDO) ---
-                            # Se a NE mudou, nós atualizamos o session_state MANUALMENTE
-                            if "ne_referencia" not in st.session_state:
-                                st.session_state.ne_referencia = ne_alvo
+                            # TESTE DE DIAGNÓSTICO (Remova depois se quiser)
+                            # st.write(f"🔍 Debug: NE Selecionada = {ne_alvo}")
 
-                            # Se o usuário trocou a NE no seletor...
-                            if st.session_state.ne_referencia != ne_alvo:
-                                # Forçamos a limpeza dos campos antigos
-                                if f"assunto_{st.session_state.ne_referencia}" in st.session_state:
-                                    del st.session_state[f"assunto_{st.session_state.ne_referencia}"]
-                                if f"corpo_{st.session_state.ne_referencia}" in st.session_state:
-                                    del st.session_state[f"corpo_{st.session_state.ne_referencia}"]
-                                
-                                # Atualizamos a referência para a nova NE
-                                st.session_state.ne_referencia = ne_alvo
-                                # Damos um pequeno empurrão no Streamlit
-                                st.rerun() 
-                            # -------------------------------------------
-
-                            # 2. BUSCA DE DADOS (Tabela-A, etc.)
+                            # 2. BUSCA DE DADOS (Tabela-A, Valores, etc.)
                             ose_txt = df_ne_fisc['ose'].iloc[0]
                             v_total = df_ne_fisc['valor_liquido'].sum()
                             faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
                             faturas_txt = ", ".join(faturas_lista)
                             cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
 
+                            # Busca contatos
                             df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
                             linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
                             
@@ -1858,29 +1843,40 @@ else:
                             df_users = pd.DataFrame(sh.worksheet(ABA_USUARIOS).get_all_records())
                             user_id_atual = str(st.session_state.user_id).strip()
                             match_user = df_users[df_users['NIP'].astype(str).str.strip() == user_id_atual]
-                            email_execucao = "hnbra.execucaofinanceira@gmail.com"
-                            email_executor = match_user.iloc[0].get('E-mail', email_execucao) if not match_user.empty else email_execucao
+                            email_executor = match_user.iloc[0].get('E-mail', "hnbra.execucaofinanceira@gmail.com") if not match_user.empty else "hnbra.execucaofinanceira@gmail.com"
                             
-                            lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, email_execucao] if e]))
+                            lista_cc = list(set([e for e in [email_gestor_t, email_gestor_s, email_executor, "hnbra.execucaofinanceira@gmail.com"] if e]))
                             cc_string = ", ".join(lista_cc)
 
-                        except Exception as e:
-                            st.error(f"Erro nos dados: {e}")
-                            ne_alvo = "ERRO"
+                            # 3. PREPARA O TEXTO NOVO
+                            assunto_novo = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
+                            corpo_novo = (
+                                f"À Gerência de Faturamento da {ose_txt}\n"
+                                f"CNPJ: {cnpj_alvo}\n\n"
+                                f"Prezados,\n\n"
+                                f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
+                                f"referente à competência das faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
+                                f"Dessa forma, solicitamos a emissão da respectiva Nota Fiscal (XML e PDF) e o envio "
+                                f"para o e-mail: {email_executor}, aos cuidados da Execução Financeira.\n\n"
+                                f"Atenciosamente,\n\n"
+                                f"Fiscalização de Contratos - SISAFA-NAVAL"
+                            )
 
-                        # --- 3. MONTAGEM DO TEXTO ---
-                        assunto_sugerido = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
-                        corpo_email = (
-                            f"À Gerência de Faturamento da {ose_txt}\n"
-                            f"CNPJ: {cnpj_alvo}\n\n"
-                            f"Prezados,\n\n"
-                            f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
-                            f"referente à competência das faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
-                            f"Dessa forma, solicitamos a emissão da respectiva Nota Fiscal (XML e PDF) e o envio "
-                            f"para o e-mail: {email_executor}, aos cuidados da Execução Financeira.\n\n"
-                            f"Atenciosamente,\n\n"
-                            f"Fiscalização de Contratos - SISAFA-NAVAL"
-                        )
+                            # --- A MARRETA DO ESTADO ---
+                            # Criamos chaves únicas para cada NE
+                            key_assunto = f"txt_assunto_{ne_alvo}"
+                            key_corpo = f"txt_corpo_{ne_alvo}"
+
+                            # Se a NE é nova e ainda não está no session_state, nós injetamos o valor AGORA
+                            if key_assunto not in st.session_state:
+                                st.session_state[key_assunto] = assunto_novo
+                            if key_corpo not in st.session_state:
+                                st.session_state[key_corpo] = corpo_novo
+                            # ---------------------------
+
+                        except Exception as e:
+                            st.error(f"Erro ao processar: {e}")
+                            ne_alvo = "ERRO"
 
                         # --- 4. INTERFACE ---
                         with st.container(border=True):
@@ -1888,17 +1884,17 @@ else:
                             st.write(f"📎 **CC:** {cc_string}")
                             st.divider()
                             
-                            # Usamos as keys baseadas na NE para garantir que são widgets "novos"
-                            assunto_final = st.text_input("Assunto:", value=assunto_sugerido, key=f"assunto_{ne_alvo}")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_email, height=280, key=f"corpo_{ne_alvo}")
+                            # Renderizamos os widgets SEM usar o parâmetro 'value', 
+                            # pois o Streamlit vai ler direto do session_state pelas keys que injetamos acima
+                            assunto_final = st.text_input("Assunto:", key=key_assunto)
+                            msg_final = st.text_area("Corpo da mensagem:", height=280, key=key_corpo)
 
                         # --- 5. BOTÃO DE ENVIO ---
                         if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_{ne_alvo}"):
                             with st.spinner("Enviando..."):
                                 sucesso = enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc)
                                 if sucesso:
-                                    registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
-                                    st.success("Enviado com sucesso!")
+                                    st.success("Solicitação enviada!")
                                     time.sleep(1)
                                     st.rerun()
 
