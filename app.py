@@ -1838,8 +1838,8 @@ else:
                             else:
                                 st.warning("⚠️ Informe o número da NF.")
 
-                                                                                                                            with col_f2:
-                        st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
+                    with col_f2:
+                        st.markdown("#### 📧 2. Solicitação de BLÁ BLÁ BLÁ")
 
                         # --- BOTÃO DE SINCRONIZAÇÃO (Agora alinhado corretamente) ---
                         if st.button("🔄 Sincronizar Texto", help="Força a atualização dos dados desta NE", key=f"sync_{ne_alvo}", use_container_width=True):
