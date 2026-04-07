@@ -1776,97 +1776,66 @@ else:
                 ne_alvo = st.selectbox("Selecione a NE para gerenciar:", [""] + sorted(df_s6['ne'].unique().tolist()), key="fisc_sel_ne_final")
                 
                 if ne_alvo:
-                    df_ne_fisc = df_s6[df_s6['ne'] == ne_alvo].copy()
-                    v_total = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum()
-                    faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).tolist())
-                    ose_txt = df_ne_fisc['ose'].iloc[0]
+                    # --- 1. GATILHO DE ATUALIZAÇÃO (O SEGREDO) ---
+                    if "ne_anterior" not in st.session_state:
+                        st.session_state.ne_anterior = ne_alvo
                     
+                    # Se a fiscal mudou a NE no selectbox, limpamos a memória e resetamos
+                    if st.session_state.ne_anterior != ne_alvo:
+                        st.session_state.ne_anterior = ne_alvo
+                        st.rerun() 
+
+                    # --- 2. CÁLCULO DOS DADOS (UMA ÚNICA VEZ) ---
+                    df_ne_fisc = df_s6[df_s6['ne'] == ne_alvo].copy()
+                    ose_txt = df_ne_fisc['ose'].iloc[0]
+                    v_total = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum()
+                    faturas_txt = ", ".join(df_ne_fisc['Numero_da_fatura'].astype(str).unique())
+                    cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).split('.')[0].zfill(14)
+                    
+                    # Busca contatos na Tabela-A
+                    try:
+                        df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                        linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
+                        email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com") if not linha_ose.empty else "faturamento@ose.com"
+                        # Definimos a lista_cc aqui para não dar erro no botão
+                        email_exec = "hnbra.execucaofinanceira@gmail.com"
+                        lista_cc = [email_exec] 
+                    except:
+                        email_destino = "faturamento@ose.com"
+                        lista_cc = ["hnbra.execucaofinanceira@gmail.com"]
+
                     st.markdown(f"#### 📝 Gestão da NE: **{ne_alvo}** ({ose_txt})")
                     
                     col_f1, col_f2 = st.columns(2)
                     
                     with col_f1:
                         st.markdown("##### 📤 1. Informar Nota Fiscal")
-                        nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key="in_nf_fisc_final")
-                        
-                        if st.button("🚀 Salvar NF e Enviar p/ Liquidação", use_container_width=True, key="btn_nf_fisc_final"):
-                            if nf_in:
-                                with st.spinner("Atualizando processos..."):
-                                    for n in df_ne_fisc['nup'].tolist():
-                                        cell = aba_p.find(n)
-                                        if cell:
-                                            # 1. Grava a NF na Coluna P (16)
-                                            aba_p.update_cell(cell.row, 16, nf_in) 
-                                            # 2. Move para Status 7 (Liquidação)
-                                            mover_status(n, 7)
-                                            # 3. Registra Log
-                                            registrar_acao(n, "N/A", "NF_CADASTRADA_FISCAL", f"NF: {nf_in}")
-                                            
-                                st.success(f"✅ NF {nf_in} salva! Processo movido para Liquidação.")
-                                time.sleep(1.5)
-                                st.rerun()
-                            else:
-                                st.warning("⚠️ Informe o número da NF.")
-
+                        # (Mantenha seu código de input de NF aqui...)
 
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
+                        
+                        # Montamos o texto com os dados que calculamos acima
+                        assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
+                        corpo_fresco = (
+                            f"À Gerência de Faturamento da {ose_txt}\n"
+                            f"CNPJ: {cnpj_alvo}\n\n"
+                            f"Prezados,\n\n"
+                            f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
+                            f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
+                            f"Atenciosamente,\nFiscalização HN Bra"
+                        )
 
-                        # --- 1. PRIMEIRO: CALCULA TUDO (Lógica no topo) ---
-                        try:
-                            # Pega os dados da seleção atual
-                            ne_atual = str(df_ne_fisc['ne'].iloc[0])
-                            ose_txt = df_ne_fisc['ose'].iloc[0]
-                            # v_total com limpeza para não travar nos 106 mil
-                            v_total = df_ne_fisc['valor_liquido'].apply(limpar_valor).sum() 
-                            faturas_lista = df_ne_fisc['Numero_da_fatura'].astype(str).unique()
-                            faturas_txt = ", ".join(faturas_lista)
-                            cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).strip().split('.')[0].zfill(14)
-
-                            # Busca e-mail na Tabela-A
-                            df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
-                            linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
-                            email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com") if not linha_ose.empty else "faturamento@ose.com"
-
-                            # Prepara o texto com os dados novos
-                            assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_atual} - {ose_txt}"
-                            corpo_fresco = (
-                                f"À Gerência de Faturamento da {ose_txt}\n"
-                                f"CNPJ: {cnpj_alvo}\n\n"
-                                f"Prezados,\n\n"
-                                f"Informamos que a Nota de Empenho nº {ne_atual}, no valor total de R$ {v_total:,.2f}, "
-                                f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
-                                f"Atenciosamente,\nFiscalização HN Bra"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao processar dados: {e}")
-                            assunto_fresco = "Erro ao carregar"
-                            corpo_fresco = ""
-
-                        # --- 2. DEPOIS: DESENHA A INTERFACE (Usando os dados acima) ---
                         with st.container(border=True):
-                            st.write(f"📩 **Para:** {email_destino}")
-                            
-                            # O segredo: a KEY muda com a NE, forçando o reset
-                            assunto_final = st.text_input(
-                                "Assunto:", 
-                                value=assunto_fresco, 
-                                key=f"sub_{ne_atual}"
-                            )
-                            
-                            msg_final = st.text_area(
-                                "Corpo da mensagem:", 
-                                value=corpo_fresco, 
-                                height=250, 
-                                key=f"body_{ne_atual}"
-                            )
+                            # Usamos a NE na KEY para forçar o reset do texto
+                            assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
+                            msg_final = st.text_area("Mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
 
-                            if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_send_{ne_atual}"):
-                                with st.spinner("Enviando..."):
-                                    if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
-                                        st.success("Enviado!")
-                                        time.sleep(1)
-                                        st.rerun()
+                            if st.button("📧 Disparar Solicitação", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
+                                if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
+                                    st.success("Enviado!")
+                                    time.sleep(1)
+                                    st.rerun()
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
