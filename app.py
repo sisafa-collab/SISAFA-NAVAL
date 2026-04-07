@@ -2359,16 +2359,32 @@ else:
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # 1. Cálculos de Valor
-                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
-                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
+                # 1. Limpeza e Conversão de Valores (A Vacina)
+                # Remove R$, pontos de milhar e troca vírgula por ponto decimal
+                def limpar_e_converter(valor):
+                    if pd.isna(valor) or valor == "": 
+                        return 0.0
+                    s = str(valor).replace("R$", "").replace(".", "").replace(",", ".").strip()
+                    try:
+                        return float(s)
+                    except:
+                        return 0.0
+
+                df_minhas_faturas['valor_num'] = df_minhas_faturas['valor_liquido'].apply(limpar_e_converter)
+
+                # Agora sim, fazemos os cálculos matemáticos com números de verdade
+                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_num'].sum()
+                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_num'].sum()
 
                 # 2. Métricas de Topo
+                st.markdown(f"### 💰 Resumo Financeiro - {user_cnpj}")
                 m1, m2 = st.columns(2)
                 with m1:
-                    st.metric("Valor em Processamento (Status 1 a 8)", f"R$ {float(valor_processamento):,.2f}")
+                    st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
                 with m2:
-                    st.metric("Total Pago (Status 9)", f"R$ {float(valor_pago):,.2f}")
+                    st.metric("Total Pago", f"R$ {valor_pago:,.2f}")
+
+                st.divider()
 
                 # 3. Gráfico de Pizza
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
@@ -2405,8 +2421,13 @@ else:
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
+                # Formata a tabela para exibição bonita
                 st.dataframe(
-                    df_final.style.format({'Valor Apresentado': 'R$ {:,.2f}', 'Valor líquido': 'R$ {:,.2f}', 'Glosa': 'R$ {:,.2f}'}),
+                    df_final.style.format({
+                        'Valor Apresentado': 'R$ {:,.2f}', 
+                        'Valor líquido': 'R$ {:,.2f}', 
+                        'Glosa': 'R$ {:,.2f}'
+                    }),
                     use_container_width=True, hide_index=True
                 )
 
