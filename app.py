@@ -1810,12 +1810,30 @@ else:
                     
                     with col_f1:
                         st.markdown("##### 📤 1. Informar Nota Fiscal")
-                        # (Mantenha seu código de input de NF aqui...)
+                        nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key=f"nf_input_{ne_alvo}")
+                        
+                        # Alteramos o rótulo do botão para ficar claro que ele não liquida ainda
+                        if st.button("💾 Registrar NF", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
+                            if nf_in:
+                                with st.spinner("Gravando nota..."):
+                                    for nup_item in df_ne_fisc['nup'].tolist():
+                                        cell = aba_p.find(nup_item)
+                                        if cell:
+                                            # Apenas grava a NF na Coluna P (16), não move o status
+                                            aba_p.update_cell(cell.row, 16, nf_in) 
+                                            registrar_acao(nup_item, "N/A", "NF_INFORMADA_PELO_FISCAL", f"NF: {nf_in}")
+                                
+                                st.success(f"✅ NF {nf_in} registrada! Aguardando aceite da Execução.")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ Informe o número da NF para registrar.")
 
+                    # --- COLUNA 2: SOLICITAÇÃO (MESMA LÓGICA DE RESET) ---
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
                         
-                        # Montamos o texto com os dados que calculamos acima
+                        # Recalcula o texto sempre "fresco" antes de desenhar os campos
                         assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}"
                         corpo_fresco = (
                             f"À Gerência de Faturamento da {ose_txt}\n"
@@ -1823,19 +1841,24 @@ else:
                             f"Prezados,\n\n"
                             f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
                             f"referente às faturas {faturas_txt}, já se encontra disponível.\n\n"
-                            f"Atenciosamente,\nFiscalização HN Bra"
+                            f"Atenciosamente,\n"
+                            f"Fiscalização de Contratos - SISAFA-NAVAL"
                         )
 
                         with st.container(border=True):
-                            # Usamos a NE na KEY para forçar o reset do texto
+                            # A KEY dinâmica garante que o texto mude ao trocar a NE
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
                             msg_final = st.text_area("Mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
-                                    st.success("Enviado!")
-                                    time.sleep(1)
-                                    st.rerun()
+                                with st.spinner("Enviando..."):
+                                    if enviar_email_generico(email_destino, assunto_final, msg_final, lista_cc):
+                                        st.success("E-mail enviado!")
+                                        time.sleep(1)
+                                        st.rerun()
+
+
+
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
