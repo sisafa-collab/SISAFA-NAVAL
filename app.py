@@ -2424,16 +2424,6 @@ else:
                     .rename(columns=mapa_colunas_exibicao)
                 )
 
-                # A MÁGICA: Agora o .style.format não vai falhar porque os dados são float reais
-                st.dataframe(
-                    df_final.style.format({
-                        'Valor Apresentado': 'R$ {:,.2f}', 
-                        'Valor líquido': 'R$ {:,.2f}', 
-                        'Glosa': 'R$ {:,.2f}'
-                    }),
-                    use_container_width=True, 
-                    hide_index=True
-                )
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
         with tab_rel:
