@@ -1867,7 +1867,8 @@ else:
                             f"para o e-mail: {email_executor}, aos cuidados da Execução Financeira, "
                             f"conforme trâmite de liquidação e pagamento deste Hospital Naval.\n\n"
                             f"Atenciosamente,\n\n"
-                            f"Fiscalização de Contratos - SISAFA-NAVAL\n"                            
+                            f"Fiscalização de Contratos - SISAFA-NAVAL\n"
+                            f"Hospital Naval de Brasília (HN Bra)"
                         )
                         
                         # --- INTERFACE DE CONFERÊNCIA ---
@@ -1900,7 +1901,6 @@ else:
                                         st.rerun()
                                     else:
                                         st.error("❌ Falha técnica no servidor de e-mail.")
-
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
         with tab_rel:
