@@ -2177,8 +2177,8 @@ else:
 
                     st.divider()
 
-                    # --- FECHAMENTO DA ABA FINANCEIRA (Isso resolve o erro da linha 2226) ---
-# --- FINALIZA A ABA 1 (Certifique-se que o except está alinhado com o try da tab_fin) ---
+            
+            # --- FINALIZA A ABA 1 (Certifique-se que o except está alinhado com o try da tab_fin) ---
             except Exception as e:
                 st.error(f"Erro na aba financeira: {e}")
 
@@ -2325,7 +2325,7 @@ else:
 
         # --- 1. ABA: VISÃO GERAL ---
         with tab_visao:
-            # --- IMAGEM FIXA ---
+            # --- IMAGEM FIXA (RODAPÉ) ---
             mapeamento_path = carregar_imagem(caminho_mapeamento)
             if mapeamento_path:
                 with open(mapeamento_path, "rb") as f:
@@ -2336,63 +2336,71 @@ else:
                         unsafe_allow_html=True
                     )
 
-            # --- SEÇÃO FISCAL ---
-            st.subheader("👮 Fiscal do meu contrato")
+            # --- SEÇÃO FISCAL (COM E-MAILS) ---
+            st.subheader("👮 Fiscais do Contrato")
             if not dados_minha_ose.empty:
-                cols_fiscal = {"NIP_DO_GESTOR_TITULAR": "NIP", "GESTOR_TITULAR": "Nome do Fiscal", "GESTOR_SUBSTITUTO": "Fiscal Substituto"}
-                existentes = [c for c in cols_fiscal.keys() if c in dados_minha_ose.columns]
-                st.table(dados_minha_ose[existentes].rename(columns=cols_fiscal))
+                info = dados_minha_ose.iloc[0]
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.markdown(f"**Fiscal Titular**")
+                    st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
+                    st.caption(f"📧 {info.get('EMAIL_TITULAR', 'Email não cadastrado')}")
+                with c2:
+                    st.markdown(f"**Fiscal Substituto**")
+                    st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
+                    st.caption(f"📧 {info.get('EMAIL_SUBSTITUTO', 'Email não cadastrado')}")
+                with c3:
+                    st.markdown(f"**NIP do Titular**")
+                    st.write(f"🆔 {info.get('NIP_DO_GESTOR_TITULAR', '-')}")
             else:
-                st.info("Informações do fiscal ainda não vinculadas.")
+                st.info("Informações dos fiscais ainda não vinculadas.")
 
             st.divider()
 
-            # --- SEÇÃO FATURAS & GRÁFICO ---
+            # --- SEÇÃO DASHBOARD ---
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # Tradução de status
-                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
+                # 1. Cálculos de Valor
+                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
+                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
-                # Gráfico de Pizza
+                # 2. Métricas de Topo
+                m1, m2 = st.columns(2)
+                with m1:
+                    st.metric("Valor em Processamento (Status 1 a 8)", f"R$ {valor_processamento:,.2f}")
+                with m2:
+                    st.metric("Total Pago (Status 9)", f"R$ {valor_pago:,.2f}")
+
+                # 3. Gráfico de Pizza
+                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 st.subheader("📊 Resumo dos Processos")
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
                 df_pizza.columns = ['Status', 'Quantidade']
 
                 fig = px.pie(
-                    df_pizza, 
-                    values='Quantidade', 
-                    names='Status', 
-                    hole=0.4,
-                    color='Status',
-                    color_discrete_map=cores_map
+                    df_pizza, values='Quantidade', names='Status', hole=0.4,
+                    color='Status', color_discrete_map=cores_map
                 )
-                fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5))
+                fig.update_layout(legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5))
                 st.plotly_chart(fig, use_container_width=True)
                 
                 st.divider()
 
-                # Tabela Detalhada
+                # --- TABELA DETALHADA ---
                 st.subheader("📑 Detalhamento das Faturas")
-                
-                # Vacina dos meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
 
                 mapa_colunas_exibicao = {
-                    'Numero_da_fatura': 'Nº da fatura',
-                    'valor_apresentado': 'Valor Apresentado',
-                    'valor_glosa': 'Glosa',
-                    'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês Competência', 
-                    'ano_competencia': 'Ano',
-                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB',
-                    'Situação': 'Situação da Fatura'
+                    'Numero_da_fatura': 'Nº da fatura', 'valor_apresentado': 'Valor Apresentado',
+                    'valor_glosa': 'Glosa', 'valor_liquido': 'Valor líquido',
+                    'mes_exibicao': 'Mês Competência', 'ano_competencia': 'Ano',
+                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 'Situação': 'Situação da Fatura'
                 }
                 
                 colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
-                
                 df_final = (
                     df_minhas_faturas[colunas_validas]
                     .sort_values(by=['ano_competencia'], ascending=False)
@@ -2400,9 +2408,8 @@ else:
                 )
 
                 st.dataframe(
-                    df_final.style.set_properties(**{'text-align': 'center'}),
-                    use_container_width=True,
-                    hide_index=True
+                    df_final.style.format({'Valor Apresentado': 'R$ {:,.2f}', 'Valor líquido': 'R$ {:,.2f}', 'Glosa': 'R$ {:,.2f}'}),
+                    use_container_width=True, hide_index=True
                 )
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
