@@ -251,18 +251,6 @@ def enviar_email_generico(destinatario, assunto, corpo, cc=None):
         st.error(f"Erro no envio técnico: {e}")
         return False
 
-def limpar_valor_v3(valor):
-                    if pd.isna(valor) or valor == "" or str(valor).strip() in ["-", "None", "nan"]: 
-                        return 0.0
-                    s = str(valor).replace("R$", "").replace(" ", "").strip()
-                    last_dot = s.rfind('.')
-                    last_comma = s.rfind(',')
-                    if last_comma > last_dot: # Padrão BR
-                        s = s.replace('.', '').replace(',', '.')
-                    else: # Padrão US (HFA)
-                        s = s.replace(',', '')
-                    try: return float(s)
-                    except: return 0.0
 
 def limpar_valor(valor):
     if isinstance(valor, (int, float)): 
@@ -2369,35 +2357,49 @@ else:
             st.divider()
 
             # --- SEÇÃO DASHBOARD & DETALHAMENTO ---
-            if df_minhas_faturas.empty:
+if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
                 # =========================================================
-                # 1. VACINA ÚNICA: Limpamos tudo ANTES de qualquer cálculo
+                # 1. A SUPER VACINA (DEFINIDA AQUI DENTRO PARA NÃO DAR ERRO)
                 # =========================================================
+                def limpar_v3_local(valor):
+                    if pd.isna(valor) or valor == "" or str(valor).strip() in ["-", "None", "nan"]: 
+                        return 0.0
+                    s = str(valor).replace("R$", "").replace(" ", "").strip()
+                    # Identifica se é padrão US (1,000.00) ou BR (1.000,00)
+                    last_dot = s.rfind('.')
+                    last_comma = s.rfind(',')
+                    if last_comma > last_dot: # Padrão BR
+                        s = s.replace('.', '').replace(',', '.')
+                    else: # Padrão US
+                        s = s.replace(',', '')
+                    try:
+                        return float(s)
+                    except:
+                        return 0.0
+
+                # 2. LIMPEZA IMEDIATA
                 cols_financeiras = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
                 for col in cols_financeiras:
                     if col in df_minhas_faturas.columns:
-                        # Usando a limpar_valor_v3 que é a mais robusta para HFA e outros
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor_v3)
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_v3_local)
 
-                # 2. Cálculos (Agora os valores estão 100% como float)
-                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
+                # 3. CÁLCULOS
+                valor_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
-                # 3. Métricas de Topo
+                # 4. EXIBIÇÃO DASHBOARD
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
-                with m1:
-                    st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
-                with m2:
-                    st.metric("Total Pago", f"R$ {valor_pago:,.2f}")
+                m1.metric("Valor total em processamento:", f"R$ {valor_proc:,.2f}")
+                m2.metric("Total Pago", f"R$ {valor_pago:,.2f}")
 
                 st.divider()
 
-                # 4. GRÁFICO DE PIZZA
-                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
+                # 5. GRÁFICO DE PIZZA
                 st.subheader("📊 Resumo dos Processos")
+                df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
                 df_pizza.columns = ['Status', 'Quantidade']
 
@@ -2410,42 +2412,29 @@ else:
                 
                 st.divider()
 
-                # 5. TABELA DETALHADA
+                # 6. TABELA DETALHADA
                 st.subheader("📑 Detalhamento das Faturas")
-                
-                # Mapeamento de meses
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
 
                 mapa_colunas_exibicao = {
-                    'Numero_da_fatura': 'Nº da fatura', 
-                    'valor_apresentado': 'Valor Apresentado',
-                    'valor_glosa': 'Glosa', 
-                    'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês Competência', 
-                    'ano_competencia': 'Ano',
-                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
-                    'Situação': 'Situação da Fatura'
+                    'Numero_da_fatura': 'Nº da fatura', 'valor_apresentado': 'Valor Apresentado',
+                    'valor_glosa': 'Glosa', 'valor_liquido': 'Valor líquido',
+                    'mes_exibicao': 'Mês Competência', 'ano_competencia': 'Ano',
+                    'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 'Situação': 'Situação da Fatura'
                 }
                 
-                colunas_validas = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
-                
-                df_final = (
-                    df_minhas_faturas[colunas_validas]
-                    .sort_values(by=['ano_competencia'], ascending=False)
-                    .rename(columns=mapa_colunas_exibicao)
-                )
+                cols_v = [c for c in mapa_colunas_exibicao.keys() if c in df_minhas_faturas.columns]
+                df_final = df_minhas_faturas[cols_v].sort_values(by=['ano_competencia'], ascending=False).rename(columns=mapa_colunas_exibicao)
 
-                # EXIBIÇÃO: O .style.format vai rodar liso porque a vacina foi aplicada no passo 1
                 st.dataframe(
                     df_final.style.format({
                         'Valor Apresentado': 'R$ {:,.2f}', 
                         'Valor líquido': 'R$ {:,.2f}', 
                         'Glosa': 'R$ {:,.2f}'
                     }),
-                    use_container_width=True, 
-                    hide_index=True
+                    use_container_width=True, hide_index=True
                 )
 
 
