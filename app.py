@@ -2344,14 +2344,12 @@ else:
                 with c1:
                     st.markdown(f"**Fiscal Titular**")
                     st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
-                    st.caption(f"📧 {info.get('EMAIL_TITULAR', 'Email não cadastrado')}")
+                    st.caption(f"📧 {info.get('EMAIL_DO_GESTOR_TITULAR', 'Email não cadastrado')}")
                 with c2:
                     st.markdown(f"**Fiscal Substituto**")
                     st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
-                    st.caption(f"📧 {info.get('EMAIL_SUBSTITUTO', 'Email não cadastrado')}")
-                with c3:
-                    st.markdown(f"**NIP do Titular**")
-                    st.write(f"🆔 {info.get('NIP_DO_GESTOR_TITULAR', '-')}")
+                    st.caption(f"📧 {info.get('EMAIL_DO_GESTOR_SUBSTITUTO', 'Email não cadastrado')}")
+
             else:
                 st.info("Informações dos fiscais ainda não vinculadas.")
 
@@ -2368,9 +2366,9 @@ else:
                 # 2. Métricas de Topo
                 m1, m2 = st.columns(2)
                 with m1:
-                    st.metric("Valor em Processamento (Status 1 a 8)", f"R$ {valor_processamento:,.2f}")
+                    st.metric("Valor em Processamento (Status 1 a 8)", f"R$ {float(valor_processamento):,.2f}")
                 with m2:
-                    st.metric("Total Pago (Status 9)", f"R$ {valor_pago:,.2f}")
+                    st.metric("Total Pago (Status 9)", f"R$ {float(valor_pago):,.2f}")
 
                 # 3. Gráfico de Pizza
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
