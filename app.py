@@ -1780,8 +1780,18 @@ else:
                     if "ne_anterior" not in st.session_state:
                         st.session_state.ne_anterior = ne_alvo
                     
-                    # Se a fiscal mudou a NE no selectbox, limpamos a memória e resetamos
                     if st.session_state.ne_anterior != ne_alvo:
+                        # Identificamos as chaves da NE que está saindo de cena
+                        chave_sub_velha = f"sub_{st.session_state.ne_anterior}"
+                        chave_body_velha = f"body_{st.session_state.ne_anterior}"
+                        
+                        # APAGAMOS a memória delas para não contaminar a próxima
+                        if chave_sub_velha in st.session_state:
+                            del st.session_state[chave_sub_velha]
+                        if chave_body_velha in st.session_state:
+                            del st.session_state[chave_body_velha]
+                        
+                        # Atualizamos o rastreador e damos o "tranco" no motor
                         st.session_state.ne_anterior = ne_alvo
                         st.rerun() 
 
