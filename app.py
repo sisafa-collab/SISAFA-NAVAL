@@ -1840,11 +1840,13 @@ else:
                                 st.warning("⚠️ Informe o número da NF.")
 
                     # --- COLUNA 2: SOLICITAÇÃO DE NF (Lado Direito) ---
-                    with col_f2:
+                    # --- COLUNA 2: SOLICITAÇÃO DE NF (Lado Direito) ---
+                with col_f2:
                     st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
 
                     # --- BOTÃO DE SINCRONIZAÇÃO MANUAL ---
-                    if st.button("🔄 Sincronizar Texto", help="Força a atualização dos dados desta NE", key=f"sync_{ne_alvo}"):
+                    # Agora ele está devidamente "empurrado" para dentro da col_f2
+                    if st.button("🔄 Sincronizar Texto", help="Força a atualização dos dados desta NE", key=f"sync_{ne_alvo}", use_container_width=True):
                         for k in [f"sub_{ne_alvo}", f"body_{ne_alvo}"]:
                             if k in st.session_state:
                                 del st.session_state[k]
@@ -1882,14 +1884,12 @@ else:
                                         cc=lista_cc
                                     )
                                     if sucesso:
-                                        # Registro de ação para auditoria do SISAFA
                                         registrar_acao(df_ne_fisc['nup'].iloc[0], "N/A", "EMAIL_SOLICITACAO_NF", f"Para: {email_destino}")
                                         st.success("E-mail enviado com sucesso!")
                                         time.sleep(1)
                                         st.rerun()
                                     else:
                                         st.error("❌ Falha técnica ao enviar e-mail. Verifique o servidor SMTP.")
-
 
 
 
