@@ -2361,59 +2361,87 @@ else:
 
             st.divider()
 
-            # =========================================================
-            # 2. PREPARAÇÃO E LIMPEZA DE DADOS (A VACINA V4)
-            # =========================================================
+        # --- 1. FUNÇÃO DE LIMPEZA DEFINITIVA (A VACINA V5) ---
+        # Definimos aqui para garantir que ela esteja disponível no escopo
+        def limpar_valor_v5(valor):
+            if pd.isna(valor) or str(valor).strip() in ["", "-", "None", "nan"]:
+                return 0.0
+            
+            # Se já for número (vindo do Sheets como 19832.7), retornamos direto
+            if isinstance(valor, (int, float)):
+                return float(valor)
+            
+            # Se for texto, limpamos "R$" e espaços
+            s = str(valor).replace("R$", "").replace(" ", "").strip()
+            
+            # Identifica quem é o decimal pelo último sinal que aparece
+            ponto = s.rfind('.')
+            virgula = s.rfind(',')
+            
+            if virgula != -1 and ponto != -1:
+                if virgula > ponto: # Padrão Brasileiro (1.234,56)
+                    s = s.replace(".", "").replace(",", ".")
+                else: # Padrão Americano/HFA (1,234.56)
+                    s = s.replace(",", "")
+            elif virgula != -1: # Só tem vírgula (ex: 1234,56)
+                s = s.replace(",", ".")
+            # Se tiver só ponto (1.73), o float() nativo já resolve.
+
+            try:
+                return float(s)
+            except:
+                return 0.0
+
+        # --- 2. PREPARAÇÃO DOS DADOS (ABA VISÃO GERAL) ---
+        with tab_visao:
+            # --- SEÇÃO FISCAL (Nomes, NIP e Emails) ---
+            st.subheader("👮 Fiscais do Contrato")
+            if not dados_minha_ose.empty:
+                info = dados_minha_ose.iloc[0]
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.markdown("**Fiscal Titular**")
+                    st.write(f"👤 {info.get('GESTOR_TITULAR', 'Não informado')}")
+                    # Tenta as duas variações de nome de coluna para o e-mail
+                    e_titular = info.get('E-MAIL_DO_GESTOR_TITULAR', info.get('EMAIL_TITULAR', 'E-mail não cadastrado'))
+                    st.caption(f"📧 {e_titular}")
+                with c2:
+                    st.markdown("**Fiscal Substituto**")
+                    st.write(f"👤 {info.get('GESTOR_SUBSTITUTO', 'Não informado')}")
+                    e_sub = info.get('E-MAIL_DO_GESTOR_SUBSTITUTO', info.get('EMAIL_SUBSTITUTO', 'E-mail não cadastrado'))
+                    st.caption(f"📧 {e_sub}")
+                with c3:
+                    st.markdown("**NIP do Gestor**")
+                    st.write(f"🆔 {info.get('NIP_DO_GESTOR_TITULAR', '-')}")
+            else:
+                st.info("Informações dos fiscais ainda não vinculadas.")
+
+            st.divider()
+
+            # --- SEÇÃO DASHBOARD FINANCEIRO ---
             if df_minhas_faturas.empty:
                 st.warning(f"Nenhuma fatura encontrada para o CNPJ: {user_cnpj}")
             else:
-                # Função Robusta para não "comer" decimais do HFA nem do padrão BR
-                def limpar_ose_v4(valor):
-                    if pd.isna(valor) or str(valor).strip() in ["", "-", "None", "nan"]:
-                        return 0.0
-                    s = str(valor).replace("R$", "").replace(" ", "").strip()
-                    
-                    # Localiza a posição dos sinais
-                    ponto = s.rfind('.')
-                    virgula = s.rfind(',')
-                    
-                    if virgula != -1 and ponto != -1:
-                        if virgula > ponto: # Padrão BR (1.234,56)
-                            s = s.replace(".", "").replace(",", ".")
-                        else: # Padrão US/HFA (1,234.56)
-                            s = s.replace(",", "")
-                    elif virgula != -1: # Só tem vírgula (1234,56)
-                        s = s.replace(",", ".")
-                    # Se tiver só ponto (1.73), o Python já entende nativamente.
-
-                    try: return float(s)
-                    except: return 0.0
-
-                # Aplicamos a limpeza nas colunas de dinheiro
-                cols_fin = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
-                for col in cols_fin:
+                # APLICAÇÃO DA VACINA V5 (Limpeza de todas as colunas financeiras)
+                cols_financeiras = ['valor_apresentado', 'valor_glosa', 'valor_liquido']
+                for col in cols_financeiras:
                     if col in df_minhas_faturas.columns:
-                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_ose_v4)
+                        df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_valor_v5)
 
-                # =========================================================
-                # 3. DASHBOARD FINANCEIRO
-                # =========================================================
-                # Cálculos matemáticos (Status 1 a 8 = processamento, 9 = pago)
-                v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
-                v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
+                # Cálculos (Status 1 a 8 = Em processamento | Status 9 = Pago)
+                valor_processamento = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
+                valor_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 with m1:
-                    st.metric("Valor total em processamento:", f"R$ {v_proc:,.2f}")
+                    st.metric("Valor total em processamento:", f"R$ {valor_processamento:,.2f}")
                 with m2:
-                    st.metric("Total Pago", f"R$ {v_pago:,.2f}")
+                    st.metric("Total Pago", f"R$ {valor_pago:,.2f}")
 
                 st.divider()
 
-                # =========================================================
-                # 4. GRÁFICO DE PIZZA
-                # =========================================================
+                # --- GRÁFICO DE STATUS ---
                 st.subheader("📊 Resumo dos Processos")
                 df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_status_fisc)
                 df_pizza = df_minhas_faturas['Situação'].value_counts().reset_index()
@@ -2429,12 +2457,10 @@ else:
                 
                 st.divider()
 
-                # =========================================================
-                # 5. TABELA DETALHADA
-                # =========================================================
+                # --- TABELA DETALHADA ---
                 st.subheader("📑 Detalhamento das Faturas")
                 
-                # Mapeamento de meses
+                # Tratamento do Mês de Competência
                 mapa_meses = {1:"JAN", 2:"FEV", 3:"MAR", 4:"ABR", 5:"MAI", 6:"JUN", 7:"JUL", 8:"AGO", 9:"SET", 10:"OUT", 11:"NOV", 12:"DEZ"}
                 if 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_exibicao'] = df_minhas_faturas['mes_competencia'].map(mapa_meses)
@@ -2458,6 +2484,7 @@ else:
                     .rename(columns=mapa_cols_exibicao)
                 )
 
+                # Exibição Final (O .style.format não dará mais erro pois os dados foram limpos)
                 st.dataframe(
                     df_final.style.format({
                         'Valor Apresentado': 'R$ {:,.2f}', 
