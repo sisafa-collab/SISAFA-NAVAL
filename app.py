@@ -2471,7 +2471,7 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa', 
                     'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês Competência', # <--- O Python não achou esta
+                    'mes_sigla': 'Mês Competência (quando a fatura deu entrada no HNBra)', # <--- O Python não achou esta
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
                     'Situação': 'Situação da Fatura'
@@ -2516,7 +2516,7 @@ else:
                 df_minhas_faturas['label_fatura'] = (
                     "Fatura: " + df_minhas_faturas['Numero_da_fatura'].astype(str) + 
                     "/" + df_minhas_faturas['ano_competencia'].astype(str) + 
-                    " (" + df_minhas_faturas['mes_exibicao'] + ")"
+                    " (" + df_minhas_faturas['mes_sigla'] + ")"
                 )
                 
                 fatura_sel_label = st.selectbox("Sobre qual fatura deseja falar?", [""] + df_minhas_faturas['label_fatura'].tolist())
