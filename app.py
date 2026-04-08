@@ -2464,16 +2464,15 @@ else:
                         df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_v6_nuclear)
 
                 # =========================================================
-                # 3. DASHBOARD FINANCEIRO + GRÁFICO DE PIZZA
+                # 3. DASHBOARD FINANCEIRO (MÉTRICAS)
                 # =========================================================
                 
-                # --- DEFINIÇÃO LOCAL DO MAPA ---
+                # --- MAPA DE MESES (Garante JAN, FEV...) ---
                 mapa_meses_local = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
-                # Criação da sigla do mês
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses_local)
                 
@@ -2485,50 +2484,20 @@ else:
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
+                m1, m2 = st.columns(2)
                 
-                # Criamos 3 colunas: as duas primeiras para números e a terceira para o gráfico
-                c_metrica1, c_metrica2, c_pizza = st.columns([1, 1, 1.8])
-                
-                with c_metrica1:
+                with m1:
                     val_proc_fmt = f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    st.metric("Em Processamento", val_proc_fmt)
+                    st.metric("Total em Aberto", val_proc_fmt)
                 
-                with c_metrica2:
+                with m2:
                     val_pago_fmt = f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    st.metric("Total Pago", val_pago_fmt)
-
-                with c_pizza:
-                    if v_proc > 0 or v_pago > 0:
-                        import plotly.express as px
-                        
-                        df_pizza = pd.DataFrame({
-                            "Status": ["Em Processamento", "Pago"],
-                            "Valores": [v_proc, v_pago]
-                        })
-                        
-                        fig = px.pie(
-                            df_pizza, 
-                            values='Valores', 
-                            names='Status',
-                            hole=0.4,
-                            color='Status',
-                            color_discrete_map={'Em Processamento': '#FF4B4B', 'Pago': '#00CC96'}
-                        )
-                        
-                        fig.update_layout(
-                            margin=dict(t=0, b=0, l=0, r=0),
-                            height=180,
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.write("Sem dados para o gráfico.")
+                    st.metric("Total Pago (Liquidado)", val_pago_fmt)
 
                 st.divider()
 
                 # =========================================================
-                # 5. TABELA DETALHADA
+                # 4. TABELA DETALHADA
                 # =========================================================
                 st.subheader("📑 Detalhamento das Faturas")
                 
@@ -2547,24 +2516,44 @@ else:
                 
                 if not df_minhas_faturas.empty:
                     df_final = df_minhas_faturas[cols_reais].copy()
-                    
                     if 'ano_competencia' in df_final.columns:
                         df_final = df_final.sort_values(by=['ano_competencia'], ascending=False)
                     
                     df_final = df_final.rename(columns=mapa_cols_exibicao)
 
-                    formatos = {}
-                    for col in ['Valor Apresentado', 'Valor líquido', 'Glosa']:
-                        if col in df_final.columns:
-                            formatos[col] = 'R$ {:,.2f}'
+                    formatos = {col: 'R$ {:,.2f}' for col in ['Valor Apresentado', 'Valor líquido', 'Glosa'] if col in df_final.columns}
 
-                    st.dataframe(
-                        df_final.style.format(formatos),
-                        use_container_width=True, 
-                        hide_index=True
-                    )
+                    st.dataframe(df_final.style.format(formatos), use_container_width=True, hide_index=True)
                 else:
-                    st.info("Nenhuma fatura encontrada para esta OSE.")
+                    st.info("Nenhuma fatura encontrada.")
+
+                # =========================================================
+                # 5. GRÁFICO DE PIZZA (AO FINAL DA PÁGINA)
+                # =========================================================
+                st.write("") # Espaçamento
+                if not df_minhas_faturas.empty:
+                    import plotly.express as px
+                    
+                    st.markdown("#### 📊 Situação das faturas")
+                    
+                    # Agrupamento dinâmico pelo Status real
+                    df_status_grafico = df_minhas_faturas.groupby('Situação')['valor_liquido'].sum().reset_index()
+                    
+                    fig = px.pie(
+                        df_status_grafico, 
+                        values='valor_liquido', 
+                        names='Situação',
+                        hole=0.4,
+                        color_discrete_sequence=px.colors.qualitative.Prism # Paleta profissional
+                    )
+                    
+                    fig.update_layout(
+                        height=350,
+                        margin=dict(t=30, b=0, l=0, r=0),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
 
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
