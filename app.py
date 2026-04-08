@@ -1882,13 +1882,20 @@ else:
                         )
 
                         with st.container(border=True):
+                            # --- CABEÇALHO DO E-MAIL (Visualização) ---
+                            st.text_input("Para:", value=email_destino, disabled=True, key=f"to_{ne_alvo}")
+                            st.text_input("CC:", value=cc_string, disabled=True, key=f"cc_display_{ne_alvo}")
+                            
+                            st.divider() # Uma linha fina para separar o cabeçalho do corpo
+                            
+                            # --- INPUTS DE EDIÇÃO ---
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
                             msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                # Exemplo de como passar as cópias para sua função de envio:
+                                # Aqui você chama sua função de envio passando as variáveis
                                 # enviar_email(destinatario=email_destino, assunto=assunto_final, corpo=msg_final, cc=cc_string)
-                                st.info(f"Cópia enviada para: {cc_string}")
+                                st.success(f"E-mail enviado para {email_destino} com cópia para {cc_string}")
                                 pass
 
 
