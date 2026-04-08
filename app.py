@@ -1879,6 +1879,12 @@ else:
                         # --- 2. MONTAGEM DO TEXTO (Mantém seu texto padrão) ---
                         assunto_fresco = f"Solicitação de Nota Fiscal para pagamento – Hospital Naval de Brasília"
                         
+
+                        # Busca o nome real uma única vez para não pesar o sistema
+                        if 'nome_usuario' not in st.session_state:
+                            df_u = pd.DataFrame(sh.worksheet("SISAFA-NAVAL-Usuarios").get_all_records())
+                            st.session_state['nome_usuario'] = next(iter(df_u[df_u['E-mail'] == usuario_atual]['NOME']), 'Fiscal de Contratos')
+
                         corpo_fresco = (
                             f"Prezados do (a) {ose_txt}, CNPJ {cnpj_alvo}, esperamos que este e-mail os encontre bem.\n\n"
                             f"O HNBra solicita, por gentileza, a emissão de Nota Fiscal referente aos serviços prestados por essa Organização de Saúde Extra – Marinha do Brasil, conforme acordo vigente.\n\n"
@@ -1896,7 +1902,7 @@ else:
                             f"Peço a gentileza de aguardar!\n\n"
                             f"Por favor, anexar a Nota Fiscal na mensagem de solicitação por e-mail.\n\n"
                             f"Atenciosamente,\n"
-                            f"{st.session_state.get('nome_usuario', 'Fiscal de Contratos')}\n"
+                            f"{st.session_state['nome_usuario']}\n"
                             f"Hospital Naval de Brasília"
                         )
 
@@ -1911,8 +1917,21 @@ else:
                             msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=450, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                st.success(f"Solicitação processada para {email_destino_limpo}")
-                                pass
+                                with st.spinner("🚀 Enviando e-mail oficial..."):
+                                    # --- CHAMADA DA FUNÇÃO REAL ---
+                                    sucesso = enviar_email_generico(
+                                        destinatario=email_destino_limpo,
+                                        assunto=assunto_final,
+                                        corpo=msg_final,
+                                        cc=cc_string
+                                    )
+                                    
+                                    if sucesso:
+                                        st.success(f"✅ E-mail enviado com sucesso para {email_destino_limpo}!")
+                                        # Registra a ação no sistema para auditoria (opcional)
+                                        # registrar_acao(ne_alvo, "N/A", "SOLICITACAO_NF_ENVIADA", f"Para: {email_destino_limpo}")
+                                    else:
+                                        st.error("❌ Falha técnica no envio. Verifique os logs no Manage App.")
 
 
 
@@ -2444,9 +2463,7 @@ else:
 
                 st.divider()
 
-                # =========================================================
-                # 5. TABELA DETALHADA
-                # =========================================================
+                # --- TABELA DETALHADA COM TRAVA DE SEGURANÇA ---
                 st.subheader("📑 Detalhamento das Faturas")
                 
                 mapa_cols_exibicao = {
@@ -2454,25 +2471,37 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa', 
                     'valor_liquido': 'Valor líquido',
-                    'mes_exibicao': 'Mês Competência', 
+                    'mes_exibicao': 'Mês Competência', # <--- O Python não achou esta
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
                     'Situação': 'Situação da Fatura'
                 }
                 
-                validas = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
-                df_final = df_minhas_faturas[validas].sort_values(by=['ano_competencia'], ascending=False).rename(columns=mapa_cols_exibicao)
+                # Só pegamos o que realmente existe no DataFrame
+                cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
+                
+                if not df_minhas_faturas.empty:
+                    df_final = df_minhas_faturas[cols_reais].copy()
+                    
+                    # Ordenação segura (só ordena se a coluna existir)
+                    if 'ano_competencia' in df_final.columns:
+                        df_final = df_final.sort_values(by=['ano_competencia'], ascending=False)
+                    
+                    df_final = df_final.rename(columns=mapa_cols_exibicao)
 
-                # Exibição Final Blindada
-                st.dataframe(
-                    df_final.style.format({
-                        'Valor Apresentado': 'R$ {:,.2f}', 
-                        'Valor líquido': 'R$ {:,.2f}', 
-                        'Glosa': 'R$ {:,.2f}'
-                    }),
-                    use_container_width=True, 
-                    hide_index=True
-                )
+                    # Formatação condicional (só formata o que está na tela)
+                    formatos = {}
+                    if 'Valor Apresentado' in df_final.columns: formatos['Valor Apresentado'] = 'R$ {:,.2f}'
+                    if 'Valor líquido' in df_final.columns: formatos['Valor líquido'] = 'R$ {:,.2f}'
+                    if 'Glosa' in df_final.columns: formatos['Glosa'] = 'R$ {:,.2f}'
+
+                    st.dataframe(
+                        df_final.style.format(formatos),
+                        use_container_width=True, 
+                        hide_index=True
+                    )
+                else:
+                    st.info("Nenhuma fatura encontrada para esta OSE.")
 
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
