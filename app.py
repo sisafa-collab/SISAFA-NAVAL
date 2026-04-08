@@ -646,7 +646,7 @@ else:
                     
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
                     
-                    # --- 1. RESUMO FINANCEIRO SUPERIOR ---
+                    # --- 1. RESUMO FINANCEIRO ---
                     c1, c2 = st.columns(2)
                     with c1:
                         glosa_input = st.number_input("Valor da Glosa (R$)", min_value=0.0, max_value=v_apres, step=0.01, format="%.2f", key="val_glosa_mesa")
@@ -661,7 +661,7 @@ else:
                     st.markdown("### 🔍 Detalhamento por Centro de Custo")
                     st.info(f"O somatório dos campos abaixo deve ser exatamente **R$ {v_liquido_alvo:,.2f}**")
 
-                    # --- 2. DEFINIÇÃO DAS LISTAS (ORDEM EXATA DA PLANILHA) ---
+                    # --- 2. DEFINIÇÃO DOS GRUPOS ---
                     g1_hosp = ["Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE", "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME", "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos", "Remédio de Alto Custo: Antibióticos"]
                     g2_lab = ["Análises Clínicas", "RX Convencional", "Tomografias", "Ressonâncias magnéticas", "Ultrassonografias"]
                     g3_spec = ["Exames oftalmológicos", "Holter 24h", "Mapa 24h", "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana", "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos", "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica", "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco"]
@@ -670,11 +670,10 @@ else:
                     
                     valores_detalhados = {}
 
-                    # Função para Estilização de Cabeçalhos
                     def header_audit(texto, cor_fundo, cor_txt="black"):
                         st.markdown(f'<div style="background-color:{cor_fundo};padding:8px;border-radius:5px;margin:15px 0 10px 0;"><b style="color:{cor_txt}">{texto}</b></div>', unsafe_allow_html=True)
 
-                    # --- RENDERIZAÇÃO DOS GRUPOS COLORIDOS ---
+                    # Renderização Grupos I ao V
                     header_audit("🟦 Grupo I: Assistência Médico-Hospitalar", "#ADD8E6")
                     c_a, c_b = st.columns(2)
                     for i, campo in enumerate(g1_hosp):
@@ -705,95 +704,94 @@ else:
                         target = c_a if i % 2 == 0 else c_b
                         valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
+                    # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
                     header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
-                    with st.container(border=True):
-                        opcoes_g6 = ["", "Outros medicamentos", "Outros exames", "Outros procedimentos (SADT)", 
-                                     "Outros procedimentos (assistência odontológica)", "Outros custos não especificados", 
-                                     "Outros procedimentos oftalmológicos", "Outros procedimentos cardiológicos", "Outros exames cardiológicos"]
-                        sel_g6 = st.selectbox("Grupo Extra:", opcoes_g6, key=f"g6_sel_{nup_audit}")
-                        val_g6, desc_g6, qtd_g6 = 0.0, "", 0
-                        if sel_g6:
-                            desc_g6 = st.text_input("Descrição da despesa:", key=f"g6_desc_{nup_audit}")
-                            cq1, cq2 = st.columns(2)
-                            qtd_g6 = cq1.number_input("Quantidade:", min_value=1, step=1, key=f"g6_qtd_{nup_audit}")
-                            val_g6 = cq2.number_input("Custo Total (R$):", min_value=0.0, format="%.2f", key=f"g6_val_{nup_audit}")
+                    
+                    mapa_cores_outros = {
+                        "Outros medicamentos": "#ADD8E6", 
+                        "Outros exames": "#E6E6FA", # Lavanda para facilitar leitura no roxo
+                        "Outros procedimentos (SADT)": "#90EE90", 
+                        "Outros procedimentos (assistência odontológica)": "#FFFF00", 
+                        "Outros custos não especificados": "#FFCC99", # Laranja
+                        "Outros procedimentos oftalmológicos": "#FFB6C1", 
+                        "Outros procedimentos cardiológicos": "#FFB6C1", 
+                        "Outros exames cardiológicos": "#FFB6C1"
+                    }
 
-                    # --- 3. VALIDAÇÃO MATEMÁTICA ---
+                    sel_g6 = st.selectbox("Selecione o tipo de custo extra:", [""] + list(mapa_cores_outros.keys()), key=f"g6_sel_{nup_audit}")
+                    val_g6, desc_g6, qtd_g6 = 0.0, "", 0
+                    
+                    if sel_g6:
+                        cor_viva = mapa_cores_outros[sel_g6]
+                        st.markdown(f'<div style="background-color:{cor_viva};padding:10px;border-radius:10px;border:1px solid #d3d3d3;margin-bottom:10px;"><b style="color:black;">Lançamento em: {sel_g6}</b></div>', unsafe_allow_html=True)
+                        desc_g6 = st.text_input("Descrição detalhada:", key=f"g6_desc_{nup_audit}")
+                        cq1, cq2 = st.columns(2)
+                        qtd_g6 = cq1.number_input("Quantidade:", min_value=1, step=1, key=f"g6_qtd_{nup_audit}")
+                        val_g6 = cq2.number_input("Custo Total (R$):", min_value=0.0, format="%.2f", key=f"g6_val_{nup_audit}")
+
+                    # --- 4. VALIDAÇÃO E FINALIZAÇÃO ---
                     soma_geral = round(sum(valores_detalhados.values()) + val_g6, 2)
                     diferenca = round(v_liquido_alvo - soma_geral, 2)
 
                     st.divider()
                     if diferenca == 0:
-                        st.success(f"✅ Soma bate com o Valor Líquido (R$ {soma_geral:,.2f})")
+                        st.success(f"✅ Soma bateu com o Valor Líquido! (R$ {soma_geral:,.2f})")
                         trava_cc = False
                     else:
-                        st.error(f"❌ A soma (R$ {soma_geral:,.2f}) não bate com o Líquido (R$ {v_liquido_alvo:,.2f}). Diferença: R$ {diferenca:,.2f}")
+                        st.error(f"❌ A soma (R$ {soma_geral:,.2f}) não bate com o Líquido. Diferença: R$ {diferenca:,.2f}")
                         trava_cc = True
 
-                    # --- 4. CONFERÊNCIA DE E-MAIL (Sua lógica original) ---
+                    # Conferência de E-mail (Lógica original mantida)
                     with st.container(border=True):
                         try:
-                            cnpj_fatura = str(dados_nup['cnpj']).strip().split('.')[0]
-                            df_ose_info = carregar_dados_cache(ABA_TABELA_A)
-                            linha_ose = df_ose_info[df_ose_info['CNPJ'].astype(str).str.contains(cnpj_fatura)]
-                            df_users = carregar_dados_cache(ABA_USUARIOS)
-                            match_user = df_users[df_users['NIP'].astype(str).str.strip() == str(st.session_state.user_id).strip()]
+                            cnpj_fat = str(dados_nup['cnpj']).strip().split('.')[0]
+                            df_ose = carregar_dados_cache(ABA_TABELA_A)
+                            linha_o = df_ose[df_ose['CNPJ'].astype(str).str.contains(cnpj_fat)]
+                            df_u = carregar_dados_cache(ABA_USUARIOS)
+                            match_u = df_u[df_u['NIP'].astype(str).str.strip() == str(st.session_state.user_id).strip()]
                             
-                            if not match_user.empty and not linha_ose.empty:
-                                email_auditor = match_user['Email'].values[0] if 'Email' in match_user.columns else match_user['E-mail'].values[0]
-                                email_destino = linha_ose['E-mail Principal da OSE'].values[0]
-                                nome_ose_oficial = linha_ose['Razão Social'].values[0]
-                                st.write(f"🏢 **OSE:** {nome_ose_oficial} | 📩 **E-mail:** {email_destino}")
-                                trava_confirmacao = st.checkbox("Confirmo os dados acima para finalização.", key=f"chk_conf_{nup_audit}")
+                            if not match_u.empty and not linha_o.empty:
+                                email_aud = match_u['Email'].values[0] if 'Email' in match_u.columns else match_u['E-mail'].values[0]
+                                email_dest = linha_o['E-mail Principal da OSE'].values[0]
+                                nome_ose = linha_o['Razão Social'].values[0]
+                                st.write(f"🏢 **OSE:** {nome_ose} | 📩 **E-mail:** {email_dest}")
+                                trava_confirmacao = st.checkbox("Confirmo os dados para finalização.", key=f"chk_conf_{nup_audit}")
                             else:
                                 trava_confirmacao = False
-                                st.error("⚠️ Dados de e-mail não localizados.")
-                        except:
-                            trava_confirmacao = False
+                                st.error("⚠️ Erro nos dados de e-mail.")
+                        except: trava_confirmacao = False
 
                     col_fin, col_mail = st.columns(2)
                     
-                    # --- AÇÃO: FINALIZAR AUDITORIA ANALÍTICA ---
                     if col_fin.button("✅ FINALIZAR AUDITORIA ANALÍTICA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            with st.spinner("Gravando Auditoria Detalhada..."):
+                            with st.spinner("Gravando..."):
                                 try:
                                     aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    linha_save = [
-                                        datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                                        nup_audit, dados_nup['cnpj'], dados_nup['ose'], 
-                                        num_fat, dados_nup['mes_competencia'], dados_nup['ano_competencia']
-                                    ]
+                                    linha_save = [datetime.now().strftime("%d/%m/%Y %H:%M:%S"), nup_audit, dados_nup['cnpj'], dados_nup['ose'], num_fat, dados_nup['mes_competencia'], dados_nup['ano_competencia']]
                                     for g in [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto]:
                                         for c in g: linha_save.append(valores_detalhados[c])
                                     linha_save.extend([sel_g6, desc_g6, qtd_g6, val_g6])
-                                    
                                     aba_audit.append_row(linha_save)
 
-                                    # Preparação do histórico detalhado
+                                    # Histórico detalhado
                                     s1, s2, s3, s4, s5 = sum(valores_detalhados[c] for c in g1_hosp), sum(valores_detalhados[c] for c in g2_lab), sum(valores_detalhados[c] for c in g3_spec), sum(valores_detalhados[c] for c in g4_terap), sum(valores_detalhados[c] for c in g5_odonto)
-                                    log_detalhe = f"DISTRIBUIÇÃO: G1(Hosp): R${s1:,.2f} | G2(Exames): R${s2:,.2f} | G3(Espec): R${s3:,.2f} | G4(Terap): R${s4:,.2f} | G5(Odonto): R${s5:,.2f}"
-                                    if sel_g6: log_detalhe += f" | Outros({sel_g6}): R${val_g6:,.2f}"
+                                    log_det = f"DISTRIBUIÇÃO: G1:R${s1:,.2f} | G2:R${s2:,.2f} | G3:R${s3:,.2f} | G4:R${s4:,.2f} | G5:R${s5:,.2f}"
+                                    if sel_g6: log_det += f" | Outros({sel_g6}):R${val_g6:,.2f}"
 
                                     mover_status(nup_audit, 3, valor_glosa=glosa_input, valor_liq=v_liquido_alvo, obs_texto=just_glosa)
-                                    registrar_acao(nup_audit, num_fat, "AUDITORIA_ANALITICA", log_detalhe)
-                                    
-                                    st.success("✅ Auditoria analítica concluída!")
-                                    time.sleep(1.5)
+                                    registrar_acao(nup_audit, num_fat, "AUDITORIA_ANALITICA", log_det)
+                                    st.success("✅ Sucesso!")
+                                    time.sleep(1)
                                     st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao salvar: {e}")
+                                except Exception as e: st.error(f"Erro: {e}")
 
-                    # --- AÇÃO: ENVIAR E-MAIL ---
                     if col_mail.button("📧 ENCAMINHAR GLOSA P/ OSE", use_container_width=True, disabled=not trava_confirmacao):
-                        with st.spinner("Enviando..."):
-                            if disparar_email_glosa(email_destino, num_fat, glosa_input, just_glosa, nome_ose_oficial, email_auditor):
-                                registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_destino}")
-                                st.toast("E-mail enviado!", icon="✅")
-                            else:
-                                st.error("Falha no envio.")
+                        if disparar_email_glosa(email_dest, num_fat, glosa_input, just_glosa, nome_ose, email_aud):
+                            registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_dest}")
+                            st.toast("E-mail enviado!", icon="✅")
 
 
         # 3. ABA: FATURAS AUDITADAS
