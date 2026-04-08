@@ -1849,25 +1849,25 @@ else:
                             st.rerun()
 
                         # --- LÓGICA DE CÓPIAS (CC) CORRIGIDA ---
-                        # 1. Limpa espaços invisíveis nos nomes das colunas (Segurança contra KeyError)
                         df_ne_fisc.columns = df_ne_fisc.columns.str.strip()
                         
                         usuario_atual = st.session_state.get('email_usuario', '')
                         email_titular = ""
                         email_substituto = ""
 
-                        # 2. Busca os e-mails usando os nomes EXATOS da sua Tabela A
                         if not df_ne_fisc.empty:
-                            # Verificamos se a coluna existe antes de tentar ler para evitar o KeyError
                             if 'E-mail do Gestor Titular' in df_ne_fisc.columns:
                                 email_titular = df_ne_fisc['E-mail do Gestor Titular'].iloc[0]
                             
                             if 'E-mail do Gestor Substituto' in df_ne_fisc.columns:
                                 email_substituto = df_ne_fisc['E-mail do Gestor Substituto'].iloc[0]
                         
-                        # 3. Monta a string final do CC
-                        lista_cc = [u for u in [usuario_atual, email_titular, email_substituto] if u and str(u).strip()]
-                        cc_string = ", ".join(lista_cc)
+                        # Limpa espaços e vírgulas extras de cada item antes de juntar
+                        lista_cc = [str(u).strip().rstrip(',') for u in [usuario_atual, email_titular, email_substituto] if u and str(u).strip().lower() != 'nan']
+                        
+                        # Junta tudo e garante que o resultado final não termine em vírgula
+                        cc_string = ", ".join(lista_cc).strip().rstrip(',')
+                        email_destino_limpo = str(email_destino).strip().rstrip(',')
 
                         # --- MONTAGEM DO TEXTO ---
                         assunto_fresco = f"Solicitação de Nota Fiscal para pagamento – Hospital Naval de Brasília"
@@ -1894,16 +1894,20 @@ else:
                         )
 
                         with st.container(border=True):
-                            st.text_input("Para:", value=email_destino, disabled=True, key=f"to_{ne_alvo}")
-                            st.text_input("CC:", value=cc_string, disabled=True, key=f"cc_display_{ne_alvo}")
+                            # --- CABEÇALHO LIMPO (Sem caixa cinza) ---
+                            st.markdown(f"**Para:** {email_destino_limpo}")
+                            st.markdown(f"**CC:** {cc_string if cc_string else '---'}")
                             
                             st.divider() 
                             
+                            # --- INPUTS DE EDIÇÃO ---
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
                             msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                st.success(f"E-mail enviado para {email_destino} com cópia para {cc_string}")
+                                # Aqui você usa o cc_string limpo no envio
+                                # enviar_email(destinatario=email_destino_limpo, assunto=assunto_final, corpo=msg_final, cc=cc_string)
+                                st.success(f"E-mail enviado para {email_destino_limpo}")
                                 pass
 
 
