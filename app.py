@@ -1853,8 +1853,8 @@ else:
                         
                         # Buscando os e-mails diretamente das colunas da Tabela A
                         if not df_ne_fisc.empty:
-                            email_titular = df_ne_fisc['E-mail do Gestor Titular'].iloc[0]
-                            email_substituto = df_ne_fisc['E-mail do Gestor Substituto'].iloc[0]
+                            email_titular = df_ne_fisc['E-mail_do_Gestor_Titular'].iloc[0]
+                            email_substituto = df_ne_fisc['E-mail_do_Gestor_Substituto'].iloc[0]
                         else:
                             email_titular = ""
                             email_substituto = ""
