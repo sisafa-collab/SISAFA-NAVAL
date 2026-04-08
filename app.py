@@ -2464,15 +2464,26 @@ else:
                         df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_v6_nuclear)
 
                 # =========================================================
-                # 3. DASHBOARD FINANCEIRO (MÉTRICAS)
+                # 3. DASHBOARD FINANCEIRO (MÉTRICAS E PREPARAÇÃO)
                 # =========================================================
                 
-                # --- MAPA DE MESES (Garante JAN, FEV...) ---
+                # --- 1. DEFINIÇÃO DOS MAPAS (Nomes e Meses) ---
+                mapa_nomes = {
+                    1: "1. CADASTRADA", 2: "2. EM AUDITAGEM", 3: "3. AUDITADA",
+                    4: "4. AGUARDANDO NE", 5: "5. EMPENHADA", 6: "6. AGUARDANDO NF",
+                    7: "7. EM LIQUIDAÇÃO", 8: "8. LIQUIDADA", 9: "9. PAGA"
+                }
+
                 mapa_meses_local = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
+                # --- 2. TRADUÇÃO DE STATUS (Cria a coluna Situação antes de tudo) ---
+                if 'status' in df_minhas_faturas.columns:
+                    df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_nomes).fillna("N/A")
+
+                # Preparação do mês (sigla)
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses_local)
                 
@@ -2509,7 +2520,7 @@ else:
                     'mes_sigla': 'Mês Competência', 
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
-                    'Situação': 'Situação da Fatura'
+                    'Situação': 'Situação da Fatura' # <-- Agora ele encontra essa coluna!
                 }
                 
                 cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
@@ -2522,7 +2533,6 @@ else:
                     df_final = df_final.rename(columns=mapa_cols_exibicao)
 
                     formatos = {col: 'R$ {:,.2f}' for col in ['Valor Apresentado', 'Valor líquido', 'Glosa'] if col in df_final.columns}
-
                     st.dataframe(df_final.style.format(formatos), use_container_width=True, hide_index=True)
                 else:
                     st.info("Nenhuma fatura encontrada.")
@@ -2530,13 +2540,13 @@ else:
                 # =========================================================
                 # 5. GRÁFICO DE PIZZA (AO FINAL DA PÁGINA)
                 # =========================================================
-                st.write("") # Espaçamento
+                st.write("") 
                 if not df_minhas_faturas.empty:
                     import plotly.express as px
                     
                     st.markdown("#### 📊 Situação das faturas")
                     
-                    # Agrupamento dinâmico pelo Status real
+                    # Agrupamento dinâmico pela Situação (Texto)
                     df_status_grafico = df_minhas_faturas.groupby('Situação')['valor_liquido'].sum().reset_index()
                     
                     fig = px.pie(
@@ -2544,13 +2554,13 @@ else:
                         values='valor_liquido', 
                         names='Situação',
                         hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Prism # Paleta profissional
+                        color_discrete_sequence=px.colors.qualitative.Prism 
                     )
                     
                     fig.update_layout(
-                        height=350,
+                        height=400,
                         margin=dict(t=30, b=0, l=0, r=0),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
