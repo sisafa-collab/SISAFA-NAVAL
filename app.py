@@ -1849,17 +1849,28 @@ else:
                             st.rerun()
 
                         # Montagem do texto (v_total e faturas_txt calculados antes)
-                        assunto_fresco = f"SOLICITAÇÃO DE NOTA FISCAL - NE {ne_alvo} - {ose_txt}".strip()
+                        assunto_fresco = f"Solicitação de Nota Fiscal para pagamento – Hospital Naval de Brasília"
                         
+                        # --- DEFINIÇÃO DO NOVO CORPO DO E-MAIL ---
                         corpo_fresco = (
-                            f"À Gerência de Faturamento da {ose_txt}\n"
-                            f"CNPJ: {cnpj_alvo}\n\n"
-                            f"Prezados,\n\n"
-                            f"Informamos que a Nota de Empenho nº {ne_alvo}, no valor total de R$ {v_total:,.2f}, "
-                            f"referente às faturas {faturas_txt}, já se encontra disponível para faturamento.\n\n"
-                            f"Solicitamos a emissão da respectiva Nota Fiscal.\n\n"
-                            f"Atenciosamente,\n\n"
-                            f"Fiscalização de Contratos - SISAFA-NAVAL"
+                            f"Prezados do (a) {ose_txt}, CNPJ {cnpj_alvo}, esperamos que este e-mail os encontre bem.\n\n"
+                            f"O HNBra solicita, por gentileza, a emissão de Nota Fiscal referente aos serviços prestados por essa Organização de Saúde Extra – Marinha do Brasil, conforme acordo vigente.\n\n"
+                            f"Valor total: R$ {v_total:,.2f}\n"
+                            f"Fatura(s) / protocolo(s) / remessa(s): {faturas_txt} de (ano de competência).\n"
+                            f"Nota de empenho: {datetime.now().year} NE {str(ne_alvo)[-6:] if ne_alvo else ''}.\n\n"
+                            f"⚠️ ATENÇÃO! ⚠️ Não emitir a Nota Fiscal, sem antes, conferir os valores e números das faturas, valor total da remessa, CNPJ correto e relatórios de glosa quando houver! A emissão incorreta de NF acarreta atrasos ao pagamento e problemas administrativos junto ao fisco.\n\n"
+                            f"**Dados para Nota Fiscal**\n"
+                            f"Razão Social: Hospital Naval de Brasília\n"
+                            f"Endereço: SEPS Q 711/911 - Asa Sul, Brasília - DF, 70390-115\n"
+                            f"Telefone de Contato: (61) 3445-7303\n"
+                            f"CNPJ: 00.394.502/0060-02\n\n"
+                            f"Obs.: Participo que não confirmo o recebimento de todas as notas fiscais por causa da grande demanda aqui e para não atrasar ainda mais os pagamentos, mas quando não as recebo, solicito novamente.\n\n"
+                            f"Sempre priorizo os pagamentos, quando chega dotação orçamentária. Assim, somente respondo os emails, em tempo, com notas fiscais de valores 'errados' ou de casos extremamente urgentes, e no final da remessa, verifico todas as demais pendências.\n\n"
+                            f"Peço a gentileza de aguardar!\n\n"
+                            f"Por favor, anexar a Nota Fiscal na mensagem de solicitação por e-mail.\n\n"
+                            f"Atenciosamente,\n"
+                            f"{st.session_state.get('nome_usuario', 'Fiscal de Contratos')}\n"
+                            f"Hospital Naval de Brasília"
                         )
 
                         with st.container(border=True):
