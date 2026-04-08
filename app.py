@@ -1848,13 +1848,19 @@ else:
                                     del st.session_state[k]
                             st.rerun()
 
-                        # --- LÓGICA DE CÓPIAS (CC) ---
-                        # Busca os e-mails no session_state (ajuste as chaves se os nomes forem diferentes)
+                        # --- LÓGICA DE CÓPIAS (CC) CORRIGIDA ---
                         usuario_atual = st.session_state.get('email_usuario', '')
-                        email_titular = st.session_state.get('email_titular', 'titular@marinha.mil.br')
-                        email_substituto = st.session_state.get('email_substituto', 'substituto@marinha.mil.br')
                         
-                        lista_cc = [u for u in [usuario_atual, email_titular, email_substituto] if u]
+                        # Buscando os e-mails diretamente das colunas da Tabela A
+                        if not df_ne_fisc.empty:
+                            email_titular = df_ne_fisc['E-mail do Gestor Titular'].iloc[0]
+                            email_substituto = df_ne_fisc['E-mail do Gestor Substituto'].iloc[0]
+                        else:
+                            email_titular = ""
+                            email_substituto = ""
+                        
+                        # Monta a lista apenas com o que não estiver vazio
+                        lista_cc = [u for u in [usuario_atual, email_titular, email_substituto] if u and str(u).strip()]
                         cc_string = ", ".join(lista_cc)
 
                         # --- MONTAGEM DO TEXTO ---
@@ -1886,14 +1892,13 @@ else:
                             st.text_input("Para:", value=email_destino, disabled=True, key=f"to_{ne_alvo}")
                             st.text_input("CC:", value=cc_string, disabled=True, key=f"cc_display_{ne_alvo}")
                             
-                            st.divider() # Uma linha fina para separar o cabeçalho do corpo
+                            st.divider() 
                             
                             # --- INPUTS DE EDIÇÃO ---
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
                             msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                # Aqui você chama sua função de envio passando as variáveis
                                 # enviar_email(destinatario=email_destino, assunto=assunto_final, corpo=msg_final, cc=cc_string)
                                 st.success(f"E-mail enviado para {email_destino} com cópia para {cc_string}")
                                 pass
