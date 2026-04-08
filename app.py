@@ -1848,9 +1848,11 @@ else:
                                     del st.session_state[k]
                             st.rerun()
 
-                        # --- LÓGICA DE CÓPIAS (CC) CORRIGIDA ---
+                        # --- 1. LÓGICA DE CÓPIAS (CC) BLINDADA ---
+                        # Limpamos os nomes das colunas para evitar erros de busca
                         df_ne_fisc.columns = df_ne_fisc.columns.str.strip()
                         
+                        # Buscamos o seu e-mail e os dos gestores
                         usuario_atual = st.session_state.get('email_usuario', '')
                         email_titular = ""
                         email_substituto = ""
@@ -1858,18 +1860,19 @@ else:
                         if not df_ne_fisc.empty:
                             if 'E-mail do Gestor Titular' in df_ne_fisc.columns:
                                 email_titular = df_ne_fisc['E-mail do Gestor Titular'].iloc[0]
-                            
                             if 'E-mail do Gestor Substituto' in df_ne_fisc.columns:
                                 email_substituto = df_ne_fisc['E-mail do Gestor Substituto'].iloc[0]
+
+                        # --- 2. TRATAMENTO DA VÍRGULA E LIMPEZA ---
+                        # Criamos a lista, removemos 'nan' e limpamos vírgulas de cada item
+                        lista_cc_bruta = [usuario_atual, email_titular, email_substituto]
+                        lista_cc_limpa = [str(u).strip().rstrip(',') for u in lista_cc_bruta if u and str(u).lower().strip() != 'nan']
                         
-                        # Limpa espaços e vírgulas extras de cada item antes de juntar
-                        lista_cc = [str(u).strip().rstrip(',') for u in [usuario_atual, email_titular, email_substituto] if u and str(u).strip().lower() != 'nan']
-                        
-                        # Junta tudo e garante que o resultado final não termine em vírgula
-                        cc_string = ", ".join(lista_cc).strip().rstrip(',')
+                        # Junta tudo e remove qualquer vírgula que tenha sobrado no final da string total
+                        cc_string = ", ".join(lista_cc_limpa).strip().rstrip(',')
                         email_destino_limpo = str(email_destino).strip().rstrip(',')
 
-                        # --- MONTAGEM DO TEXTO ---
+                        # --- 3. MONTAGEM DO TEXTO ---
                         assunto_fresco = f"Solicitação de Nota Fiscal para pagamento – Hospital Naval de Brasília"
                         
                         corpo_fresco = (
@@ -1893,21 +1896,20 @@ else:
                             f"Hospital Naval de Brasília"
                         )
 
+                        # --- 4. INTERFACE (O Container) ---
                         with st.container(border=True):
-                            # --- CABEÇALHO LIMPO (Sem caixa cinza) ---
+                            # Visualização limpa (sem caixas cinzas)
                             st.markdown(f"**Para:** {email_destino_limpo}")
                             st.markdown(f"**CC:** {cc_string if cc_string else '---'}")
                             
                             st.divider() 
                             
-                            # --- INPUTS DE EDIÇÃO ---
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=450, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                # Aqui você usa o cc_string limpo no envio
-                                # enviar_email(destinatario=email_destino_limpo, assunto=assunto_final, corpo=msg_final, cc=cc_string)
-                                st.success(f"E-mail enviado para {email_destino_limpo}")
+                                # Aqui você usaria: cc=cc_string e destinatario=email_destino_limpo
+                                st.success(f"Solicitação processada para {email_destino_limpo}")
                                 pass
 
 
