@@ -2450,20 +2450,29 @@ else:
                 # =========================================================
                 # 3. DASHBOARD FINANCEIRO
                 # =========================================================
+                if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
+                    # Usamos o seu mapa_meses para converter 1 -> JAN, 2 -> FEV...
+                    df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses)
+                
+                # Garante que não existam valores nulos que possam quebrar a exibição
+                if 'mes_sigla' in df_minhas_faturas.columns:
+                    df_minhas_faturas['mes_sigla'] = df_minhas_faturas['mes_sigla'].fillna("N/A")
+
+                # Cálculos do Dashboard (continuam iguais)
                 v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 with m1:
-                    # Formatação para exibição: padrão 1.234,56
                     st.metric("Valor total em processamento:", f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 with m2:
                     st.metric("Total Pago", f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
                 st.divider()
 
-                # --- TABELA DETALHADA COM TRAVA DE SEGURANÇA ---
+                # --- TABELA DETALHADA ---
+                # Agora o mapa_cols_exibicao vai encontrar o 'mes_sigla' sem reclamar!
                 st.subheader("📑 Detalhamento das Faturas")
                 
                 mapa_cols_exibicao = {
@@ -2471,7 +2480,7 @@ else:
                     'valor_apresentado': 'Valor Apresentado',
                     'valor_glosa': 'Glosa', 
                     'valor_liquido': 'Valor líquido',
-                    'mes_sigla': 'Mês Competência (quando a fatura deu entrada no HNBra)', # <--- O Python não achou esta
+                    'mes_sigla': 'Mês Competência', 
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
                     'Situação': 'Situação da Fatura'
