@@ -2466,21 +2466,22 @@ else:
                 # =========================================================
                 # 3. DASHBOARD FINANCEIRO
                 # =========================================================
-                # --- DEFINIÇÃO LOCAL DO MAPA (Para evitar NameError) ---
+                
+                # --- DEFINIÇÃO LOCAL DO MAPA ---
                 mapa_meses_local = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
-                    # Usamos o seu mapa_meses para converter 1 -> JAN, 2 -> FEV...
-                    df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses)
+                    # CORREÇÃO AQUI: Mudamos 'mapa_meses' para 'mapa_meses_local'
+                    df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses_local)
                 
                 # Garante que não existam valores nulos que possam quebrar a exibição
                 if 'mes_sigla' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_sigla'] = df_minhas_faturas['mes_sigla'].fillna("N/A")
 
-                # Cálculos do Dashboard (continuam iguais)
+                # Cálculos do Dashboard (permanecem iguais)
                 v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
@@ -2494,7 +2495,6 @@ else:
                 st.divider()
 
                 # --- TABELA DETALHADA ---
-                # Agora o mapa_cols_exibicao vai encontrar o 'mes_sigla' sem reclamar!
                 st.subheader("📑 Detalhamento das Faturas")
                 
                 mapa_cols_exibicao = {
@@ -2508,19 +2508,16 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
-                # Só pegamos o que realmente existe no DataFrame
                 cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
                 
                 if not df_minhas_faturas.empty:
                     df_final = df_minhas_faturas[cols_reais].copy()
                     
-                    # Ordenação segura (só ordena se a coluna existir)
                     if 'ano_competencia' in df_final.columns:
                         df_final = df_final.sort_values(by=['ano_competencia'], ascending=False)
                     
                     df_final = df_final.rename(columns=mapa_cols_exibicao)
 
-                    # Formatação condicional (só formata o que está na tela)
                     formatos = {}
                     if 'Valor Apresentado' in df_final.columns: formatos['Valor Apresentado'] = 'R$ {:,.2f}'
                     if 'Valor líquido' in df_final.columns: formatos['Valor líquido'] = 'R$ {:,.2f}'
