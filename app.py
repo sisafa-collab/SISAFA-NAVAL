@@ -1849,17 +1849,23 @@ else:
                             st.rerun()
 
                         # --- LÓGICA DE CÓPIAS (CC) CORRIGIDA ---
+                        # 1. Limpa espaços invisíveis nos nomes das colunas (Segurança contra KeyError)
+                        df_ne_fisc.columns = df_ne_fisc.columns.str.strip()
+                        
                         usuario_atual = st.session_state.get('email_usuario', '')
-                        
-                        # Buscando os e-mails diretamente das colunas da Tabela A
+                        email_titular = ""
+                        email_substituto = ""
+
+                        # 2. Busca os e-mails usando os nomes EXATOS da sua Tabela A
                         if not df_ne_fisc.empty:
-                            email_titular = df_ne_fisc['E-MAIL_DO_GESTOR_TITULAR'].iloc[0]
-                            email_substituto = df_ne_fisc['E-MAIL_DO_GESTOR_SUBSTITUTO'].iloc[0]
-                        else:
-                            email_titular = ""
-                            email_substituto = ""
+                            # Verificamos se a coluna existe antes de tentar ler para evitar o KeyError
+                            if 'E-mail do Gestor Titular' in df_ne_fisc.columns:
+                                email_titular = df_ne_fisc['E-mail do Gestor Titular'].iloc[0]
+                            
+                            if 'E-mail do Gestor Substituto' in df_ne_fisc.columns:
+                                email_substituto = df_ne_fisc['E-mail do Gestor Substituto'].iloc[0]
                         
-                        # Monta a lista apenas com o que não estiver vazio
+                        # 3. Monta a string final do CC
                         lista_cc = [u for u in [usuario_atual, email_titular, email_substituto] if u and str(u).strip()]
                         cc_string = ", ".join(lista_cc)
 
@@ -1888,18 +1894,15 @@ else:
                         )
 
                         with st.container(border=True):
-                            # --- CABEÇALHO DO E-MAIL (Visualização) ---
                             st.text_input("Para:", value=email_destino, disabled=True, key=f"to_{ne_alvo}")
                             st.text_input("CC:", value=cc_string, disabled=True, key=f"cc_display_{ne_alvo}")
                             
                             st.divider() 
                             
-                            # --- INPUTS DE EDIÇÃO ---
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
                             msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                # enviar_email(destinatario=email_destino, assunto=assunto_final, corpo=msg_final, cc=cc_string)
                                 st.success(f"E-mail enviado para {email_destino} com cópia para {cc_string}")
                                 pass
 
