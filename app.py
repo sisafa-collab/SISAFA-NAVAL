@@ -1186,10 +1186,26 @@ else:
                                 if cell:
                                     aba_p.update_cell(cell.row, 15, ne_completa)
                                     mover_status(nup, 5)
+                                    # Busca a fatura no dataframe principal
                                     fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
                                     registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
                             
                             st.success(f"✅ Sucesso! NE {ne_completa} cadastrada.")
+                            
+                            # --- AQUI ACONTECE A MÁGICA DA LIMPEZA ---
+                            # Deletamos as chaves do session_state para resetar os campos
+                            # Ajuste os nomes das chaves ('key') de acordo com o que você usou nos widgets
+                            chaves_para_limpar = [
+                                "input_cod_ne",  # Substitua pela key do seu st.text_input da NE
+                                "multiselect_nups" # Substitua pela key do seu st.multiselect de NUPs
+                            ]
+                            
+                            for chave in chaves_para_limpar:
+                                if chave in st.session_state:
+                                    del st.session_state[chave]
+                            
+                            # ---------------------------------------
+                            
                             time.sleep(1.5)
                             st.rerun()
 
@@ -2450,6 +2466,12 @@ else:
                 # =========================================================
                 # 3. DASHBOARD FINANCEIRO
                 # =========================================================
+                # --- DEFINIÇÃO LOCAL DO MAPA (Para evitar NameError) ---
+                mapa_meses_local = {
+                    1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
+                    7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
+                }
+
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
                     # Usamos o seu mapa_meses para converter 1 -> JAN, 2 -> FEV...
                     df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses)
