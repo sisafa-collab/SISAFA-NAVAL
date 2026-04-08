@@ -1805,14 +1805,27 @@ else:
                     # Busca contatos na Tabela-A
                     try:
                         df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
+                        # Limpa espaços nas colunas da Tabela A
+                        df_tabela_a.columns = df_tabela_a.columns.str.strip()
+                        
                         linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
-                        email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com") if not linha_ose.empty else "faturamento@ose.com"
-                        # Definimos a lista_cc aqui para não dar erro no botão
+                        
+                        if not linha_ose.empty:
+                            email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com")
+                            # EXTRAÍMOS OS GESTORES AQUI!
+                            email_titular = linha_ose.iloc[0].get('E-mail do Gestor Titular', "")
+                            email_substituto = linha_ose.iloc[0].get('E-mail do Gestor Substituto', "")
+                        else:
+                            email_destino = "faturamento@ose.com"
+                            email_titular = ""
+                            email_substituto = ""
+
                         email_exec = "hnbra.execucaofinanceira@gmail.com"
-                        lista_cc = [email_exec] 
                     except:
                         email_destino = "faturamento@ose.com"
-                        lista_cc = ["hnbra.execucaofinanceira@gmail.com"]
+                        email_titular = ""
+                        email_substituto = ""
+                        email_exec = "hnbra.execucaofinanceira@gmail.com"
 
                     st.markdown(f"#### 📝 Gestão da NE: **{ne_alvo}** ({ose_txt})")
                     
