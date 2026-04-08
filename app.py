@@ -1841,22 +1841,30 @@ else:
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
 
-                        # --- BOTÃO DE SINCRONIZAÇÃO (Agora alinhado corretamente) ---
+                        # --- BOTÃO DE SINCRONIZAÇÃO ---
                         if st.button("🔄 Sincronizar Texto", help="Força a atualização dos dados desta NE", key=f"sync_{ne_alvo}", use_container_width=True):
                             for k in [f"sub_{ne_alvo}", f"body_{ne_alvo}"]:
                                 if k in st.session_state:
                                     del st.session_state[k]
                             st.rerun()
 
-                        # Montagem do texto (v_total e faturas_txt calculados antes)
+                        # --- LÓGICA DE CÓPIAS (CC) ---
+                        # Busca os e-mails no session_state (ajuste as chaves se os nomes forem diferentes)
+                        usuario_atual = st.session_state.get('email_usuario', '')
+                        email_titular = st.session_state.get('email_titular', 'titular@marinha.mil.br')
+                        email_substituto = st.session_state.get('email_substituto', 'substituto@marinha.mil.br')
+                        
+                        lista_cc = [u for u in [usuario_atual, email_titular, email_substituto] if u]
+                        cc_string = ", ".join(lista_cc)
+
+                        # --- MONTAGEM DO TEXTO ---
                         assunto_fresco = f"Solicitação de Nota Fiscal para pagamento – Hospital Naval de Brasília"
                         
-                        # --- DEFINIÇÃO DO NOVO CORPO DO E-MAIL ---
                         corpo_fresco = (
                             f"Prezados do (a) {ose_txt}, CNPJ {cnpj_alvo}, esperamos que este e-mail os encontre bem.\n\n"
                             f"O HNBra solicita, por gentileza, a emissão de Nota Fiscal referente aos serviços prestados por essa Organização de Saúde Extra – Marinha do Brasil, conforme acordo vigente.\n\n"
                             f"Valor total: R$ {v_total:,.2f}\n"
-                            f"Fatura(s) / protocolo(s) / remessa(s): {faturas_txt} de (ano de competência).\n"
+                            f"Fatura(s) / protocolo(s) / remessa(s): {faturas_txt} de {datetime.now().year}.\n"
                             f"Nota de empenho: {datetime.now().year} NE {str(ne_alvo)[-6:] if ne_alvo else ''}.\n\n"
                             f"⚠️ ATENÇÃO! ⚠️ Não emitir a Nota Fiscal, sem antes, conferir os valores e números das faturas, valor total da remessa, CNPJ correto e relatórios de glosa quando houver! A emissão incorreta de NF acarreta atrasos ao pagamento e problemas administrativos junto ao fisco.\n\n"
                             f"**Dados para Nota Fiscal**\n"
@@ -1875,10 +1883,12 @@ else:
 
                         with st.container(border=True):
                             assunto_final = st.text_input("Assunto:", value=assunto_fresco, key=f"sub_{ne_alvo}")
-                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=250, key=f"body_{ne_alvo}")
+                            msg_final = st.text_area("Corpo da mensagem:", value=corpo_fresco, height=350, key=f"body_{ne_alvo}")
 
                             if st.button("📧 Disparar Solicitação Oficial", use_container_width=True, key=f"btn_mail_{ne_alvo}"):
-                                # (Sua lógica de envio de e-mail aqui...)
+                                # Exemplo de como passar as cópias para sua função de envio:
+                                # enviar_email(destinatario=email_destino, assunto=assunto_final, corpo=msg_final, cc=cc_string)
+                                st.info(f"Cópia enviada para: {cc_string}")
                                 pass
 
 
