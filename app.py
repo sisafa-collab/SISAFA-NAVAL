@@ -2464,16 +2464,16 @@ else:
                         df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_v6_nuclear)
 
                 # =========================================================
-                # 3. DASHBOARD FINANCEIRO
+                # 3. DASHBOARD FINANCEIRO + GRÁFICO DE PIZZA
                 # =========================================================
                 
-                # --- DEFINIÇÃO LOCAL DO MAPA (Garante que JAN, FEV apareçam) ---
+                # --- DEFINIÇÃO LOCAL DO MAPA ---
                 mapa_meses_local = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
-                # Criamos a sigla do mês se ela não existir (Crucial para o seletor da OSE)
+                # Criação da sigla do mês
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses_local)
                 
@@ -2485,16 +2485,45 @@ else:
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
-                m1, m2 = st.columns(2)
                 
-                with m1:
-                    # Formatação padrão brasileiro R$ 1.234,56
+                # Criamos 3 colunas: as duas primeiras para números e a terceira para o gráfico
+                c_metrica1, c_metrica2, c_pizza = st.columns([1, 1, 1.8])
+                
+                with c_metrica1:
                     val_proc_fmt = f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    st.metric("Valor total em processamento:", val_proc_fmt)
+                    st.metric("Em Processamento", val_proc_fmt)
                 
-                with m2:
+                with c_metrica2:
                     val_pago_fmt = f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     st.metric("Total Pago", val_pago_fmt)
+
+                with c_pizza:
+                    if v_proc > 0 or v_pago > 0:
+                        import plotly.express as px
+                        
+                        df_pizza = pd.DataFrame({
+                            "Status": ["Em Processamento", "Pago"],
+                            "Valores": [v_proc, v_pago]
+                        })
+                        
+                        fig = px.pie(
+                            df_pizza, 
+                            values='Valores', 
+                            names='Status',
+                            hole=0.4,
+                            color='Status',
+                            color_discrete_map={'Em Processamento': '#FF4B4B', 'Pago': '#00CC96'}
+                        )
+                        
+                        fig.update_layout(
+                            margin=dict(t=0, b=0, l=0, r=0),
+                            height=180,
+                            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.write("Sem dados para o gráfico.")
 
                 st.divider()
 
@@ -2514,7 +2543,6 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
-                # Filtra apenas colunas que realmente existem para evitar novos KeyErrors
                 cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
                 
                 if not df_minhas_faturas.empty:
@@ -2525,7 +2553,6 @@ else:
                     
                     df_final = df_final.rename(columns=mapa_cols_exibicao)
 
-                    # Formatação das colunas de dinheiro na tabela
                     formatos = {}
                     for col in ['Valor Apresentado', 'Valor líquido', 'Glosa']:
                         if col in df_final.columns:
