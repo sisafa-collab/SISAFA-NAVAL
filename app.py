@@ -2467,34 +2467,40 @@ else:
                 # 3. DASHBOARD FINANCEIRO
                 # =========================================================
                 
-                # --- DEFINIÇÃO LOCAL DO MAPA ---
+                # --- DEFINIÇÃO LOCAL DO MAPA (Garante que JAN, FEV apareçam) ---
                 mapa_meses_local = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
+                # Criamos a sigla do mês se ela não existir (Crucial para o seletor da OSE)
                 if 'mes_sigla' not in df_minhas_faturas.columns and 'mes_competencia' in df_minhas_faturas.columns:
-                    # CORREÇÃO AQUI: Mudamos 'mapa_meses' para 'mapa_meses_local'
                     df_minhas_faturas['mes_sigla'] = pd.to_numeric(df_minhas_faturas['mes_competencia'], errors='coerce').map(mapa_meses_local)
                 
-                # Garante que não existam valores nulos que possam quebrar a exibição
                 if 'mes_sigla' in df_minhas_faturas.columns:
                     df_minhas_faturas['mes_sigla'] = df_minhas_faturas['mes_sigla'].fillna("N/A")
 
-                # Cálculos do Dashboard (permanecem iguais)
+                # Cálculos de Valores
                 v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
+                
                 with m1:
-                    st.metric("Valor total em processamento:", f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    # Formatação padrão brasileiro R$ 1.234,56
+                    val_proc_fmt = f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    st.metric("Valor total em processamento:", val_proc_fmt)
+                
                 with m2:
-                    st.metric("Total Pago", f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    val_pago_fmt = f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    st.metric("Total Pago", val_pago_fmt)
 
                 st.divider()
 
-                # --- TABELA DETALHADA ---
+                # =========================================================
+                # 5. TABELA DETALHADA
+                # =========================================================
                 st.subheader("📑 Detalhamento das Faturas")
                 
                 mapa_cols_exibicao = {
@@ -2508,6 +2514,7 @@ else:
                     'Situação': 'Situação da Fatura'
                 }
                 
+                # Filtra apenas colunas que realmente existem para evitar novos KeyErrors
                 cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
                 
                 if not df_minhas_faturas.empty:
@@ -2518,10 +2525,11 @@ else:
                     
                     df_final = df_final.rename(columns=mapa_cols_exibicao)
 
+                    # Formatação das colunas de dinheiro na tabela
                     formatos = {}
-                    if 'Valor Apresentado' in df_final.columns: formatos['Valor Apresentado'] = 'R$ {:,.2f}'
-                    if 'Valor líquido' in df_final.columns: formatos['Valor líquido'] = 'R$ {:,.2f}'
-                    if 'Glosa' in df_final.columns: formatos['Glosa'] = 'R$ {:,.2f}'
+                    for col in ['Valor Apresentado', 'Valor líquido', 'Glosa']:
+                        if col in df_final.columns:
+                            formatos[col] = 'R$ {:,.2f}'
 
                     st.dataframe(
                         df_final.style.format(formatos),
