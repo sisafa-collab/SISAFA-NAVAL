@@ -1457,37 +1457,45 @@ else:
             # =================================================================
             # SEÇÃO 1: LIQUIDAÇÃO (Status 7 -> 8)
             # =================================================================
-            st.markdown("### 🛠️ 1. Liquidar Faturas")
-            st.write("Marque as faturas que foram liquidadas no sistema financeiro.")
+            st.markdown("### 🛠️ 1. Liquidar Faturas (por NF)")
+            st.write("Selecione as Notas Fiscais que foram liquidadas.")
 
+            # Filtrar faturas no status 7 e que possuem NF preenchida
             df_status_7 = df[df['status'] == 7].copy()
-
+            
             if not df_status_7.empty:
                 df_status_7['mes_sigla'] = df_status_7['mes_competencia'].map(mapa_meses)
-                
-                nups_para_liquidar = st.multiselect(
-                    "Selecione os NUPs liquidados:",
-                    options=df_status_7['nup'].tolist(),
-                    key="ms_liquidar"
+                # Garante que não apareçam NFs vazias no seletor
+                lista_nfs_7 = df_status_7['nf'].dropna().unique().tolist()
+
+                nfs_para_liquidar = st.multiselect(
+                    "Selecione as NFs liquidadas:",
+                    options=lista_nfs_7,
+                    key="ms_liquidar_nf"
                 )
 
-                if st.button("💎 Confirmar Liquidação", use_container_width=True, type="primary"):
-                    if nups_para_liquidar:
+                if st.button("💎 Confirmar Liquidação das NFs", use_container_width=True, type="primary"):
+                    if nfs_para_liquidar:
                         with st.spinner("Processando liquidação..."):
-                            for nup in nups_para_liquidar:
-                                mover_status(nup, 8)
-                                dados_f = df_status_7[df_status_7['nup'] == nup].iloc[0]
-                                registrar_acao(nup, dados_f['Numero_da_fatura'], "LIQUIDACAO_EFETUADA", "Fatura marcada como liquidada.")
-                                registrar_historico(nup, dados_f['Numero_da_fatura'], "7", "8", dados_f['valor_apresentado'], "Liquidação concluída.")
+                            count_nups = 0
+                            for nf_sel in nfs_para_liquidar:
+                                # Busca todos os NUPs vinculados a essa NF específica
+                                nups_vinculados = df_status_7[df_status_7['nf'] == nf_sel]['nup'].tolist()
+                                for nup in nups_vinculados:
+                                    mover_status(nup, 8)
+                                    dados_f = df_status_7[df_status_7['nup'] == nup].iloc[0]
+                                    registrar_acao(nup, dados_f['Numero_da_fatura'], "LIQUIDACAO_EFETUADA", f"Liquidada via NF: {nf_sel}")
+                                    registrar_historico(nup, dados_f['Numero_da_fatura'], "7", "8", dados_f['valor_apresentado'], f"Liquidação via NF {nf_sel}")
+                                    count_nups += 1
                             
-                            st.success(f"✅ {len(nups_para_liquidar)} faturas movidas para 'Liquidada'!")
+                            st.success(f"✅ {len(nfs_para_liquidar)} NFs processadas ({count_nups} faturas movidas)!")
                             time.sleep(1.2)
                             st.rerun()
                     else:
-                        st.warning("Selecione ao menos um processo.")
+                        st.warning("Selecione ao menos uma NF.")
 
                 st.dataframe(
-                    df_status_7[['nup', 'ose', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
+                    df_status_7[['nf', 'ose', 'nup', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
                     use_container_width=True, hide_index=True
                 )
             else:
@@ -1498,37 +1506,43 @@ else:
             # =================================================================
             # SEÇÃO 2: PAGAMENTO FINAL (Status 8 -> 9)
             # =================================================================
-            st.markdown("### 💰 2. Efetuar Pagamento")
-            st.write("Conclua o processo marcando as faturas como pagas.")
+            st.markdown("### 💰 2. Efetuar Pagamento (por NF)")
+            st.write("Conclua o processo selecionando as Notas Fiscais pagas.")
 
             df_status_8 = df[df['status'] == 8].copy()
 
             if not df_status_8.empty:
                 df_status_8['mes_sigla'] = df_status_8['mes_competencia'].map(mapa_meses)
+                lista_nfs_8 = df_status_8['nf'].dropna().unique().tolist()
 
-                nups_para_pagar = st.multiselect(
-                    "Selecione os NUPs pagos:",
-                    options=df_status_8['nup'].tolist(),
-                    key="ms_pagar"
+                nfs_para_pagar = st.multiselect(
+                    "Selecione as NFs pagas:",
+                    options=lista_nfs_8,
+                    key="ms_pagar_nf"
                 )
 
-                if st.button("🚀 Confirmar Pagamento Total", use_container_width=True):
-                    if nups_para_pagar:
-                        with st.spinner("Finalizando processos..."):
-                            for nup in nups_para_pagar:
-                                mover_status(nup, 9)
-                                dados_f = df_status_8[df_status_8['nup'] == nup].iloc[0]
-                                registrar_acao(nup, dados_f['Numero_da_fatura'], "PAGAMENTO_EFETUADO", "Processo finalizado com pagamento.")
-                                registrar_historico(nup, dados_f['Numero_da_fatura'], "8", "9", dados_f['valor_apresentado'], "Pagamento efetuado.")
+                if st.button("🚀 Confirmar Pagamento das NFs", use_container_width=True):
+                    if nfs_para_pagar:
+                        with st.spinner("Finalizando pagamentos..."):
+                            count_nups_pago = 0
+                            for nf_sel in nfs_para_pagar:
+                                # Busca todos os NUPs vinculados a essa NF
+                                nups_vinculados = df_status_8[df_status_8['nf'] == nf_sel]['nup'].tolist()
+                                for nup in nups_vinculados:
+                                    mover_status(nup, 9)
+                                    dados_f = df_status_8[df_status_8['nup'] == nup].iloc[0]
+                                    registrar_acao(nup, dados_f['Numero_da_fatura'], "PAGAMENTO_EFETUADO", f"Pago via NF: {nf_sel}")
+                                    registrar_historico(nup, dados_f['Numero_da_fatura'], "8", "9", dados_f['valor_apresentado'], f"Pagamento via NF {nf_sel}")
+                                    count_nups_pago += 1
                             
-                            st.success(f"🎊 {len(nups_para_pagar)} processos finalizados com sucesso!")
+                            st.success(f"🎊 {len(nfs_para_pagar)} NFs pagas com sucesso ({count_nups_pago} processos finalizados)!")
                             time.sleep(1.2)
                             st.rerun()
                     else:
-                        st.warning("Selecione ao menos um processo.")
+                        st.warning("Selecione ao menos uma NF.")
 
                 st.dataframe(
-                    df_status_8[['nup', 'ose', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
+                    df_status_8[['nf', 'ose', 'nup', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
                     use_container_width=True, hide_index=True
                 )
             else:
