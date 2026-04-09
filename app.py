@@ -659,9 +659,9 @@ else:
 
                     st.divider()
                     st.markdown("### 🔍 Detalhamento por Centro de Custo")
-                    st.info(f"O somatório dos campos abaixo deve ser exatamente **R$ {v_liquido_alvo:,.2f}**")
+                    st.info(f"A soma dos campos abaixo deve ser: **R$ {v_liquido_alvo:,.2f}**")
 
-                    # --- 2. DEFINIÇÃO DOS GRUPOS ---
+                    # --- 2. DEFINIÇÃO DAS LISTAS (ORDEM EXATA DA PLANILHA) ---
                     g1_hosp = ["Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE", "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME", "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos", "Remédio de Alto Custo: Antibióticos"]
                     g2_lab = ["Análises Clínicas", "RX Convencional", "Tomografias", "Ressonâncias magnéticas", "Ultrassonografias"]
                     g3_spec = ["Exames oftalmológicos", "Holter 24h", "Mapa 24h", "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana", "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos", "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica", "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco"]
@@ -706,21 +706,15 @@ else:
 
                     # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
                     header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
-                    
                     mapa_cores_outros = {
-                        "Outros medicamentos": "#ADD8E6", 
-                        "Outros exames": "#E6E6FA", # Lavanda para facilitar leitura no roxo
-                        "Outros procedimentos (SADT)": "#90EE90", 
-                        "Outros procedimentos (assistência odontológica)": "#FFFF00", 
-                        "Outros custos não especificados": "#FFCC99", # Laranja
-                        "Outros procedimentos oftalmológicos": "#FFB6C1", 
-                        "Outros procedimentos cardiológicos": "#FFB6C1", 
-                        "Outros exames cardiológicos": "#FFB6C1"
+                        "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
+                        "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
+                        "Outros custos não especificados": "#FFCC99", "Outros procedimentos oftalmológicos": "#FFB6C1", 
+                        "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
                     }
 
                     sel_g6 = st.selectbox("Selecione o tipo de custo extra:", [""] + list(mapa_cores_outros.keys()), key=f"g6_sel_{nup_audit}")
                     val_g6, desc_g6, qtd_g6 = 0.0, "", 0
-                    
                     if sel_g6:
                         cor_viva = mapa_cores_outros[sel_g6]
                         st.markdown(f'<div style="background-color:{cor_viva};padding:10px;border-radius:10px;border:1px solid #d3d3d3;margin-bottom:10px;"><b style="color:black;">Lançamento em: {sel_g6}</b></div>', unsafe_allow_html=True)
@@ -729,19 +723,19 @@ else:
                         qtd_g6 = cq1.number_input("Quantidade:", min_value=1, step=1, key=f"g6_qtd_{nup_audit}")
                         val_g6 = cq2.number_input("Custo Total (R$):", min_value=0.0, format="%.2f", key=f"g6_val_{nup_audit}")
 
-                    # --- 4. VALIDAÇÃO E FINALIZAÇÃO ---
+                    # --- 4. VALIDAÇÃO MATEMÁTICA ---
                     soma_geral = round(sum(valores_detalhados.values()) + val_g6, 2)
                     diferenca = round(v_liquido_alvo - soma_geral, 2)
 
                     st.divider()
                     if diferenca == 0:
-                        st.success(f"✅ Soma bateu com o Valor Líquido! (R$ {soma_geral:,.2f})")
+                        st.success(f"✅ Soma bateu! (R$ {soma_geral:,.2f})")
                         trava_cc = False
                     else:
-                        st.error(f"❌ A soma (R$ {soma_geral:,.2f}) não bate com o Líquido. Diferença: R$ {diferenca:,.2f}")
+                        st.error(f"❌ Diferença: R$ {diferenca:,.2f} (Total itens: R$ {soma_geral:,.2f})")
                         trava_cc = True
 
-                    # Conferência de E-mail (Lógica original mantida)
+                    # Conferência de E-mail
                     with st.container(border=True):
                         try:
                             cnpj_fat = str(dados_nup['cnpj']).strip().split('.')[0]
@@ -755,14 +749,15 @@ else:
                                 email_dest = linha_o['E-mail Principal da OSE'].values[0]
                                 nome_ose = linha_o['Razão Social'].values[0]
                                 st.write(f"🏢 **OSE:** {nome_ose} | 📩 **E-mail:** {email_dest}")
-                                trava_confirmacao = st.checkbox("Confirmo os dados para finalização.", key=f"chk_conf_{nup_audit}")
+                                trava_confirmacao = st.checkbox("Confirmo os dados acima.", key=f"chk_conf_{nup_audit}")
                             else:
                                 trava_confirmacao = False
-                                st.error("⚠️ Erro nos dados de e-mail.")
+                                st.error("⚠️ Dados de e-mail não localizados.")
                         except: trava_confirmacao = False
 
                     col_fin, col_mail = st.columns(2)
                     
+                    # --- BOTÃO FINALIZAR (COM TRATAMENTO INT64) ---
                     if col_fin.button("✅ FINALIZAR AUDITORIA ANALÍTICA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
@@ -770,23 +765,38 @@ else:
                             with st.spinner("Gravando..."):
                                 try:
                                     aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    linha_save = [datetime.now().strftime("%d/%m/%Y %H:%M:%S"), nup_audit, dados_nup['cnpj'], dados_nup['ose'], num_fat, dados_nup['mes_competencia'], dados_nup['ano_competencia']]
+                                    # CONVERSÃO PARA TIPOS PADRÃO (Resolve o erro int64)
+                                    linha_save = [
+                                        datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                        str(nup_audit), 
+                                        str(dados_nup['cnpj']), 
+                                        str(dados_nup['ose']), 
+                                        str(num_fat), 
+                                        int(dados_nup['mes_competencia']), 
+                                        int(dados_nup['ano_competencia'])
+                                    ]
+                                    # Adiciona valores dos Grupos I a V
                                     for g in [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto]:
-                                        for c in g: linha_save.append(valores_detalhados[c])
-                                    linha_save.extend([sel_g6, desc_g6, qtd_g6, val_g6])
+                                        for c in g: linha_save.append(float(valores_detalhados[c]))
+                                    
+                                    # Adiciona Grupo VI
+                                    linha_save.extend([str(sel_g6), str(desc_g6), int(qtd_g6), float(val_g6)])
+                                    
                                     aba_audit.append_row(linha_save)
 
-                                    # Histórico detalhado
+                                    # Histórico Log
                                     s1, s2, s3, s4, s5 = sum(valores_detalhados[c] for c in g1_hosp), sum(valores_detalhados[c] for c in g2_lab), sum(valores_detalhados[c] for c in g3_spec), sum(valores_detalhados[c] for c in g4_terap), sum(valores_detalhados[c] for c in g5_odonto)
-                                    log_det = f"DISTRIBUIÇÃO: G1:R${s1:,.2f} | G2:R${s2:,.2f} | G3:R${s3:,.2f} | G4:R${s4:,.2f} | G5:R${s5:,.2f}"
-                                    if sel_g6: log_det += f" | Outros({sel_g6}):R${val_g6:,.2f}"
+                                    log_det = f"G1:R${s1:,.2f} | G2:R${s2:,.2f} | G3:R${s3:,.2f} | G4:R${s4:,.2f} | G5:R${s5:,.2f}"
+                                    if sel_g6: log_det += f" | Outros:R${val_g6:,.2f}"
 
                                     mover_status(nup_audit, 3, valor_glosa=glosa_input, valor_liq=v_liquido_alvo, obs_texto=just_glosa)
                                     registrar_acao(nup_audit, num_fat, "AUDITORIA_ANALITICA", log_det)
-                                    st.success("✅ Sucesso!")
+                                    
+                                    st.success("✅ Auditagem analítica gravada!")
                                     time.sleep(1)
                                     st.rerun()
-                                except Exception as e: st.error(f"Erro: {e}")
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
 
                     if col_mail.button("📧 ENCAMINHAR GLOSA P/ OSE", use_container_width=True, disabled=not trava_confirmacao):
                         if disparar_email_glosa(email_dest, num_fat, glosa_input, just_glosa, nome_ose, email_aud):
