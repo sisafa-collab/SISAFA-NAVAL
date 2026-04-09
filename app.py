@@ -1977,18 +1977,36 @@ else:
                                     del st.session_state[k]
                             st.rerun()
 
-                        # --- 1. LÓGICA DE CÓPIAS (CC) - APENAS MONTAGEM ---
-                        # Aqui não buscamos mais nada, apenas usamos as variáveis que você criou no topo!
-                        usuario_atual = st.session_state.get('email_usuario', '')
+                        # --- 1. LÓGICA DE CÓPIAS (CC) - BUSCA DINÂMICA POR NIP ---
+                        # Pegamos o NIP de quem está logado
+                        nip_logado = str(st.session_state.get('user_id', '')).strip()
                         
-                        # Criamos a lista com o que veio lá do topo + seu e-mail + execução
-                        # Note que email_titular, email_substituto e email_exec já foram criados no seu 'try' lá em cima
+                        # Se o e-mail não estiver na memória, buscamos na base de usuários
+                        if 'email_usuario_logado' not in st.session_state or not st.session_state['email_usuario_logado']:
+                            try:
+                                df_u = pd.DataFrame(sh.worksheet("SISAFA-NAVAL-Usuarios").get_all_records())
+                                # Identifica se a coluna chama 'E-mail' ou 'Email'
+                                col_mail_u = 'E-mail' if 'E-mail' in df_u.columns else 'Email'
+                                match_u = df_u[df_u['NIP'].astype(str).str.strip() == nip_logado]
+                                
+                                if not match_u.empty:
+                                    st.session_state['email_usuario_logado'] = match_u[col_mail_u].values[0]
+                                    if 'NOME' in match_u.columns:
+                                        st.session_state['nome_usuario'] = match_u['NOME'].values[0]
+                                else:
+                                    st.session_state['email_usuario_logado'] = ''
+                            except Exception:
+                                st.session_state['email_usuario_logado'] = ''
+
+                        usuario_atual = st.session_state.get('email_usuario_logado', '')
+                        
+                        # Criamos a lista com o seu e-mail + os titulares recuperados no topo do script
                         lista_cc_bruta = [usuario_atual, email_titular, email_substituto, email_exec]
                         
-                        # Limpeza de 'nan', vazios e vírgulas extras
+                        # Limpeza de 'nan', vazios e sujeiras
                         lista_cc_limpa = [str(u).strip().rstrip(',') for u in lista_cc_bruta if u and str(u).lower().strip() != 'nan']
                         
-                        # Junta tudo para o cabeçalho
+                        # Junta tudo para os cabeçalhos do e-mail
                         cc_string = ", ".join(lista_cc_limpa).strip().rstrip(',')
                         email_destino_limpo = str(email_destino).strip().rstrip(',')
 
@@ -2017,8 +2035,7 @@ else:
                             f"Sempre priorizo os pagamentos, quando chega dotação orçamentária. Assim, somente respondo os emails, em tempo, com notas fiscais de valores 'errados' ou de casos extremamente urgentes, e no final da remessa, verifico todas as demais pendências.\n\n"
                             f"Peço a gentileza de aguardar!\n\n"
                             f"Por favor, anexar a Nota Fiscal na mensagem de solicitação por e-mail.\n\n"
-                            f"Atenciosamente,\n"
-                            f"{st.session_state['nome_usuario']}\n"
+                            f"Fiscalização de contratos\n"
                             f"Hospital Naval de Brasília"
                         )
 
