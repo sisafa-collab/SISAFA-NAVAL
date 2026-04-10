@@ -2034,23 +2034,25 @@ else:
                             st.session_state['nome_usuario'] = next(iter(df_u[df_u['E-mail'] == usuario_atual]['NOME']), 'Fiscal de Contratos')
 
                         corpo_fresco = (
+                            f"🛑FAVOR NÃO RESPONDER DIRETAMENTE AO E-MAIL 'hnbra.execucaofinanceira@gmail.com' SEM DEIXAR OS ENDEREÇADOS ELENCADOS NA CÓPIA🛑\n\n"
+                            f"🛑ISSO ACARRETA ATRASOS NO PAGAMENTO! FAVOR SELECIONAR A OPÇÃO 'RESPONDER A TODOS'!🛑\n\n"
                             f"Prezados do (a) {ose_txt}, CNPJ {cnpj_alvo}, esperamos que este e-mail os encontre bem.\n\n"
                             f"O HNBra solicita, por gentileza, a emissão de Nota Fiscal referente aos serviços prestados por essa Organização de Saúde Extra – Marinha do Brasil, conforme acordo vigente.\n\n"
-                            f"Valor total: R$ {v_total:,.2f}\n"
-                            f"Fatura(s) / protocolo(s) / remessa(s): {faturas_txt} de {datetime.now().year}.\n"
-                            f"Nota de empenho: {datetime.now().year} NE {str(ne_alvo)[-6:] if ne_alvo else ''}.\n\n"
+                            f"💲 Valor total: R$ {v_total:,.2f}\n"
+                            f"🖨️ Fatura(s) / protocolo(s) / remessa(s): {faturas_txt} de {datetime.now().year}.\n"
+                            f"📃 Nota de empenho: {datetime.now().year} NE {str(ne_alvo)[-6:] if ne_alvo else ''}.\n\n"
                             f"⚠️ ATENÇÃO! ⚠️ Não emitir a Nota Fiscal, sem antes, conferir os valores e números das faturas, valor total da remessa, CNPJ correto e relatórios de glosa quando houver! A emissão incorreta de NF acarreta atrasos ao pagamento e problemas administrativos junto ao fisco.\n\n"
-                            f"**Dados para Nota Fiscal**\n"
+                            f"📃📃 Dados para Nota Fiscal 📃📃\n"
                             f"Razão Social: Hospital Naval de Brasília\n"
                             f"Endereço: SEPS Q 711/911 - Asa Sul, Brasília - DF, 70390-115\n"
                             f"Telefone de Contato: (61) 3445-7303\n"
                             f"CNPJ: 00.394.502/0060-02\n\n"
-                            f"Obs.: Participo que não confirmo o recebimento de todas as notas fiscais por causa da grande demanda aqui e para não atrasar ainda mais os pagamentos, mas quando não as recebo, solicito novamente.\n\n"
+                            f"👉 Obs.: Participo que não confirmo o recebimento de todas as notas fiscais por causa da grande demanda aqui e para não atrasar ainda mais os pagamentos, mas quando não as recebo, solicito novamente.\n\n"
                             f"Sempre priorizo os pagamentos, quando chega dotação orçamentária. Assim, somente respondo os emails, em tempo, com notas fiscais de valores 'errados' ou de casos extremamente urgentes, e no final da remessa, verifico todas as demais pendências.\n\n"
                             f"Peço a gentileza de aguardar!\n\n"
                             f"Por favor, anexar a Nota Fiscal na mensagem de solicitação por e-mail.\n\n"
                             f"Fiscalização de contratos\n"
-                            f"Hospital Naval de Brasília"
+                            f"⚓ Hospital Naval de Brasília ⚓"
                         )
 
                         # --- 3. INTERFACE ---
