@@ -1159,25 +1159,85 @@ else:
                 df_fila_aud['dias_espera'] = (hoje - df_fila_aud['dt_chegada']).dt.days.fillna(0).astype(int)
 
                 st.dataframe(
-                    df_fila_aud[['nup','ose','valor_liquido','mes_sigla','ano_competencia','dias_espera']],
+                    df_fila_aud[['nup','ose','Numero_da_fatura','valor_liquido','mes_sigla','ano_competencia','dias_espera']],
                     use_container_width=True,
                     key="df_aud_recepcao"
                 )
                 
                 nups_aud_sel = st.multiselect("Selecionar faturas auditadas para receber:", df_fila_aud['nup'].tolist(), key="ms_aud_recep")
                 
-                if st.button("✅ Receber Faturas Auditadas", key="btn_aud_recep"):
-                    if nups_aud_sel:
-                        with st.spinner("Recebendo..."):
-                            for n in nups_aud_sel:
-                                mover_status(n, 4) # Evolui para Aguard. NE
-                                fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura auditada recebida pela Execução.")
-                        st.success(f"{len(nups_aud_sel)} faturas recebidas!")
-                        time.sleep(1)
-                        st.rerun()
+                # --- COLUNAS DE AÇÃO ---
+                c_rec, c_cor = st.columns(2)
 
-            st.divider()
+                with c_rec:
+                    if st.button("✅ Receber Faturas Auditadas", key="btn_aud_recep", use_container_width=True):
+                        if nups_aud_sel:
+                            with st.spinner("Recebendo..."):
+                                for n in nups_aud_sel:
+                                    mover_status(n, 4) # Evolui para Aguard. NE
+                                    fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                    registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura auditada recebida pela Execução.")
+                            st.success(f"✅ {len(nups_aud_sel)} faturas recebidas!")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.warning("Selecione faturas para receber.")
+
+                with c_cor:
+                    # O botão de correção só faz sentido se exatamente UMA fatura for selecionada
+                    if st.button("⚠️ Corrigir Processo", key="btn_aud_corr", use_container_width=True):
+                        if len(nups_aud_sel) == 1:
+                            st.session_state['modo_correcao'] = nups_aud_sel[0]
+                        elif len(nups_aud_sel) > 1:
+                            st.error("Selecione apenas uma fatura por vez para corrigir.")
+                        else:
+                            st.warning("Selecione uma fatura para editar.")
+
+                # --- FORMULÁRIO DE CORREÇÃO (Aparece apenas se acionado) ---
+                if 'modo_correcao' in st.session_state and st.session_state['modo_correcao']:
+                    nup_alvo = st.session_state['modo_correcao']
+                    dados_originais = df[df['nup'] == nup_alvo].iloc[0]
+                    
+                    with st.expander(f"🛠️ Editando Processo: {nup_alvo}", expanded=True):
+                        with st.form("form_correcao_auditoria"):
+                            col1, col2 = st.columns(2)
+                            novo_nup = col1.text_input("Corrigir NUP:", value=str(dados_originais['nup']))
+                            nova_fat = col2.text_input("Corrigir Nº Fatura:", value=str(dados_originais['Numero_da_fatura']))
+                            
+                            # Limpando valores para edição numérica
+                            v_apres_edit = col1.number_input("Valor Apresentado (R$):", value=float(limpar_valor(dados_originais['valor_apresentado'])))
+                            v_liq_edit = col2.number_input("Valor Líquido (R$):", value=float(limpar_valor(dados_originais['valor_liquido'])))
+                            
+                            nova_obs = st.text_area("Motivo da Correção:", placeholder="Ex: NUP digitado incorretamente pela auditoria.")
+
+                            c_salvar, c_cancelar = st.columns(2)
+                            if c_salvar.form_submit_button("💾 Salvar Alterações", use_container_width=True):
+                                # Lógica para atualizar no Google Sheets (ABA PROCESSOS)
+                                try:
+                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                                    celula_nup = aba_proc.find(nup_alvo)
+                                    row = celula_nup.row
+                                    
+                                    # Atualiza os campos (Ajuste as colunas conforme sua planilha)
+                                    aba_proc.update_cell(row, 2, novo_nup) # Coluna NUP
+                                    aba_proc.update_cell(row, 5, nova_fat) # Coluna Fatura
+                                    aba_proc.update_cell(row, 6, v_apres_edit) # Coluna Valor Apresentado
+                                    aba_proc.update_cell(row, 8, v_liq_edit)   # Coluna Valor Líquido
+                                    
+                                    registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"Correção efetuada: {nova_obs}")
+                                    
+                                    st.success("Dados corrigidos com sucesso!")
+                                    st.session_state['modo_correcao'] = None
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao salvar: {e}")
+                            
+                            if c_cancelar.form_submit_button("❌ Cancelar"):
+                                st.session_state['modo_correcao'] = None
+                                st.rerun()
+
+                st.divider()
 
             # =================================================================
             # 2. PARTE: NOTAS FISCAIS CERTIFICADAS (Vindo do Fiscal - Status 6)
@@ -1507,7 +1567,7 @@ else:
             # SEÇÃO 2: PAGAMENTO FINAL (Status 8 -> 9)
             # =================================================================
             st.markdown("### 💰 2. Efetuar Pagamento (por NF)")
-            st.write("Conclua o processo selecionando as Notas Fiscais pagas.")
+            st.write("Conclua o processo preenchendo a OB e selecionando as NFs.")
 
             df_status_8 = df[df['status'] == 8].copy()
 
@@ -1515,31 +1575,52 @@ else:
                 df_status_8['mes_sigla'] = df_status_8['mes_competencia'].map(mapa_meses)
                 lista_nfs_8 = df_status_8['nf'].dropna().unique().tolist()
 
-                nfs_para_pagar = st.multiselect(
-                    "Selecione as NFs pagas:",
-                    options=lista_nfs_8,
-                    key="ms_pagar_nf"
-                )
+                # --- NOVO CAMPO: ORDEM BANCÁRIA ---
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    ob_input = st.text_input("Número da OB (Ordem Bancária):", placeholder="Ex: 2026OB000123", key="ob_final")
+                with c2:
+                    nfs_para_pagar = st.multiselect(
+                        "Selecione as NFs pagas:",
+                        options=lista_nfs_8,
+                        key="ms_pagar_nf"
+                    )
 
-                if st.button("🚀 Confirmar Pagamento das NFs", use_container_width=True):
-                    if nfs_para_pagar:
-                        with st.spinner("Finalizando pagamentos..."):
+                if st.button("🚀 Confirmar Pagamento das NFs", use_container_width=True, type="primary"):
+                    if not ob_input:
+                        st.error("⚠️ Erro: É obrigatório informar o número da OB para finalizar o pagamento.")
+                    elif not nfs_para_pagar:
+                        st.warning("Selecione ao menos uma NF.")
+                    else:
+                        with st.spinner("Finalizando pagamentos e registrando OB..."):
                             count_nups_pago = 0
+                            aba_proc = sh.worksheet("SISAFA-NAVAL-processos") # Acessa a aba de processos
+                            
                             for nf_sel in nfs_para_pagar:
                                 # Busca todos os NUPs vinculados a essa NF
-                                nups_vinculados = df_status_8[df_status_8['nf'] == nf_sel]['nup'].tolist()
-                                for nup in nups_vinculados:
+                                df_vinculados = df_status_8[df_status_8['nf'] == nf_sel]
+                                
+                                for _, row_fatura in df_vinculados.iterrows():
+                                    nup = row_fatura['nup']
+                                    
+                                    # 1. Atualiza o Status para 9
                                     mover_status(nup, 9)
-                                    dados_f = df_status_8[df_status_8['nup'] == nup].iloc[0]
-                                    registrar_acao(nup, dados_f['Numero_da_fatura'], "PAGAMENTO_EFETUADO", f"Pago via NF: {nf_sel}")
-                                    registrar_historico(nup, dados_f['Numero_da_fatura'], "8", "9", dados_f['valor_apresentado'], f"Pagamento via NF {nf_sel}")
+                                    
+                                    # 2. Grava a OB na coluna 'ob' (Coluna 17 da sua planilha)
+                                    try:
+                                        celula = aba_proc.find(str(nup))
+                                        aba_proc.update_cell(celula.row, 17, str(ob_input)) 
+                                    except:
+                                        pass # Caso não encontre a célula por algum motivo
+                                    
+                                    # 3. Registra nos Logs
+                                    registrar_acao(nup, row_fatura['Numero_da_fatura'], "PAGAMENTO_EFETUADO", f"Pago via NF: {nf_sel} | OB: {ob_input}")
+                                    registrar_historico(nup, row_fatura['Numero_da_fatura'], "8", "9", row_fatura['valor_apresentado'], f"Pagamento via NF {nf_sel} - OB {ob_input}")
                                     count_nups_pago += 1
                             
-                            st.success(f"🎊 {len(nfs_para_pagar)} NFs pagas com sucesso ({count_nups_pago} processos finalizados)!")
+                            st.success(f"🎊 {len(nfs_para_pagar)} NFs pagas! OB {ob_input} registrada em {count_nups_pago} faturas.")
                             time.sleep(1.2)
                             st.rerun()
-                    else:
-                        st.warning("Selecione ao menos uma NF.")
 
                 st.dataframe(
                     df_status_8[['nf', 'ose', 'nup', 'Numero_da_fatura', 'valor_liquido', 'mes_sigla']],
