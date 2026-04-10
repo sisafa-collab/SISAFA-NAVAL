@@ -1167,73 +1167,88 @@ else:
                 nups_aud_sel = st.multiselect("Selecionar faturas auditadas para receber:", df_fila_aud['nup'].tolist(), key="ms_aud_recep")
                 
                 # --- COLUNAS DE AÇÃO ---
-                c_rec, c_cor = st.columns(2)
+                # --- COLUNAS DE AÇÃO (3 Colunas agora) ---
+                c_rec, c_cor, c_dev = st.columns(3)
 
                 with c_rec:
-                    if st.button("✅ Receber Faturas Auditadas", key="btn_aud_recep", use_container_width=True):
+                    if st.button("✅ Receber Faturas", key="btn_aud_recep", use_container_width=True):
                         if nups_aud_sel:
                             with st.spinner("Recebendo..."):
                                 for n in nups_aud_sel:
                                     mover_status(n, 4) # Evolui para Aguard. NE
                                     fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                    registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura auditada recebida pela Execução.")
-                            st.success(f"✅ {len(nups_aud_sel)} faturas recebidas!")
+                                    registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura recebida pela Execução.")
+                            st.success(f"✅ {len(nups_aud_sel)} recebidas!")
                             time.sleep(1)
                             st.rerun()
                         else:
-                            st.warning("Selecione faturas para receber.")
+                            st.warning("Selecione faturas.")
 
                 with c_cor:
-                    # O botão de correção só faz sentido se exatamente UMA fatura for selecionada
                     if st.button("⚠️ Corrigir Processo", key="btn_aud_corr", use_container_width=True):
                         if len(nups_aud_sel) == 1:
                             st.session_state['modo_correcao'] = nups_aud_sel[0]
                         elif len(nups_aud_sel) > 1:
-                            st.error("Selecione apenas uma fatura por vez para corrigir.")
+                            st.error("Corrija um por vez.")
                         else:
-                            st.warning("Selecione uma fatura para editar.")
+                            st.warning("Selecione um processo.")
 
-                # --- FORMULÁRIO DE CORREÇÃO (Aparece apenas se acionado) ---
+                with c_dev:
+                    if st.button("⏪ Devolver p/ Auditoria", key="btn_aud_dev", use_container_width=True, type="secondary"):
+                        if nups_aud_sel:
+                            with st.spinner("Devolvendo..."):
+                                for n in nups_aud_sel:
+                                    mover_status(n, 2) # Retorna para Status 2 (Em Auditagem)
+                                    fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
+                                    registrar_acao(n, fat_n, "DEVOLUCAO_AUDITORIA", "Fatura devolvida pela Execução para reanálise.")
+                            st.warning(f"⏪ {len(nups_aud_sel)} faturas devolvidas para a Auditoria!")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.warning("Selecione faturas para devolver.")
+
+                # --- FORMULÁRIO DE CORREÇÃO (Com campo CNPJ) ---
                 if 'modo_correcao' in st.session_state and st.session_state['modo_correcao']:
                     nup_alvo = st.session_state['modo_correcao']
                     dados_originais = df[df['nup'] == nup_alvo].iloc[0]
                     
                     with st.expander(f"🛠️ Editando Processo: {nup_alvo}", expanded=True):
                         with st.form("form_correcao_auditoria"):
-                            col1, col2 = st.columns(2)
-                            novo_nup = col1.text_input("Corrigir NUP:", value=str(dados_originais['nup']))
-                            nova_fat = col2.text_input("Corrigir Nº Fatura:", value=str(dados_originais['Numero_da_fatura']))
+                            c1, c2 = st.columns(2)
+                            novo_nup = c1.text_input("Corrigir NUP:", value=str(dados_originais['nup']))
+                            novo_cnpj = c2.text_input("Corrigir CNPJ:", value=str(dados_originais['cnpj'])) # NOVO CAMPO
                             
-                            # Limpando valores para edição numérica
-                            v_apres_edit = col1.number_input("Valor Apresentado (R$):", value=float(limpar_valor(dados_originais['valor_apresentado'])))
-                            v_liq_edit = col2.number_input("Valor Líquido (R$):", value=float(limpar_valor(dados_originais['valor_liquido'])))
+                            nova_fat = c1.text_input("Corrigir Nº Fatura:", value=str(dados_originais['Numero_da_fatura']))
                             
-                            nova_obs = st.text_area("Motivo da Correção:", placeholder="Ex: NUP digitado incorretamente pela auditoria.")
+                            # Edição Numérica
+                            v_apres_edit = c2.number_input("Valor Apresentado (R$):", value=float(limpar_valor(dados_originais['valor_apresentado'])))
+                            v_liq_edit = c1.number_input("Valor Líquido (R$):", value=float(limpar_valor(dados_originais['valor_liquido'])))
+                            
+                            nova_obs = st.text_area("Justificativa da alteração:", placeholder="Descreva o que foi corrigido.")
 
-                            c_salvar, c_cancelar = st.columns(2)
-                            if c_salvar.form_submit_button("💾 Salvar Alterações", use_container_width=True):
-                                # Lógica para atualizar no Google Sheets (ABA PROCESSOS)
+                            btn_save, btn_cancel = st.columns(2)
+                            if btn_save.form_submit_button("💾 Aplicar Correções", use_container_width=True):
                                 try:
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
-                                    celula_nup = aba_proc.find(nup_alvo)
-                                    row = celula_nup.row
+                                    row = aba_proc.find(nup_alvo).row
                                     
-                                    # Atualiza os campos (Ajuste as colunas conforme sua planilha)
-                                    aba_proc.update_cell(row, 2, novo_nup) # Coluna NUP
-                                    aba_proc.update_cell(row, 5, nova_fat) # Coluna Fatura
-                                    aba_proc.update_cell(row, 6, v_apres_edit) # Coluna Valor Apresentado
-                                    aba_proc.update_cell(row, 8, v_liq_edit)   # Coluna Valor Líquido
+                                    # Atualização das células (Alinhado com a estrutura da sua planilha)
+                                    aba_proc.update_cell(row, 2, novo_nup)  # Coluna B: NUP
+                                    aba_proc.update_cell(row, 3, novo_cnpj) # Coluna C: CNPJ (ADICIONADO)
+                                    aba_proc.update_cell(row, 5, nova_fat)  # Coluna E: Numero_da_fatura
+                                    aba_proc.update_cell(row, 6, f"R${v_apres_edit:,.2f}") # Coluna F: Valor Apresentado
+                                    aba_proc.update_cell(row, 8, f"R${v_liq_edit:,.2f}")   # Coluna H: Valor Líquido
                                     
-                                    registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"Correção efetuada: {nova_obs}")
+                                    registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"CNPJ/Dados alterados: {nova_obs}")
                                     
-                                    st.success("Dados corrigidos com sucesso!")
+                                    st.success("✅ Processo atualizado com sucesso!")
                                     st.session_state['modo_correcao'] = None
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro ao salvar: {e}")
+                                    st.error(f"Erro na atualização: {e}")
                             
-                            if c_cancelar.form_submit_button("❌ Cancelar"):
+                            if btn_cancel.form_submit_button("❌ Sair"):
                                 st.session_state['modo_correcao'] = None
                                 st.rerun()
 
