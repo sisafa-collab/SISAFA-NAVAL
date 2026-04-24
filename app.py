@@ -422,7 +422,7 @@ else:
         aba_a = sh.worksheet(ABA_TABELA_A)
         oses = {r[0].strip(): r[1].strip() for r in aba_a.get_all_values()[1:] if r[0]}
         
-        nup_in = st.text_input("NUP (Ex: 63060.000123/2026-10)")
+        nup_in = st.text_input("NUP (Ex: 63060.000123/2026-10)", placeholder="63060.000000/0000-00")
         
         c1, c2 = st.columns(2)
         sel_cnpj = c1.selectbox("Selecione o CNPJ da OSE", [""] + sorted(list(oses.keys())))
@@ -432,12 +432,24 @@ else:
         num_fatura = st.text_input("Número da Fatura (Alfanumérico ou S/N)")
         v_ap = st.number_input("Valor Apresentado (R$)", min_value=0.0, format="%.2f")
 
-        # --- BOTÃO DE PRÉ-CADASTRO ---
+        # --- NOVA LÓGICA DE VALIDAÇÃO ---
+        nup_padrao = r"^\d{5}\.\d{6}/\d{4}-\d{2}$" # Valida o formato 00000.000000/0000-00
+
         if st.button("CADASTRAR FATURA"):
-            if nup_in and sel_cnpj and num_fatura and v_ap > 0:
-                st.session_state.confirmar_secom = True
-            else:
+            # 1. Checagem de campos vazios
+            if not (nup_in and sel_cnpj and num_fatura and v_ap > 0):
                 st.warning("⚠️ Preencha todos os campos obrigatórios antes de cadastrar.")
+            
+            # 2. Validação rigorosa do formato do NUP
+            elif not re.match(nup_padrao, nup_in):
+                st.error("❌ Formato de NUP incorreto! Use o padrão: 63060.000000/2026-00")
+            
+            # 3. Checagem de duplicidade (Instantânea usando o DF local)
+            elif nup_in in df['nup'].astype(str).values:
+                st.error(f"⚠️ O NUP {nup_in} já consta no sistema. Verifique se não é um lançamento duplicado.")
+            
+            else:
+                st.session_state.confirmar_secom = True
 
         # --- CAIXA DE CONFIRMAÇÃO ---
         if st.session_state.confirmar_secom:
@@ -446,37 +458,29 @@ else:
             col_sim, col_nao = st.columns(2)
             
             if col_sim.button("✅ SIM, confirmar dados"):
-                dt_hoje = datetime.now().strftime("%d/%m/%Y")
-                
-                # 1. Alimenta aba PROCESSOS (Snapshot)
-                nova_linha = [
-                    str(datetime.now().timestamp()), nup_in, sel_cnpj, empresa_nome, 
-                    num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
-                    1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
-                ]
-                aba_p.append_row(nova_linha)
-                
-                # 2. Alimenta aba HISTORICO (Macro - PM4PY)
-                # IMPORTANTE: Verifique se na sua planilha o nome é 'Historico' ou 'historico'
-                registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
-                
-                # 3. Alimenta aba LOGS_ACOES (Micro - Produtividade)
-                registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
-                
-                # Feedback Visual
-                st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida no sistema.")
-                st.session_state.confirmar_secom = False # Reseta a confirmação
-                
-                # Pequena pausa para o usuário ver o aviso antes de recarregar
-                import time
-                time.sleep(2)
-                st.rerun()
+                with st.spinner("Efetuando registro..."):
+                    dt_hoje = datetime.now().strftime("%d/%m/%Y")
+                    
+                    # 1. Alimenta aba PROCESSOS
+                    nova_linha = [
+                        str(datetime.now().timestamp()), nup_in, sel_cnpj, empresa_nome, 
+                        num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
+                        1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
+                    ]
+                    aba_p.append_row(nova_linha)
+                    
+                    # 2. Alimenta aba HISTORICO e LOGS
+                    registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
+                    registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
+                    
+                    st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida no SISAFA.")
+                    st.session_state.confirmar_secom = False
+                    time.sleep(1.5)
+                    st.rerun()
 
             if col_nao.button("❌ NÃO, voltar e corrigir"):
                 st.session_state.confirmar_secom = False
                 st.rerun()
-                
-
 
 
 
