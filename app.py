@@ -457,7 +457,7 @@ else:
             st.warning(f"**⚠️ CONFIRMAÇÃO:** Tem certeza de que os dados da fatura **{num_fatura}** estão corretos?")
             col_sim, col_nao = st.columns(2)
             
-            if col_sim.button("✅ SIM, confirmar dados"):
+            if col_sim.button("✅ SIM, confirmar dados", use_container_width=True):
                 with st.spinner("Efetuando registro..."):
                     dt_hoje = datetime.now().strftime("%d/%m/%Y")
                     
@@ -473,12 +473,21 @@ else:
                     registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
                     registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
                     
-                    st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida no SISAFA.")
+                    # --- 🚀 RESET SELETIVO (Manter NUP e CNPJ para agilizar) ---
+                    # Limpamos apenas a Fatura e o Valor
+                    st.session_state["input_fat_secom"] = ""
+                    st.session_state["input_val_secom"] = 0.0
+                    
+                    # Desativa a caixa de confirmação para o próximo lançamento
                     st.session_state.confirmar_secom = False
-                    time.sleep(1.5)
+                    
+                    st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida. NUP e OSE preservados.")
+                    
+                    # Redução do delay para aumentar a produtividade
+                    time.sleep(0.5) 
                     st.rerun()
 
-            if col_nao.button("❌ NÃO, voltar e corrigir"):
+            if col_nao.button("❌ NÃO, voltar e corrigir", use_container_width=True):
                 st.session_state.confirmar_secom = False
                 st.rerun()
 
