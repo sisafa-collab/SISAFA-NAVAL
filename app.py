@@ -2353,7 +2353,7 @@ else:
             df_creditos, df_grafico_4 = gerar_tabela_gerencial(df, [4])
 
             if df_creditos.empty:
-                st.info("Nenhuma fatura no Status 4 para exibir.")
+                st.info("Nenhuma fatura aguardando emissão de NE para exibir.")
             else:
                 st.dataframe(df_creditos.style.format("R$ {:,.2f}").set_table_styles([
                     {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold')]}
@@ -2364,7 +2364,7 @@ else:
                 df_grafico_4['sort_key'] = df_grafico_4['ano_competencia'] * 100 + df_grafico_4['mes_competencia']
                 df_grafico_4 = df_grafico_4.sort_values('sort_key')
                 
-                fig4 = px.bar(df_grafico_4, x='Competência', y='v_liq', color='Categoria', title="Dívida Auditada (Status 4)",
+                fig4 = px.bar(df_grafico_4, x='Competência', y='v_liq', color='Categoria', title="Dívida Auditada",
                               color_discrete_map={cats_oficiais[0]: "#2e6b54", cats_oficiais[1]: "#cba30c"}, barmode='stack')
                 st.plotly_chart(fig4, use_container_width=True)
 
@@ -2386,7 +2386,7 @@ else:
                 df_grafico_pend['sort_key'] = df_grafico_pend['ano_competencia'] * 100 + df_grafico_pend['mes_competencia']
                 df_grafico_pend = df_grafico_pend.sort_values('sort_key')
 
-                fig_pend = px.bar(df_grafico_pend, x='Competência', y='v_liq', color='Categoria', title="Volume em Auditagem (Status 1, 2, 3)",
+                fig_pend = px.bar(df_grafico_pend, x='Competência', y='v_liq', color='Categoria', title="Volume em Auditagem",
                                   color_discrete_sequence=px.colors.qualitative.Pastel, barmode='stack')
                 st.plotly_chart(fig_pend, use_container_width=True)
 
