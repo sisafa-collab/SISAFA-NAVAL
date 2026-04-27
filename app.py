@@ -2291,11 +2291,10 @@ else:
     elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
         st.header("📈 Análise Estratégica")
 
-        # --- 1. DEFINIÇÕES GLOBAIS (VACINA DE ORDEM E NOMES) ---
+        # --- 1. DEFINIÇÕES GLOBAIS ---
         mapa_meses_abrev = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 
                             7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
 
-        # Lista Oficial com os nomes EXATOS que você passou
         cats_oficiais = [
             "OSE", 
             "HOSPITAL DAS FORÇAS ARMADAS (HFA)", 
@@ -2304,133 +2303,92 @@ else:
             "HFAB (120096)"
         ]
 
+        # --- FUNÇÃO MESTRE UNIFICADA ---
+        def gerar_tabela_gerencial(df_input, lista_status):
+            df_temp = df_input.copy()
+            # Vacina de tipos para evitar erros de processamento
+            df_temp['status'] = pd.to_numeric(df_temp['status'], errors='coerce').fillna(0)
+            df_temp['mes_competencia'] = pd.to_numeric(df_temp['mes_competencia'], errors='coerce').fillna(0).astype(int)
+            df_temp['ano_competencia'] = pd.to_numeric(df_temp['ano_competencia'], errors='coerce').fillna(0).astype(int)
+            
+            # Filtro pelos status desejados (ex: [4] ou [1, 2, 3])
+            df_c = df_temp[df_temp['status'].isin(lista_status)].copy()
+            
+            if df_c.empty:
+                return pd.DataFrame(), pd.DataFrame()
+
+            df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
+            
+            def categorizar(nome):
+                n = str(nome).upper()
+                if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
+                elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return cats_oficiais[2]
+                elif "120624" in n or "BASE AÉREA DE ANÁPOLIS" in n: return cats_oficiais[3]
+                elif "120096" in n or "HFAB" in n: return cats_oficiais[4]
+                return cats_oficiais[0]
+
+            df_c['Categoria'] = df_c['ose'].apply(categorizar)
+            df_long = df_c.groupby(['Categoria', 'ano_competencia', 'mes_competencia'])['v_liq'].sum().reset_index()
+            
+            # Pivotagem e Reindexação
+            df_pivot = df_long.pivot(index='Categoria', columns=['ano_competencia', 'mes_competencia'], values='v_liq').fillna(0.0)
+            df_pivot = df_pivot.sort_index(axis=1, level=[0, 1])
+            df_pivot = df_pivot.reindex(cats_oficiais).fillna(0.0)
+            
+            # Totais
+            total_linha = df_pivot.sum(axis=1)
+            novas_labels = [(int(ano), mapa_meses_abrev.get(int(mes), "???")) for ano, mes in df_pivot.columns]
+            df_pivot.columns = pd.MultiIndex.from_tuples(novas_labels, names=['Ano', 'Mês'])
+            df_pivot = df_pivot.loc[:, (df_pivot != 0).any(axis=0)]
+            df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), total_linha)
+            df_pivot.loc['TOTAL GERAL'] = df_pivot.sum()
+            
+            return df_pivot, df_long
+
         tab_fin, tab_prod, tab_est = st.tabs(["💰 Situação Financeira", "⏱️ Produtividade", "📂 Estrutura"])
 
         with tab_fin:
-            st.subheader("Créditos orçamentários comprometidos auditados")
-
-            def gerar_tabela_creditos_final(df_input):
-                # 1. Limpeza e Conversão Rígida para Números
-                df_input['status'] = pd.to_numeric(df_input['status'], errors='coerce').fillna(0)
-                df_input['mes_competencia'] = pd.to_numeric(df_input['mes_competencia'], errors='coerce').fillna(0).astype(int)
-                df_input['ano_competencia'] = pd.to_numeric(df_input['ano_competencia'], errors='coerce').fillna(0).astype(int)
-                
-                # 2. Filtro Status 4
-                df_c = df_input[df_input['status'] == 4].copy()
-                df_c['v_liq'] = df_c['valor_liquido'].apply(limpar_valor)
-                
-                # 3. Categorização (Match por parte do nome ou UG)
-                def categorizar(nome):
-                    n = str(nome).upper()
-                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
-                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return cats_oficiais[2]
-                    elif "120624" in n or "Base Aérea de Anápolis (120624)" in n: return cats_oficiais[3]
-                    elif "120096" in n or "HFAB" in n: return cats_oficiais[4]
-                    return cats_oficiais[0]
-
-                df_c['Categoria'] = df_c['ose'].apply(categorizar)
-                
-                # 4. Agrupamento (Mantendo os números para ordenar)
-                df_long = df_c.groupby(['Categoria', 'ano_competencia', 'mes_competencia'])['v_liq'].sum().reset_index()
-                
-                if df_long.empty:
-                    return pd.DataFrame(), df_long
-
-                # 5. Pivotagem (O Pandas ordena automaticamente tuplas numéricas)
-                df_pivot = df_long.pivot(index='Categoria', columns=['ano_competencia', 'mes_competencia'], values='v_liq').fillna(0.0)
-                
-                # Forçamos a ordenação das colunas (Ano, Mês) para garantir o calendário
-                df_pivot = df_pivot.sort_index(axis=1, level=[0, 1])
-                
-                # Reindexamos as linhas na ordem oficial
-                df_pivot = df_pivot.reindex(cats_oficiais).fillna(0.0)
-                
-                # 6. Adição da Coluna TOTAL à Esquerda (Antes de renomear os meses)
-                total_linha = df_pivot.sum(axis=1)
-                
-                # 7. Renomear Colunas (Agora que já está ordenado numericamente)
-                novas_labels = []
-                for ano, mes in df_pivot.columns:
-                    novas_labels.append((int(ano), mapa_meses_abrev.get(int(mes), "???")))
-                
-                df_pivot.columns = pd.MultiIndex.from_tuples(novas_labels, names=['Ano', 'Mês'])
-
-                # 8. Ocultar colunas zeradas
-                df_pivot = df_pivot.loc[:, (df_pivot != 0).any(axis=0)]
-
-                # 9. Inserir o Total no Início (Canto Esquerdo)
-                df_pivot.insert(0, ('TOTAL', 'ACUMULADO'), total_linha)
-
-                # 10. Linha de Total Geral no rodapé
-                df_pivot.loc['TOTAL GERAL'] = df_pivot.sum()
-                
-                return df_pivot, df_long
-
-            # Execução
-            df_creditos, df_grafico = gerar_tabela_creditos_final(df)
+            # === SEÇÃO 1: STATUS 4 (AUDITADOS) ===
+            st.subheader("📌 1. Créditos orçamentários comprometidos auditados")
+            df_creditos, df_grafico_4 = gerar_tabela_gerencial(df, [4])
 
             if df_creditos.empty:
                 st.info("Nenhuma fatura no Status 4 para exibir.")
             else:
-                # Estilização com a cor Naval #2e6b54
-                st.dataframe(
-                    df_creditos.style.format("R$ {:,.2f}").set_table_styles([
-                        {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold'), ('text-align', 'center')]}
-                    ]),
-                    use_container_width=True
-                )
+                st.dataframe(df_creditos.style.format("R$ {:,.2f}").set_table_styles([
+                    {'selector': 'th', 'props': [('background-color', '#2e6b54'), ('color', 'white'), ('font-weight', 'bold')]}
+                ]), use_container_width=True)
 
-                st.divider()
-
-                # --- HISTOGRAMA (Com Ordem Cronológica de Calendário) ---
-                if not df_grafico.empty:
-                    st.subheader("📊 Dívida por Competência auditada")
-                    
-                    # Criar label legível
-                    df_grafico['Competência'] = df_grafico.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
-                    # Criar chave de ordenação (ex: 202401, 202402...)
-                    df_grafico['sort_key'] = df_grafico['ano_competencia'] * 100 + df_grafico['mes_competencia']
-                    df_grafico = df_grafico.sort_values('sort_key')
-
-                    fig_hist = px.bar(
-                        df_grafico, x='Competência', y='v_liq', color='Categoria',
-                        title="Impacto Orçamentário Mensal",
-                        labels={'v_liq': 'Valor (R$)', 'Categoria': 'Tipo'},
-                        color_discrete_map={
-                            cats_oficiais[0]: "#2e6b54", # OSE em Verde
-                            cats_oficiais[1]: "#cba30c", # HFA em Ouro
-                            cats_oficiais[2]: "#1e3d33", 
-                            cats_oficiais[3]: "#d4af37", 
-                            cats_oficiais[4]: "#4a7c6a"
-                        },
-                        category_orders={"Categoria": cats_oficiais, "Competência": df_grafico['Competência'].unique().tolist()},
-                        template="plotly_white",
-                        barmode='stack'
-                    )
-                    fig_hist.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig_hist, use_container_width=True)
-            
-            
-            # === SEÇÃO 2: STATUS 1, 2, 3 (EM FLUXO) ===
-                    st.subheader("⏳ 2. Faturas em Fluxo de Auditagem (Status 1, 2 e 3)")
-                    df_pendentes, df_grafico_pend = gerar_tabela_gerencial(df, [1, 2, 3])
-
-                    if df_pendentes.empty:
-                    st.info("Não há faturas em processo de auditagem (1, 2 ou 3) no momento.")
-                        else:
-                        st.dataframe(df_pendentes.style.format("R$ {:,.2f}").set_table_styles([
-                        {'selector': 'th', 'props': [('background-color', '#1e3d33'), ('color', 'white')]}
-                        ]), use_container_width=True)
+                # Histograma Status 4
+                df_grafico_4['Competência'] = df_grafico_4.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
+                df_grafico_4['sort_key'] = df_grafico_4['ano_competencia'] * 100 + df_grafico_4['mes_competencia']
+                df_grafico_4 = df_grafico_4.sort_values('sort_key')
                 
-                        # Histograma Status 1, 2, 3
-                        df_grafico_pend['Competência'] = df_grafico_pend.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
-                        df_grafico_pend['sort_key'] = df_grafico_pend['ano_competencia'] * 100 + df_grafico_pend['mes_competencia']
-                        df_grafico_pend = df_grafico_pend.sort_values('sort_key')
+                fig4 = px.bar(df_grafico_4, x='Competência', y='v_liq', color='Categoria', title="Dívida Auditada (Status 4)",
+                              color_discrete_map={cats_oficiais[0]: "#2e6b54", cats_oficiais[1]: "#cba30c"}, barmode='stack')
+                st.plotly_chart(fig4, use_container_width=True)
 
-                        fig_pend = px.bar(df_grafico_pend, x='Competência', y='v_liq', color='Categoria', title="Volume em Auditagem (Status 1, 2, 3)",
+            st.divider()
+
+            # === SEÇÃO 2: STATUS 1, 2, 3 (EM FLUXO) ===
+            st.subheader("⏳ 2. Evolução dos valores comprometidos em auditagem")
+            df_pendentes, df_grafico_pend = gerar_tabela_gerencial(df, [1, 2, 3])
+
+            if df_pendentes.empty:
+                st.info("Não há faturas em processo de auditagem no momento.")
+            else:
+                st.dataframe(df_pendentes.style.format("R$ {:,.2f}").set_table_styles([
+                    {'selector': 'th', 'props': [('background-color', '#1e3d33'), ('color', 'white'), ('font-weight', 'bold')]}
+                ]), use_container_width=True)
+                
+                # Histograma Status 1, 2, 3
+                df_grafico_pend['Competência'] = df_grafico_pend.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
+                df_grafico_pend['sort_key'] = df_grafico_pend['ano_competencia'] * 100 + df_grafico_pend['mes_competencia']
+                df_grafico_pend = df_grafico_pend.sort_values('sort_key')
+
+                fig_pend = px.bar(df_grafico_pend, x='Competência', y='v_liq', color='Categoria', title="Volume em Auditagem (Status 1, 2, 3)",
                                   color_discrete_sequence=px.colors.qualitative.Pastel, barmode='stack')
-                        st.plotly_chart(fig_pend, use_container_width=True)
-
+                st.plotly_chart(fig_pend, use_container_width=True)
 
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (Unificado)
