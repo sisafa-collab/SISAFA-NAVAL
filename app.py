@@ -2307,7 +2307,7 @@ else:
         tab_fin, tab_prod, tab_est = st.tabs(["💰 Situação Financeira", "⏱️ Produtividade", "📂 Estrutura"])
 
         with tab_fin:
-            st.subheader("Créditos orçamentários comprometidos")
+            st.subheader("Créditos orçamentários comprometidos auditados")
 
             def gerar_tabela_creditos_final(df_input):
                 # 1. Limpeza e Conversão Rígida para Números
@@ -2384,7 +2384,7 @@ else:
 
                 # --- HISTOGRAMA (Com Ordem Cronológica de Calendário) ---
                 if not df_grafico.empty:
-                    st.subheader("📊 Dívida por Competência")
+                    st.subheader("📊 Dívida por Competência auditada")
                     
                     # Criar label legível
                     df_grafico['Competência'] = df_grafico.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
@@ -2409,8 +2409,27 @@ else:
                     )
                     fig_hist.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_hist, use_container_width=True)
+            
+            
+            # === SEÇÃO 2: STATUS 1, 2, 3 (EM FLUXO) ===
+                    st.subheader("⏳ 2. Faturas em Fluxo de Auditagem (Status 1, 2 e 3)")
+                    df_pendentes, df_grafico_pend = gerar_tabela_gerencial(df, [1, 2, 3])
 
+                    if df_pendentes.empty:
+                    st.info("Não há faturas em processo de auditagem (1, 2 ou 3) no momento.")
+                        else:
+                        st.dataframe(df_pendentes.style.format("R$ {:,.2f}").set_table_styles([
+                        {'selector': 'th', 'props': [('background-color', '#1e3d33'), ('color', 'white')]}
+                        ]), use_container_width=True)
+                
+                        # Histograma Status 1, 2, 3
+                        df_grafico_pend['Competência'] = df_grafico_pend.apply(lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1)
+                        df_grafico_pend['sort_key'] = df_grafico_pend['ano_competencia'] * 100 + df_grafico_pend['mes_competencia']
+                        df_grafico_pend = df_grafico_pend.sort_values('sort_key')
 
+                        fig_pend = px.bar(df_grafico_pend, x='Competência', y='v_liq', color='Categoria', title="Volume em Auditagem (Status 1, 2, 3)",
+                                  color_discrete_sequence=px.colors.qualitative.Pastel, barmode='stack')
+                        st.plotly_chart(fig_pend, use_container_width=True)
 
 
         # =================================================================
