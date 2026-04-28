@@ -2042,25 +2042,37 @@ else:
                     cnpj_alvo = str(df_ne_fisc['cnpj'].iloc[0]).split('.')[0].zfill(14)
                     
                     # Busca contatos na Tabela-A
+                    # --- BUSCA DE CONTATOS (BLINDAGEM TÁTICA) ---
                     try:
                         df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
-                        # Limpa espaços nas colunas da Tabela A
+                        # Limpa espaços nos nomes das colunas (cabeçalhos)
                         df_tabela_a.columns = df_tabela_a.columns.str.strip()
                         
-                        linha_ose = df_tabela_a[df_tabela_a['CNPJ'].astype(str).str.contains(cnpj_alvo)]
+                        # 🛡️ Função para garantir 14 dígitos (Trata o Zero à Esquerda)
+                        def normalizar_cnpj(valor):
+                            apenas_numeros = "".join(filter(str.isdigit, str(valor)))
+                            return apenas_numeros.zfill(14) if apenas_numeros else ""
+
+                        # Normalizamos o alvo da busca e a coluna da planilha
+                        cnpj_busca = normalizar_cnpj(cnpj_alvo)
+                        df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].apply(normalizar_cnpj)
+                        
+                        # Busca exata (evita o erro do .contains que pode pegar pedaços de outros CNPJs)
+                        linha_ose = df_tab_a[df_tab_a['CNPJ_LIMPO'] == cnpj_busca]
                         
                         if not linha_ose.empty:
-                            email_destino = linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com")
-                            # EXTRAÍMOS OS GESTORES AQUI!
-                            email_titular = linha_ose.iloc[0].get('E-mail do Gestor Titular', "")
-                            email_substituto = linha_ose.iloc[0].get('E-mail do Gestor Substituto', "")
+                            # .strip() em cada e-mail para remover os espaços invisíveis que você achou
+                            email_destino = str(linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com")).strip()
+                            email_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', "")).strip()
+                            email_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', "")).strip()
                         else:
                             email_destino = "faturamento@ose.com"
                             email_titular = ""
                             email_substituto = ""
 
                         email_exec = "hnbra.execucaofinanceira@gmail.com"
-                    except:
+                    except Exception as e:
+                        # Se algo der errado na leitura, o sistema não trava
                         email_destino = "faturamento@ose.com"
                         email_titular = ""
                         email_substituto = ""
