@@ -2043,39 +2043,43 @@ else:
                     
                     # Busca contatos na Tabela-A
                     # --- BUSCA DE CONTATOS (BLINDAGEM TÁTICA) ---
+                    # --- BUSCA DE CONTATOS (AGORA COM O NOME CORRETO) ---
                     try:
+                        # 1. Carrega a aba
                         df_tabela_a = pd.DataFrame(sh.worksheet(ABA_TABELA_A).get_all_records())
-                        # Limpa espaços nos nomes das colunas (cabeçalhos)
                         df_tabela_a.columns = df_tabela_a.columns.str.strip()
                         
-                        # 🛡️ Função para garantir 14 dígitos (Trata o Zero à Esquerda)
+                        # 🛡️ Função para garantir 14 dígitos (Zeros à Esquerda)
                         def normalizar_cnpj(valor):
                             apenas_numeros = "".join(filter(str.isdigit, str(valor)))
                             return apenas_numeros.zfill(14) if apenas_numeros else ""
 
-                        # Normalizamos o alvo da busca e a coluna da planilha
+                        # 2. Normalização
                         cnpj_busca = normalizar_cnpj(cnpj_alvo)
+                        # AQUI ESTAVA O ERRO: Usei o nome completo df_tabela_a em todo lugar
                         df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].apply(normalizar_cnpj)
                         
-                        # Busca exata (evita o erro do .contains que pode pegar pedaços de outros CNPJs)
-                        linha_ose = df_tab_a[df_tab_a['CNPJ_LIMPO'] == cnpj_busca]
+                        # 3. Busca Exata
+                        linha_ose = df_tabela_a[df_tabela_a['CNPJ_LIMPO'] == cnpj_busca]
                         
                         if not linha_ose.empty:
-                            # .strip() em cada e-mail para remover os espaços invisíveis que você achou
                             email_destino = str(linha_ose.iloc[0].get('E-mail Principal da OSE', "faturamento@ose.com")).strip()
                             email_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', "")).strip()
                             email_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', "")).strip()
+                            
+                            # Dica: Se quiser conferir se achou, descomente a linha abaixo temporariamente:
+                            # st.write(f"DEBUG: Encontrado {email_destino}")
                         else:
                             email_destino = "faturamento@ose.com"
-                            email_titular = ""
-                            email_substituto = ""
+                            email_titular, email_substituto = "", ""
 
                         email_exec = "hnbra.execucaofinanceira@gmail.com"
+                        
                     except Exception as e:
-                        # Se algo der errado na leitura, o sistema não trava
+                        # Se der erro, mostra o erro para sabermos o que é
+                        st.error(f"Erro na Tabela-A: {e}")
                         email_destino = "faturamento@ose.com"
-                        email_titular = ""
-                        email_substituto = ""
+                        email_titular, email_substituto = "", ""
                         email_exec = "hnbra.execucaofinanceira@gmail.com"
 
                     st.markdown(f"#### 📝 Gestão da NE: **{ne_alvo}** ({ose_txt})")
