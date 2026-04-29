@@ -863,26 +863,70 @@ else:
                 st.subheader("✅ Faturas Prontas para Encaminhamento")
                 st.dataframe(
                     df_auditadas[['nup', 'ose', 'valor_apresentado', 'glosa', 'valor_liquido', 'mes_sigla', 'ano_competencia', 'dias_no_setor']], 
-                    use_container_width=True
+                    use_container_width=True, hide_index=True
                 )
                 
-                lote_exec = st.multiselect(
-                    "Selecionar faturas para encaminhar à Execução Financeira:", 
+                lote_selecionado = st.multiselect(
+                    "Selecionar faturas para ação:", 
                     df_auditadas['nup'].tolist(), 
                     key="ms_lote_auditadas_v2"
                 )
                 
-                if st.button("📤 ENCAMINHAR PARA EXECUÇÃO FINANCEIRA", key="btn_envio_fin_v2", use_container_width=True):
-                    if lote_exec:
-                        with st.spinner("Registrando encaminhamento..."):
-                            for n in lote_exec:
-                                fatura_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
-                                registrar_acao(n, fatura_n, "ENCAMINHADO_PARA_FINANCEIRO", f"Usuário {st.session_state.user_id} encaminhou o lote.")
-                        st.success(f"✅ {len(lote_exec)} processos notificados.")
-                        time.sleep(1.5)
-                        st.rerun()
-            else:
-                st.info("Nenhuma fatura auditada pendente no momento.")
+                col_btn1, col_btn2 = st.columns(2)
+
+                with col_btn1:
+                    if st.button("📤 ENCAMINHAR PARA EXECUÇÃO", use_container_width=True, type="primary"):
+                        if lote_selecionado:
+                            with st.spinner("Registrando encaminhamento..."):
+                                for n in lote_selecionado:
+                                    # 1. Muda o Status para 4 (Aguardando NE)
+                                    mover_status(n, 4)
+                                    
+                                    # 2. Captura dados para o registro
+                                    linha_f = df_auditadas[df_auditadas['nup'] == n].iloc[0]
+                                    fat_n = linha_f['Numero_da_fatura']
+                                    v_liq = linha_f['v_liq_limpo'] # Valor já limpo pela sua função no topo da aba
+                                    
+                                    # 3. Registra na aba LOGS_ACOES (Micro)
+                                    registrar_acao(n, fat_n, "ENCAMINHADO_PARA_FINANCEIRO", "Processo enviado para a Execução Financeira.")
+                                    
+                                    # 4. Registra na aba SISAFA-NAVAL-historico (Macro)
+                                    # Status Origem: 3 | Status Destino: 4
+                                    registrar_historico(n, fat_n, "3", "4", v_liq, "ENVIADO PARA O FINANCEIRO")
+                            
+                            st.success(f"✅ {len(lote_selecionado)} faturas encaminhadas com sucesso!")
+                            time.sleep(1.2)
+                            st.rerun()
+                        else:
+                            st.warning("Selecione ao menos um processo.")
+
+                with col_btn2:
+                    if st.button("⏪ DEVOLVER PARA AJUSTE", use_container_width=True):
+                        if lote_selecionado:
+                            with st.spinner("Limpando registros e devolvendo para auditagem..."):
+                                aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
+                                
+                                for n in lote_selecionado:
+                                    # 1. Volta o status para 2 (Em Auditagem)
+                                    mover_status(n, 2)
+                                    
+                                    # 2. Busca e DELETA o registro antigo na aba de Auditoria (Evita duplicidade)
+                                    try:
+                                        celula = aba_audit.find(str(n))
+                                        if celula:
+                                            aba_audit.delete_rows(celula.row)
+                                    except:
+                                        pass # Se não encontrar, apenas segue (pode não ter sido salvo ainda)
+
+                                    # 3. Log da Devolução
+                                    fat_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
+                                    registrar_acao(n, fat_n, "DEVOLUCAO_PARA_AJUSTE", f"Processo retornado ao Status 2 pelo usuário {st.session_state.user_id}")
+                            
+                            st.warning(f"⏪ {len(lote_selecionado)} processos retornados para Auditagem.")
+                            time.sleep(1.2)
+                            st.rerun()
+                        else:
+                            st.warning("Selecione ao menos um processo para devolver.")
 
 
         # 4. ABA: CONSULTAS (BUSCA GLOBAL)
