@@ -2632,81 +2632,81 @@ else:
             st.subheader("⏱️ Produtividade e dados estatísticos")
             
             try:
-            # 1. CARREGAMENTO DOS DADOS
-            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-            df_hist = pd.DataFrame(aba_h.get_all_records())
-            
-            if df_hist.empty:
-                st.info("Aguardando dados históricos para calcular produtividade.")
-            else:
-                # --- DICIONÁRIO DE TRADUÇÃO (Fluxo HNBra 1 ao 8) ---
-                mapa_status = {
-                    1: "📥 Cadastrada (SECOM)",
-                    2: "🩺 Em Auditagem",
-                    3: "✅ Auditada",
-                    4: "💰 Aguardando emissão de NE",
-                    5: "🏦 Empenhada",
-                    6: "📝 Aguardando NF / Certificação",
-                    7: "⏳ Em liquidação",
-                    8: "💵 Liquidada"
-                }
+                # 1. CARREGAMENTO DOS DADOS (Aqui começa o recuo extra)
+                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+                df_hist = pd.DataFrame(aba_h.get_all_records())
+                
+                if df_hist.empty:
+                    st.info("Aguardando dados históricos para calcular produtividade.")
+                else:
+                    # --- DICIONÁRIO DE TRADUÇÃO (Fluxo HNBra 1 ao 8) ---
+                    mapa_status = {
+                        1: "📥 Cadastrada (SECOM)",
+                        2: "🩺 Em Auditagem",
+                        3: "✅ Auditada",
+                        4: "💰 Aguardando emissão de NE",
+                        5: "🏦 Empenhada",
+                        6: "📝 Aguardando NF / Certificação",
+                        7: "⏳ Em liquidação",
+                        8: "💵 Liquidada"
+                    }
 
-                # --- A VACINA DAS DATAS (ISO 8601) ---
-                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
-                df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
-                
-                # --- TRADUÇÃO DOS STATUS ---
-                df_hist['origem_nome'] = df_hist['status_origem'].map(mapa_status).fillna("Início")
-                df_hist['destino_nome'] = df_hist['status_destino'].map(mapa_status).fillna("Outro")
+                    # --- A VACINA DAS DATAS (ISO 8601) ---
+                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
+                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    
+                    # --- TRADUÇÃO DOS STATUS ---
+                    df_hist['origem_nome'] = df_hist['status_origem'].map(mapa_status).fillna("Início")
+                    df_hist['destino_nome'] = df_hist['status_destino'].map(mapa_status).fillna("Outro")
 
-                # =========================================================
-                # PARTE 1: ESTATÍSTICAS DE TEMPO (COM NOMES)
-                # =========================================================
-                st.markdown("### 📊 Tempo Médio de Permanência por Etapa")
-                
-                # Cálculo de tempo entre as linhas do histórico
-                df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
-                
-                # Criamos a label da transição (ex: "Em Auditagem ➔ Auditada")
-                df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
-                df_tempos['transicao'] = df_tempos['origem_nome'] + " ➔ " + df_tempos['destino_nome']
-                
-                # Convertendo para dias decimais
-                df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
-                
-                # Média de dias por transição
-                resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
-                
-                # Gráfico de Barras com nomes
-                fig_tempo = px.bar(
-                    resumo_tempo, 
-                    x='transicao', 
-                    y='dias', 
-                    title="Onde o processo fica mais tempo?",
-                    labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
-                    color='dias', 
-                    color_continuous_scale='Reds', 
-                    text_auto='.1f'
-                )
-                st.plotly_chart(fig_tempo, use_container_width=True)
+                    # =========================================================
+                    # PARTE 1: ESTATÍSTICAS DE TEMPO (COM NOMES)
+                    # =========================================================
+                    st.markdown("### 📊 Tempo Médio de Permanência por Etapa")
+                    
+                    # Cálculo de tempo entre as linhas do histórico
+                    df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
+                    
+                    # Criamos a label da transição (ex: "Em Auditagem ➔ Auditada")
+                    df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
+                    df_tempos['transicao'] = df_tempos['origem_nome'] + " ➔ " + df_tempos['destino_nome']
+                    
+                    # Convertendo para dias decimais
+                    df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
+                    
+                    # Média de dias por transição
+                    resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
+                    
+                    # Gráfico de Barras com nomes
+                    fig_tempo = px.bar(
+                        resumo_tempo, 
+                        x='transicao', 
+                        y='dias', 
+                        title="Onde o processo fica mais tempo?",
+                        labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
+                        color='dias', 
+                        color_continuous_scale='Reds', 
+                        text_auto='.1f'
+                    )
+                    st.plotly_chart(fig_tempo, use_container_width=True)
 
-                # --- MÉTRICAS DE EFICIÊNCIA ---
-                c1, c2 = st.columns(2)
-                with c1:
-                    total_faturas = df['nup'].nunique()
-                    # Eficiência baseada no Status 8 (Liquidada)
-                    faturas_liquidadas = df[df['status'] == 8]['nup'].nunique()
-                    taxa_conclusao = (faturas_liquidadas / total_faturas) * 100 if total_faturas > 0 else 0
-                    st.metric("Taxa de Eficiência (Liquidação)", f"{taxa_conclusao:.1f}%")
-                with c2:
-                    # Lead time médio: Tempo total do primeiro ao último registro de cada NUP
-                    lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
-                    st.metric("Ciclo Médio (Início à Liquidação)", f"{lead_time_medio:.1f} dias")
+                    # --- MÉTRICAS DE EFICIÊNCIA ---
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        total_faturas = df['nup'].nunique()
+                        # Eficiência baseada no Status 8 (Liquidada)
+                        faturas_liquidadas = df[df['status'] == 8]['nup'].nunique()
+                        taxa_conclusao = (faturas_liquidadas / total_faturas) * 100 if total_faturas > 0 else 0
+                        st.metric("Taxa de Eficiência (Liquidação)", f"{taxa_conclusao:.1f}%")
+                    with c2:
+                        # Lead time médio: Tempo total do primeiro ao último registro de cada NUP
+                        lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
+                        st.metric("Ciclo Médio (Início à Liquidação)", f"{lead_time_medio:.1f} dias")
 
-                st.divider()
+                    st.divider()
 
-        except Exception as e:
-            st.error(f"Erro ao processar indicadores: {e}")
+            except Exception as e:
+                st.error(f"Erro ao processar indicadores: {e}")
 
             # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
