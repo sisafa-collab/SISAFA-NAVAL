@@ -1647,29 +1647,39 @@ else:
                 df_status_8['mes_sigla'] = df_status_8['mes_competencia'].map(mapa_meses)
                 lista_nfs_8 = df_status_8['nf'].dropna().unique().tolist()
 
-                # --- NOVO CAMPO: ORDEM BANCÁRIA ---
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    ob_input = st.text_input("Número da OB (Ordem Bancária):", placeholder="Ex: 2026OB000123", key="ob_final")
-                with c2:
-                    nfs_para_pagar = st.multiselect(
-                        "Selecione as NFs pagas:",
-                        options=lista_nfs_8,
-                        key="ms_pagar_nf"
-                    )
+                # --- 🛠️ NOVA LÓGICA DE MÁSCARA DA OB ---
+                ano_atual = datetime.now().year
+                prefixo_ob = f"78770000001{ano_atual}OB"
+
+                col_ob1, col_ob2 = st.columns([2, 1])
+                with col_ob1:
+                    # Mostra o prefixo fixo para o militar não precisar digitar
+                    st.info(f"Prefixo Automático: **{prefixo_ob}**")
+                with col_ob2:
+                    # Campo para os 6 dígitos finais
+                    ob_6_digitos = st.text_input("6 Dígitos Finais:", max_chars=6, placeholder="800116", key="ob_final_6")
+
+                # Monta a OB completa para gravar na planilha
+                ob_completa = prefixo_ob + ob_6_digitos
+
+                nfs_para_pagar = st.multiselect(
+                    "Selecione as NFs pagas:",
+                    options=lista_nfs_8,
+                    key="ms_pagar_nf"
+                )
 
                 if st.button("🚀 Confirmar Pagamento das NFs", use_container_width=True, type="primary"):
-                    if not ob_input:
-                        st.error("⚠️ Erro: É obrigatório informar o número da OB para finalizar o pagamento.")
+                    # Validação rigorosa dos 6 dígitos
+                    if not ob_6_digitos or len(ob_6_digitos) != 6 or not ob_6_digitos.isdigit():
+                        st.error(f"⚠️ Erro: Informe exatamente os 6 dígitos finais da OB. (Ex: {prefixo_ob}**800116**)")
                     elif not nfs_para_pagar:
                         st.warning("Selecione ao menos uma NF.")
                     else:
                         with st.spinner("Finalizando pagamentos e registrando OB..."):
                             count_nups_pago = 0
-                            aba_proc = sh.worksheet("SISAFA-NAVAL-processos") # Acessa a aba de processos
+                            aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                             
                             for nf_sel in nfs_para_pagar:
-                                # Busca todos os NUPs vinculados a essa NF
                                 df_vinculados = df_status_8[df_status_8['nf'] == nf_sel]
                                 
                                 for _, row_fatura in df_vinculados.iterrows():
@@ -1678,19 +1688,22 @@ else:
                                     # 1. Atualiza o Status para 9
                                     mover_status(nup, 9)
                                     
-                                    # 2. Grava a OB na coluna 'ob' (Coluna 17 da sua planilha)
+                                    # 2. Grava a OB COMPLETA na coluna 17
                                     try:
                                         celula = aba_proc.find(str(nup))
-                                        aba_proc.update_cell(celula.row, 17, str(ob_input)) 
+                                        if celula:
+                                            # Aqui gravamos a variável 'ob_completa'
+                                            aba_proc.update_cell(celula.row, 17, ob_completa) 
                                     except:
-                                        pass # Caso não encontre a célula por algum motivo
+                                        pass 
                                     
-                                    # 3. Registra nos Logs
-                                    registrar_acao(nup, row_fatura['Numero_da_fatura'], "PAGAMENTO_EFETUADO", f"Pago via NF: {nf_sel} | OB: {ob_input}")
-                                    registrar_historico(nup, row_fatura['Numero_da_fatura'], "8", "9", row_fatura['valor_apresentado'], f"Pagamento via NF {nf_sel} - OB {ob_input}")
+                                    # 3. Registra nos Logs e Histórico com a OB COMPLETA
+                                    fatura_n = row_fatura['Numero_da_fatura']
+                                    registrar_acao(nup, fatura_n, "PAGAMENTO_EFETUADO", f"Pago via NF: {nf_sel} | OB: {ob_completa}")
+                                    registrar_historico(nup, fatura_n, "8", "9", row_fatura['valor_apresentado'], f"Pagamento via NF {nf_sel} - OB {ob_completa}")
                                     count_nups_pago += 1
                             
-                            st.success(f"🎊 {len(nfs_para_pagar)} NFs pagas! OB {ob_input} registrada em {count_nups_pago} faturas.")
+                            st.success(f"🎊 {len(nfs_para_pagar)} NFs pagas! OB {ob_completa} registrada.")
                             time.sleep(1.2)
                             st.rerun()
 
