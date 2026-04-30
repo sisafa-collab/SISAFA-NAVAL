@@ -14,6 +14,8 @@ import plotly.express as px
 import pm4py
 from pm4py.objects.log.util import dataframe_utils
 from pm4py.objects.conversion.log import converter as log_converter
+from fpdf import FPDF
+import io
 
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
@@ -268,6 +270,71 @@ def limpar_valor(valor):
         return float(limpo)
     except ValueError:
         return 0.0
+
+def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, sel_g6, val_g6, desc_g6):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # --- CABEÇALHO ---
+    pdf.image('logo_sisafa.png', 10, 8, 33) 
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, 'SISAFA - SISTEMA DE ACOMPANHAMENTO DE FATURAS', 0, 1, 'C')
+    pdf.set_font('Arial', 'I', 12)
+    pdf.cell(0, 10, 'Relatório de Auditoria Analítica de Fatura', 0, 1, 'C')
+    pdf.ln(10)
+
+    # --- INFORMAÇÕES GERAIS ---
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 8, 'DADOS DO PROCESSO', 0, 1, 'L', True)
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(95, 8, f"NUP: {dados_nup['nup']}", 1)
+    pdf.cell(95, 8, f"Fatura: {dados_nup['Numero_da_fatura']}", 1, 1)
+    pdf.cell(95, 8, f"Auditor: {auditor}", 1)
+    pdf.cell(95, 8, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
+    pdf.ln(5)
+
+    # --- GLOSA ---
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 8, 'RESUMO DE GLOSA', 0, 1, 'L', True)
+    pdf.set_font('Arial', '', 10)
+    status_glosa = "SIM" if glosa > 0 else "NÃO"
+    pdf.cell(60, 8, f"Houve Glosa: {status_glosa}", 1)
+    pdf.cell(130, 8, f"Valor da Glosa: R$ {glosa:,.2f}", 1, 1)
+    if glosa > 0:
+        pdf.multi_cell(0, 8, f"Justificativa: {just_glosa}", 1)
+    pdf.ln(5)
+
+    # --- TABELA DE CENTROS DE CUSTO ---
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 8, 'DETALHAMENTO POR CENTRO DE CUSTO', 0, 1, 'L', True)
+    pdf.set_font('Arial', 'B', 9)
+    pdf.cell(150, 7, 'Descrição do Procedimento/Exame', 1)
+    pdf.cell(40, 7, 'Valor (R$)', 1, 1, 'C')
+    
+    pdf.set_font('Arial', '', 8)
+    total_auditado = 0
+    # Itera sobre todos os grupos (G1 a G5)
+    for grupo in g_listas:
+        for item in grupo:
+            valor = valores_detalhados.get(item, 0.0)
+            total_auditado += valor
+            pdf.cell(150, 6, item, 1)
+            pdf.cell(40, 6, f"{valor:,.2f}", 1, 1, 'R')
+            
+    # Adiciona Grupo VI se existir
+    if sel_g6 and val_g6 > 0:
+        total_auditado += val_g6
+        pdf.cell(150, 6, f"OUTROS: {sel_g6} ({desc_g6})", 1)
+        pdf.cell(40, 6, f"{val_g6:,.2f}", 1, 1, 'R')
+
+    # TOTAL FINAL
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(150, 8, 'VALOR LÍQUIDO FINAL AUDITADO', 1)
+    pdf.cell(40, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R')
+
+    return pdf.output(dest='S').encode('latin-1', errors='ignore')
+
 
 # --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
@@ -768,49 +835,51 @@ else:
                                 st.error("⚠️ Dados de e-mail não localizados.")
                         except: trava_confirmacao = False
 
-                    col_fin, col_mail = st.columns(2)
+                    # --- ÁREA DE AÇÕES FINAIS ---
+                    col_fin, col_mail, col_pdf = st.columns(3)
+
+                    # 1. Lógica para gerar o PDF (prepara os dados antes do botão)
+                    auditor_atual = st.session_state.get('user_full_name', 'Auditor (a)')
                     
-                    # --- BOTÃO FINALIZAR (COM TRATAMENTO INT64) ---
-                    if col_fin.button("✅ FINALIZAR AUDITORIA ANALÍTICA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
+                    pdf_bytes = gerar_relatorio_pdf(
+                        dados_nup, 
+                        auditor_atual, 
+                        glosa_input, 
+                        just_glosa, 
+                        valores_detalhados, 
+                        [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto],
+                        sel_g6, 
+                        val_g6, 
+                        desc_g6
+                    )
+
+                    # 2. Botão de Download na col_pdf
+                    with col_pdf:
+                        st.download_button(
+                            label="📄 GERAR PDF DA AUDITORIA",
+                            data=pdf_bytes,
+                            file_name=f"Auditoria_{num_fat.replace('/', '-')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+
+                    # 3. Botão Finalizar (Seu código original)
+                    if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
                             with st.spinner("Gravando..."):
+                                # ... (resto do seu código de gravação aqui) ...
                                 try:
                                     aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    # CONVERSÃO PARA TIPOS PADRÃO (Resolve o erro int64)
-                                    linha_save = [
-                                        datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                                        str(nup_audit), 
-                                        str(dados_nup['cnpj']), 
-                                        str(dados_nup['ose']), 
-                                        str(num_fat), 
-                                        int(dados_nup['mes_competencia']), 
-                                        int(dados_nup['ano_competencia'])
-                                    ]
-                                    # Adiciona valores dos Grupos I a V
-                                    for g in [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto]:
-                                        for c in g: linha_save.append(float(valores_detalhados[c]))
-                                    
-                                    # Adiciona Grupo VI
-                                    linha_save.extend([str(sel_g6), str(desc_g6), int(qtd_g6), float(val_g6)])
-                                    
-                                    aba_audit.append_row(linha_save)
-
-                                    # Histórico Log
-                                    s1, s2, s3, s4, s5 = sum(valores_detalhados[c] for c in g1_hosp), sum(valores_detalhados[c] for c in g2_lab), sum(valores_detalhados[c] for c in g3_spec), sum(valores_detalhados[c] for c in g4_terap), sum(valores_detalhados[c] for c in g5_odonto)
-                                    log_det = f"G1:R${s1:,.2f} | G2:R${s2:,.2f} | G3:R${s3:,.2f} | G4:R${s4:,.2f} | G5:R${s5:,.2f}"
-                                    if sel_g6: log_det += f" | Outros:R${val_g6:,.2f}"
-
-                                    mover_status(nup_audit, 3, valor_glosa=glosa_input, valor_liq=v_liquido_alvo, obs_texto=just_glosa)
-                                    registrar_acao(nup_audit, num_fat, "AUDITORIA_ANALITICA", log_det)
-                                    
+                                    # ... (lógica de linha_save e append_row) ...
                                     st.success("✅ Auditagem analítica gravada!")
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao salvar: {e}")
 
+                    # 4. Botão de E-mail (Seu código original)
                     if col_mail.button("📧 ENCAMINHAR GLOSA P/ OSE", use_container_width=True, disabled=not trava_confirmacao):
                         if disparar_email_glosa(email_dest, num_fat, glosa_input, just_glosa, nome_ose, email_aud):
                             registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_dest}")

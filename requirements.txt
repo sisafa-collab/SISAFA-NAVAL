@@ -7,3 +7,4 @@ pm4py
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
+fpdf
