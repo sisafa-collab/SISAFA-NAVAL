@@ -743,6 +743,35 @@ else:
                     
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
                     
+                    # --- 🛠️ GAVETA DE CORREÇÃO DE NUP/VALOR ---
+                    with st.expander("⚙️ Corrigir Dados Básicos (NUP ou Valor Apresentado)", expanded=False):
+                        st.warning("⚠️ Alterar aqui mudará o registro na planilha de processos.")
+                        ce1, ce2 = st.columns(2)
+                        
+                        novo_nup = ce1.text_input("Corrigir NUP:", value=str(nup_audit), key=f"edit_nup_{nup_audit}")
+                        novo_valor_apres = ce2.number_input("Corrigir Valor Apresentado (R$):", 
+                                                            min_value=0.0, 
+                                                                value=float(v_apres), 
+                                                                format="%.2f", 
+                                                                key=f"edit_v_apres_{nup_audit}")
+                        
+                        if st.button("💾 SALVAR CORREÇÃO NO PROCESSO", use_container_width=True):
+                            with st.spinner("Atualizando base..."):
+                                try:
+                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                                    celula = aba_proc.find(str(nup_audit))
+                                    if celula:
+                                        # Coluna 2 = NUP | Coluna 15 = Valor Apresentado
+                                        aba_proc.update_cell(celula.row, 2, str(novo_nup))
+                                        aba_proc.update_cell(celula.row, 15, str(novo_valor_apres))
+                                        
+                                        registrar_acao(nup_audit, num_fat, "CORRECAO_CADASTRO", f"NUP: {novo_nup} | Valor: {novo_valor_apres}")
+                                        st.success("✅ Cadastro corrigido!")
+                                        time.sleep(1)
+                                        st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro na correção: {e}")
+
                     # --- 1. RESUMO FINANCEIRO ---
                     c1, c2 = st.columns(2)
                     with c1:
