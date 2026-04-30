@@ -57,6 +57,25 @@ caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 
 st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
 
+# --- OCULTAR ELEMENTOS DA INTERFACE (Gatinho, Menu e Rodapé) ---
+# Este bloco deve ficar no topo do seu script
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            /* Esconde especificamente a barra de ferramentas do Streamlit Cloud */
+            .stAppToolbar {display: none;}
+            /* Remove o padding excessivo no topo que o header deixaria */
+            .block-container {
+                padding-top: 1rem;
+                padding-bottom: 0rem;
+            }
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
+
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
@@ -152,7 +171,7 @@ def mover_status(nup, novo_status, auditor_nip=None, obs_texto=None, valor_glosa
         fatura = dados_atuais[4]
         valor_atual = valor_liq if valor_liq is not None else dados_atuais[7]
         
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         aba_p.update_cell(cell.row, 11, novo_status)
         aba_p.update_cell(cell.row, 14, agora)
         if auditor_nip: aba_p.update_cell(cell.row, 12, auditor_nip)
@@ -316,7 +335,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.cell(95, 7, f"NUP: {nup_limpo}", 1)
     pdf.cell(95, 7, f"Fatura: {fat_limpa}", 1, 1)
     pdf.cell(95, 7, f"Auditor(a): {auditor_limpo}", 1)
-    pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
+    pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}", 1, 1)
     pdf.ln(3)
 
     # --- 5. RESUMO FINANCEIRO (A CONTA EXATA) ---
@@ -888,7 +907,7 @@ else:
 
                     st.divider()
                     if diferenca == 0:
-                        st.success(f"✅ Soma bateu! (R$ {soma_geral:,.2f})")
+                        st.success(f"✅ A soma bateu! (R$ {soma_geral:,.2f})")
                         trava_cc = False
                     else:
                         st.error(f"❌ Diferença: R$ {diferenca:,.2f} (Total itens: R$ {soma_geral:,.2f})")
@@ -952,7 +971,7 @@ else:
                                 try:
                                     # 1. CAPTURA DE DADOS
                                     auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
-                                    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+                                    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     
                                     # 2. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
@@ -971,7 +990,7 @@ else:
                                             num_fat,           # Numero_da_fatura
                                             2,                 # status_origem
                                             3,                 # status_destino
-                                            auditor_nome,      # usuario
+                                            auditor_nip,       # usuario
                                             v_apres,           # valor_no_momento (valor apresentado)
                                             just_glosa         # obs (justificativa da glosa)
                                         ]
@@ -1337,7 +1356,7 @@ else:
                                                 linha_idx = celula.row
                                                 
                                                 # Atualizamos: data_resposta (8), status_msg (9), respondido_por_nip (10)
-                                                agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                                agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                                 aba_msg.update_cell(linha_idx, 8, agora)
                                                 aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")
                                                 aba_msg.update_cell(linha_idx, 10, str(st.session_state.user_id)) # NIP do Auditor logado
@@ -2080,7 +2099,7 @@ else:
                                                 linha_idx = celula.row
                                                 
                                                 # Atualizamos: data_resposta (8), status_msg (9), respondido_por_nip (10)
-                                                agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                                agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                                 aba_msg.update_cell(linha_idx, 8, agora)
                                                 aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")
                                                 aba_msg.update_cell(linha_idx, 10, str(st.session_state.user_id)) # NIP do militar
@@ -2529,7 +2548,7 @@ else:
                                             # Busca a linha e atualiza as 10 colunas
                                             celula = aba_msg.find(id_msg_alvo)
                                             linha_idx = celula.row
-                                            agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                                            agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                             
                                             aba_msg.update_cell(linha_idx, 8, agora)         # data_resposta
                                             aba_msg.update_cell(linha_idx, 9, "RESPONDIDO")    # status_msg
@@ -3106,7 +3125,7 @@ else:
                                         user_cnpj,                       # 4. remetente (CNPJ da OSE)
                                         setor_destino,                   # 5. setor_destino
                                         f"[{assunto}] {mensagem_texto}", # 6. texto (Juntei o assunto no corpo)
-                                        datetime.now().strftime("%d/%m/%Y %H:%M"), # 7. data_envio
+                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 7. data_envio
                                         "",                              # 8. data_resposta (Vazio)
                                         "PENDENTE",                      # 9. status_msg
                                         ""                               # 10. respondido_por_nip (Vazio)
