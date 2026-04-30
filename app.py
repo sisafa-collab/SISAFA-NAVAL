@@ -271,67 +271,95 @@ def limpar_valor(valor):
     except ValueError:
         return 0.0
 
+def tratar_texto_pdf(texto):
+    if not texto:
+        return ""
+    # Remove caracteres que o PDF não entende (emojis, aspas especiais, etc)
+    return str(texto).encode('latin-1', 'ignore').decode('latin-1')
+
 def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, sel_g6, val_g6, desc_g6):
     pdf = FPDF()
+    pdf.set_margins(10, 10, 10) # Margens reduzidas para ganhar espaço
     pdf.add_page()
     
-    # --- CABEÇALHO ---
-    pdf.image('LOGO-SISAFA-NAVAL.png', 10, 8, 33) 
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
-    pdf.set_font('Arial', 'I', 12)
-    pdf.cell(0, 10, 'Relatório de Auditoria Analítica de Fatura', 0, 1, 'C')
-    pdf.ln(10)
+    # --- 1. MARCA D'ÁGUA (Logo Centralizado ao Fundo) ---
+    try:
+        # x=65, y=100 centraliza o logo no meio da folha A4
+        pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
+    except:
+        pass
 
-    # --- INFORMAÇÕES GERAIS ---
-    pdf.set_fill_color(240, 240, 240)
-    pdf.set_font('Arial', 'B', 11)
-    pdf.cell(0, 8, 'DADOS DO PROCESSO', 0, 1, 'L', True)
-    pdf.set_font('Arial', '', 10)
-    pdf.cell(95, 8, f"NUP: {dados_nup['nup']}", 1)
-    pdf.cell(95, 8, f"Fatura: {dados_nup['Numero_da_fatura']}", 1, 1)
-    pdf.cell(95, 8, f"Auditor: {auditor}", 1)
-    pdf.cell(95, 8, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
-    pdf.ln(5)
+    # --- 2. TRATAMENTO DE VARIÁVEIS ---
+    auditor_limpo = tratar_texto_pdf(auditor)
+    just_limpa = tratar_texto_pdf(just_glosa)
+    nup_limpo = tratar_texto_pdf(dados_nup['nup'])
+    fat_limpa = tratar_texto_pdf(dados_nup['Numero_da_fatura'])
 
-    # --- GLOSA ---
-    pdf.set_font('Arial', 'B', 11)
-    pdf.cell(0, 8, 'RESUMO DE GLOSA', 0, 1, 'L', True)
-    pdf.set_font('Arial', '', 10)
+    # --- 3. CABEÇALHO COMPACTO ---
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 8, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
+    pdf.set_font('Arial', 'I', 10)
+    pdf.cell(0, 6, 'Relatório de Auditoria Analítica de Fatura', 0, 1, 'C')
+    pdf.ln(4)
+
+    # --- 4. DADOS DO PROCESSO ---
+    pdf.set_fill_color(245, 245, 245)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 7, 'DADOS DO PROCESSO', 0, 1, 'L', True)
+    pdf.set_font('Arial', '', 9)
+    pdf.cell(95, 7, f"NUP: {nup_limpo}", 1)
+    pdf.cell(95, 7, f"Fatura: {fat_limpa}", 1, 1)
+    pdf.cell(95, 7, f"Auditor(a): {auditor_limpo}", 1)
+    pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
+    pdf.ln(3)
+
+    # --- 5. RESUMO DE GLOSA ---
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 7, 'RESUMO DE GLOSA', 0, 1, 'L', True)
+    pdf.set_font('Arial', '', 9)
     status_glosa = "SIM" if glosa > 0 else "NÃO"
-    pdf.cell(60, 8, f"Houve Glosa: {status_glosa}", 1)
-    pdf.cell(130, 8, f"Valor da Glosa: R$ {glosa:,.2f}", 1, 1)
+    pdf.cell(60, 7, f"Houve Glosa: {status_glosa}", 1)
+    pdf.cell(130, 7, f"Valor da Glosa: R$ {glosa:,.2f}", 1, 1)
     if glosa > 0:
-        pdf.multi_cell(0, 8, f"Justificativa: {just_glosa}", 1)
-    pdf.ln(5)
+        pdf.multi_cell(0, 5, f"Justificativa: {just_limpa}", 1)
+    pdf.ln(3)
 
-    # --- TABELA DE CENTROS DE CUSTO ---
-    pdf.set_font('Arial', 'B', 11)
-    pdf.cell(0, 8, 'DETALHAMENTO POR CENTRO DE CUSTO', 0, 1, 'L', True)
-    pdf.set_font('Arial', 'B', 9)
-    pdf.cell(150, 7, 'Descrição do Procedimento/Exame', 1)
-    pdf.cell(40, 7, 'Valor (R$)', 1, 1, 'C')
+    # --- 6. TABELA DINÂMICA (SÓ ITENS COM VALOR > 0) ---
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 7, 'DETALHAMENTO POR CENTRO DE CUSTO (ITENS AUDITADOS)', 0, 1, 'L', True)
+    pdf.set_font('Arial', 'B', 8)
+    pdf.cell(155, 6, 'Descrição do Procedimento/Exame', 1)
+    pdf.cell(35, 6, 'Valor (R$)', 1, 1, 'C')
     
     pdf.set_font('Arial', '', 8)
     total_auditado = 0
-    # Itera sobre todos os grupos (G1 a G5)
+    
+    # Loop inteligente: Se o valor for 0, o item não entra no PDF
     for grupo in g_listas:
         for item in grupo:
             valor = valores_detalhados.get(item, 0.0)
-            total_auditado += valor
-            pdf.cell(150, 6, item, 1)
-            pdf.cell(40, 6, f"{valor:,.2f}", 1, 1, 'R')
+            if valor > 0:
+                total_auditado += valor
+                pdf.cell(155, 5, tratar_texto_pdf(item), 1)
+                pdf.cell(35, 5, f"{valor:,.2f}", 1, 1, 'R')
             
-    # Adiciona Grupo VI se existir
     if sel_g6 and val_g6 > 0:
         total_auditado += val_g6
-        pdf.cell(150, 6, f"OUTROS: {sel_g6} ({desc_g6})", 1)
-        pdf.cell(40, 6, f"{val_g6:,.2f}", 1, 1, 'R')
+        texto_g6 = tratar_texto_pdf(f"OUTROS: {sel_g6} ({desc_g6})")
+        pdf.cell(155, 5, texto_g6, 1)
+        pdf.cell(35, 5, f"{val_g6:,.2f}", 1, 1, 'R')
 
-    # TOTAL FINAL
+    # --- 7. TOTAL FINAL ---
+    pdf.ln(2)
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(150, 8, 'VALOR LÍQUIDO FINAL AUDITADO', 1)
-    pdf.cell(40, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R')
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(155, 8, 'VALOR LÍQUIDO FINAL AUDITADO', 1, 0, 'L', True)
+    pdf.cell(35, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R', True)
+
+    # Rodapé fixo
+    pdf.set_y(-15)
+    pdf.set_font('Arial', 'I', 7)
+    pdf.cell(0, 10, 'Documento gerado eletronicamente pelo SISAFA-Naval', 0, 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', errors='ignore')
 
