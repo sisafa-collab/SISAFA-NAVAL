@@ -2632,65 +2632,82 @@ else:
             st.subheader("⏱️ Produtividade e dados estatísticos")
             
             try:
-                # 1. CARREGAMENTO DOS DADOS
-                aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                df_hist = pd.DataFrame(aba_h.get_all_records())
-                
-                if df_hist.empty:
-                    st.info("Aguardando dados históricos para calcular produtividade.")
-                else:
-                    # --- A VACINA DAS DATAS (ISO 8601) ---
-                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
-                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
-                    
-                    # =========================================================
-                    # PARTE 1: ESTATÍSTICAS DE TEMPO (O QUE VOCÊ GOSTOU!)
-                    # =========================================================
-                    st.markdown("### 📊 Tempo Médio por Transição (Gargalos)")
-                    
-                    # Cálculo de tempo entre etapas
-                    df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
-                    
-                    # Criamos a label da transição (ex: "Status 4 ➔ Status 5")
-                    df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
-                    df_tempos['transicao'] = df_tempos['status_origem'].astype(str) + " ➔ " + df_tempos['status_destino'].astype(str)
-                    
-                    # Convertendo timedelta para dias decimais
-                    df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
-                    
-                    # Média de dias por transição
-                    resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
-                    
-                    # Gráfico de Barras original (Gargalos)
-                    fig_tempo = px.bar(
-                        resumo_tempo, 
-                        x='transicao', 
-                        y='dias', 
-                        title="Dias Médios de Permanência em cada Etapa",
-                        labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
-                        color='dias', 
-                        color_continuous_scale='Reds', # Vermelho para destacar o que demora
-                        text_auto='.1f'
-                    )
-                    st.plotly_chart(fig_tempo, use_container_width=True)
-
-                    # Métricas de eficiência logo abaixo do gráfico
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        total_faturas = df['nup'].nunique()
-                        faturas_pagas = df[df['status'] == 9]['nup'].nunique()
-                        taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
-                        st.metric("Taxa de Conclusão (Eficiência)", f"{taxa_conclusao:.1f}%")
-                    with c2:
-                        lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
-                        st.metric("Lead Time Médio Geral", f"{lead_time_medio:.1f} dias")
-
-                    st.divider()
-
+            # 1. CARREGAMENTO DOS DADOS
+            aba_h = sh.worksheet("SISAFA-NAVAL-historico")
+            df_hist = pd.DataFrame(aba_h.get_all_records())
             
-            # --- FINALIZA A ABA 1 (Certifique-se que o except está alinhado com o try da tab_fin) ---
-            except Exception as e:
-                st.error(f"Erro na aba financeira: {e}")
+            if df_hist.empty:
+                st.info("Aguardando dados históricos para calcular produtividade.")
+            else:
+                # --- DICIONÁRIO DE TRADUÇÃO (O "Mapa da Mina") ---
+                mapa_status = {
+                1: "📥 Cadastrada (SECOM)",
+                2: "🩺 Em Auditagem",
+                3: "✅ Auditada",
+                4: "💰 Aguardando emissão de NE",
+                5: "🏦 Empenhada",
+                6: "📝 Aguardando NF / Certificação",
+                7: "⏳ Em liquidação",
+                8: "💵 Liquidada"
+                }
+
+                # --- A VACINA DAS DATAS (ISO 8601) ---
+                df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
+                df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                
+                # --- TRADUÇÃO DOS STATUS ---
+                # Criamos colunas com nomes em vez de números para o gráfico
+                df_hist['origem_nome'] = df_hist['status_origem'].map(mapa_status).fillna("Desconhecido")
+                df_hist['destino_nome'] = df_hist['status_destino'].map(mapa_status).fillna("Desconhecido")
+
+                # =========================================================
+                # PARTE 1: ESTATÍSTICAS DE TEMPO (COM NOMES)
+                # =========================================================
+                st.markdown("### 📊 Tempo Médio de Permanência por Etapa")
+                
+                # Cálculo de tempo entre as linhas do histórico
+                df_hist['tempo_etapa'] = df_hist.groupby('nup')['timestamp'].diff()
+                
+                # Criamos a label da transição (ex: "Recebido ➔ Em Auditagem")
+                df_tempos = df_hist.dropna(subset=['tempo_etapa']).copy()
+                df_tempos['transicao'] = df_tempos['origem_nome'] + " ➔ " + df_tempos['destino_nome']
+                
+                # Convertendo para dias decimais
+                df_tempos['dias'] = df_tempos['tempo_etapa'].dt.total_seconds() / (24 * 3600)
+                
+                # Média de dias por transição
+                resumo_tempo = df_tempos.groupby('transicao')['dias'].mean().reset_index()
+                
+                # Gráfico de Barras com nomes
+                fig_tempo = px.bar(
+                    resumo_tempo, 
+                    x='transicao', 
+                    y='dias', 
+                    title="Onde o processo fica mais tempo?",
+                    labels={'dias': 'Média de Dias', 'transicao': 'Etapa do Processo'},
+                    color='dias', 
+                    color_continuous_scale='Reds', # Vermelho destaca o gargalo
+                    text_auto='.1f'
+                )
+                st.plotly_chart(fig_tempo, use_container_width=True)
+
+                # --- MÉTRICAS DE EFICIÊNCIA ---
+                c1, c2 = st.columns(2)
+                with c1:
+                    total_faturas = df['nup'].nunique()
+                    # Filtra usando o nome traduzido ou o código 9
+                    faturas_pagas = df[df['status'] == 9]['nup'].nunique()
+                    taxa_conclusao = (faturas_pagas / total_faturas) * 100 if total_faturas > 0 else 0
+                    st.metric("Taxa de Eficiência (Conclusão)", f"{taxa_conclusao:.1f}%")
+                with c2:
+                    # Lead time médio: Tempo total do primeiro ao último registro de cada NUP
+                    lead_time_medio = df_tempos.groupby('nup')['dias'].sum().mean()
+                    st.metric("Ciclo Médio (Início ao Fim)", f"{lead_time_medio:.1f} dias")
+
+                st.divider()
+
+        except Exception as e:
+            st.error(f"Erro ao processar indicadores: {e}")
 
             # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
