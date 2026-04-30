@@ -276,9 +276,9 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.add_page()
     
     # --- CABEÇALHO ---
-    pdf.image('logo_sisafa.png', 10, 8, 33) 
+    pdf.image('LOGO-SISAFA-NAVAL.png', 10, 8, 33) 
     pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, 'SISAFA - SISTEMA DE ACOMPANHAMENTO DE FATURAS', 0, 1, 'C')
+    pdf.cell(0, 10, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
     pdf.set_font('Arial', 'I', 12)
     pdf.cell(0, 10, 'Relatório de Auditoria Analítica de Fatura', 0, 1, 'C')
     pdf.ln(10)
