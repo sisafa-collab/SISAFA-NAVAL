@@ -566,6 +566,8 @@ else:
     elif st.session_state.modulo_ativo == "AUDITORIA" or st.session_state.modulo_ativo == "ADMIN":
         st.header("⚖️ Divisão de Auditoria em Saúde ⚕️")
         
+        df.columns = df.columns.str.strip()
+
         # Criação das 6 abas solicitadas
         t_fila, t_mesa, t_auditadas, t_busca, t_stats, t_rel = st.tabs([
             "📥 Fila de Espera", "🩺 Em Auditagem", "✅ Auditadas", 
