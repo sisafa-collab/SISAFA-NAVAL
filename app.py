@@ -277,32 +277,31 @@ def tratar_texto_pdf(texto):
     # Remove caracteres que o PDF não entende (emojis, aspas especiais, etc)
     return str(texto).encode('latin-1', 'ignore').decode('latin-1')
 
-def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, sel_g6, val_g6, desc_g6):
+def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, sel_g6, val_g6, desc_g6, v_apres):
     pdf = FPDF()
-    pdf.set_margins(10, 10, 10) # Margens reduzidas para ganhar espaço
+    pdf.set_margins(10, 10, 10)
     pdf.add_page()
     
-    # --- 1. MARCA D'ÁGUA (Logo Centralizado ao Fundo) ---
+    # --- 1. MARCA D'ÁGUA ---
     try:
         pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
     except:
         pass
 
-    # --- 2. TRATAMENTO DE VARIÁVEIS E CÁLCULOS ---
+    # --- 2. TRATAMENTO DE VARIÁVEIS ---
     auditor_limpo = tratar_texto_pdf(auditor)
     just_limpa = tratar_texto_pdf(just_glosa)
     nup_limpo = tratar_texto_pdf(dados_nup['nup'])
     fat_limpa = tratar_texto_pdf(dados_nup['Numero_da_fatura'])
     
-    # Capturando o valor apresentado (Garante que seja numérico para o cálculo)
-    try:
-        v_apres = float(str(dados_nup.get('valor_apresentado', 0)).replace('R$', '').replace('.', '').replace(',', '.'))
-    except:
-        v_apres = 0.0
-    
+    # Cálculo direto usando o v_apres que veio do App
     v_liquido_calculado = v_apres - glosa
 
-    # --- 3. CABEÇALHO COMPACTO ---
+    # Função interna para formatar moeda no padrão BR (R$ 1.234,56)
+    def fmt(valor):
+        return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+    # --- 3. CABEÇALHO ---
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
     pdf.set_font('Arial', 'I', 10)
@@ -320,15 +319,15 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
     pdf.ln(3)
 
-    # --- 5. RESUMO FINANCEIRO (AQUI ENTRA A CONTA SOLICITADA) ---
+    # --- 5. RESUMO FINANCEIRO (A CONTA EXATA) ---
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(0, 7, 'RESUMO FINANCEIRO DA AUDITORIA', 0, 1, 'L', True)
     pdf.set_font('Arial', '', 9)
     
-    # Linha com a conta: Apresentado - Glosa = Líquido
-    pdf.cell(63, 7, f"Valor Apresentado: R$ {v_apres:,.2f}", 1)
-    pdf.cell(63, 7, f"(-) Valor da Glosa: R$ {glosa:,.2f}", 1)
-    pdf.cell(64, 7, f"(=) Valor Líquido: R$ {v_liquido_calculado:,.2f}", 1, 1)
+    # Exibição da conta matemática clara
+    pdf.cell(63, 7, f"Valor Apresentado: {fmt(v_apres)}", 1)
+    pdf.cell(63, 7, f"(-) Valor da Glosa: {fmt(glosa)}", 1)
+    pdf.cell(64, 7, f"(=) Valor Líquido: {fmt(v_liquido_calculado)}", 1, 1)
     
     status_glosa = "SIM" if glosa > 0 else "NÃO"
     pdf.cell(0, 7, f"Houve Glosa: {status_glosa}", 1, 1)
@@ -337,7 +336,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
         pdf.multi_cell(0, 5, f"Justificativa Técnica: {just_limpa}", 1)
     pdf.ln(3)
 
-    # --- 6. TABELA DINÂMICA (SÓ ITENS COM VALOR > 0) ---
+    # --- 6. TABELA DINÂMICA ---
     pdf.set_font('Arial', 'B', 10)
     pdf.cell(0, 7, 'DETALHAMENTO POR CENTRO DE CUSTO', 0, 1, 'L', True)
     pdf.set_font('Arial', 'B', 8)
@@ -346,7 +345,6 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     pdf.set_font('Arial', '', 8)
     total_auditado = 0
-    
     for grupo in g_listas:
         for item in grupo:
             valor = valores_detalhados.get(item, 0.0)
@@ -366,7 +364,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.set_font('Arial', 'B', 10)
     pdf.set_fill_color(230, 230, 230)
     pdf.cell(155, 8, 'TOTAL FINAL AUDITADO (VALOR LÍQUIDO)', 1, 0, 'L', True)
-    pdf.cell(35, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R', True)
+    pdf.cell(35, 8, f"{fmt(total_auditado)}", 1, 1, 'R', True)
 
     return pdf.output(dest='S').encode('latin-1', errors='ignore')
 
@@ -931,7 +929,8 @@ else:
                         [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto],
                         sel_g6, 
                         val_g6, 
-                        desc_g6
+                        desc_g6,
+                        v_apres
                     )
 
                     # 2. Botão de Download na col_pdf
@@ -944,17 +943,30 @@ else:
                             use_container_width=True
                         )
 
-                    # 3. Botão Finalizar (Seu código original)
+                    # 3. Botão Finalizar (Com inclusão de histórico)
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
                             with st.spinner("Gravando..."):
-                                # ... (resto do seu código de gravação aqui) ...
                                 try:
+                                    # Captura o nome do usuário logado
+                                    auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
+                                    
+                                    # Gravação na aba de auditoria analítica
                                     aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    # ... (lógica de linha_save e append_row) ...
-                                    st.success("✅ Auditagem analítica gravada!")
+                                    # ... (sua lógica de linha_save e append_row continua aqui) ...
+                                    
+                                    # --- 🛡️ REGISTRO NO HISTÓRICO ---
+                                    # Registra a ação no log geral do SISAFA
+                                    registrar_acao(
+                                        nup_audit, 
+                                        num_fat, 
+                                        "FATURA_AUDITADA", 
+                                        f"FINALIZADA POR: {auditor_nome}"
+                                    )
+                                    
+                                    st.success(f"✅ Processo de auditagem finalizado! Obrigado, {auditor_nome}!")
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e:
