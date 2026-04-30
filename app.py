@@ -299,7 +299,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 8, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
     pdf.set_font('Arial', 'I', 10)
-    pdf.cell(0, 6, 'Relatório de Auditoria Analítica de Fatura', 0, 1, 'C')
+    pdf.cell(0, 6, 'Relatório de Auditoria de Fatura', 0, 1, 'C')
     pdf.ln(4)
 
     # --- 4. DADOS DO PROCESSO ---
@@ -355,11 +355,6 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.set_fill_color(230, 230, 230)
     pdf.cell(155, 8, 'VALOR LÍQUIDO FINAL AUDITADO', 1, 0, 'L', True)
     pdf.cell(35, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R', True)
-
-    # Rodapé fixo
-    pdf.set_y(-15)
-    pdf.set_font('Arial', 'I', 7)
-    pdf.cell(0, 10, 'Documento gerado eletronicamente pelo SISAFA-Naval', 0, 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', errors='ignore')
 
