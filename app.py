@@ -943,7 +943,7 @@ else:
                             use_container_width=True
                         )
 
-                    # 3. Botão Finalizar (Alinhado com o layout do seu app)
+                    # 3. Botão Finalizar (Alinhamento milimétrico agora!)
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
@@ -957,32 +957,41 @@ else:
                                     # 2. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                                     celula = aba_proc.find(str(nup_audit))
+                                    
                                     if celula:
                                         aba_proc.update_cell(celula.row, 11, 3)     # Status
                                         aba_proc.update_cell(celula.row, 14, agora) # Data Último Status
-                                    
-                                    # 3. GRAVAÇÃO NA ABA DE AUDITORIA (Dados Técnicos)
-                                    aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    # aba_audit.append_row(sua_linha_save) # Descomente e use sua variável
-                                    
-                                    # 4. LANÇAMENTO NO HISTÓRICO (Para os Gráficos de Produtividade)
-                                    aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
-                                    # Formato: [NUP, Data, Status Origem, Status Destino, Responsável]
-                                    nova_linha_hist = [nup_audit, agora, 2, 3, auditor_nome]
-                                    aba_hist.append_row(nova_linha_hist)
+                                        
+                                        # 3. LANÇAMENTO NO HISTÓRICO (Ordem exata solicitada)
+                                        # Ordem: timestamp | nup | Numero_da_fatura | status_origem | status_destino | usuario | valor_no_momento | obs
+                                        aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
+                                        linha_hist = [
+                                            agora,             # timestamp
+                                            nup_audit,         # nup
+                                            num_fat,           # Numero_da_fatura
+                                            2,                 # status_origem
+                                            3,                 # status_destino
+                                            auditor_nome,      # usuario
+                                            v_apres,           # valor_no_momento (valor apresentado)
+                                            just_glosa         # obs (justificativa da glosa)
+                                        ]
+                                        aba_hist.append_row(linha_hist)
 
-                                    # 5. REGISTRO NO LOG DE AÇÕES
-                                    registrar_acao(
-                                        nup_audit, 
-                                        num_fat, 
-                                        "FATURA_AUDITADA", 
-                                        f"FINALIZADA POR: {auditor_nome}"
-                                    )
-                                    
-                                    st.success(f"✅ Auditagem gravada e histórico atualizado!")
-                                    time.sleep(1)
-                                    st.rerun()
-                                    
+                                        # 4. REGISTRO NO LOG DE AÇÕES
+                                        registrar_acao(
+                                            nup_audit, 
+                                            num_fat, 
+                                            "FATURA_AUDITADA", 
+                                            f"FINALIZADA POR: {auditor_nome}"
+                                        )
+                                        
+                                        # 5. MENSAGEM FINAL
+                                        st.success(f"✅ Auditagem gravada com sucesso! Obrigado pela paciência, {auditor_nome}!")
+                                        time.sleep(1.5)
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ NUP {nup_audit} não encontrado na planilha de Processos.")
+                                        
                                 except Exception as e:
                                     st.error(f"Erro ao salvar: {e}")
 
