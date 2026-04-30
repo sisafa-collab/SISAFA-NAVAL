@@ -2640,14 +2640,14 @@ else:
                     st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
                     mapa_status = {
-                        1: "1. 📥 Cadastrada (SECOM)",
-                        2: "2. 🩺 Em Auditagem",
-                        3: "3. ✅ Auditada",
-                        4: "4. 💰 Aguardando NE",
-                        5: "5. 🏦 Empenhada",
-                        6: "6. 📝 Aguardando NF",
-                        7: "7. ⏳ Em liquidação",
-                        8: "8. 💵 Liquidada"
+                        1: "📥 Cadastrada (SECOM)",
+                        2: "🩺 Em Auditagem",
+                        3: "✅ Auditada",
+                        4: "💰 Aguardando NE",
+                        5: "🏦 Empenhada",
+                        6: "📝 Aguardando NF",
+                        7: "⏳ Em liquidação",
+                        8: "💵 Liquidada"
                     }
 
                     # --- TRATAMENTO DE DATAS ---
