@@ -284,16 +284,23 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     # --- 1. MARCA D'ÁGUA (Logo Centralizado ao Fundo) ---
     try:
-        # x=65, y=100 centraliza o logo no meio da folha A4
         pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
     except:
         pass
 
-    # --- 2. TRATAMENTO DE VARIÁVEIS ---
+    # --- 2. TRATAMENTO DE VARIÁVEIS E CÁLCULOS ---
     auditor_limpo = tratar_texto_pdf(auditor)
     just_limpa = tratar_texto_pdf(just_glosa)
     nup_limpo = tratar_texto_pdf(dados_nup['nup'])
     fat_limpa = tratar_texto_pdf(dados_nup['Numero_da_fatura'])
+    
+    # Capturando o valor apresentado (Garante que seja numérico para o cálculo)
+    try:
+        v_apres = float(str(dados_nup.get('valor_apresentado', 0)).replace('R$', '').replace('.', '').replace(',', '.'))
+    except:
+        v_apres = 0.0
+    
+    v_liquido_calculado = v_apres - glosa
 
     # --- 3. CABEÇALHO COMPACTO ---
     pdf.set_font('Arial', 'B', 14)
@@ -313,20 +320,26 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M')}", 1, 1)
     pdf.ln(3)
 
-    # --- 5. RESUMO DE GLOSA ---
+    # --- 5. RESUMO FINANCEIRO (AQUI ENTRA A CONTA SOLICITADA) ---
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 7, 'RESUMO DE GLOSA', 0, 1, 'L', True)
+    pdf.cell(0, 7, 'RESUMO FINANCEIRO DA AUDITORIA', 0, 1, 'L', True)
     pdf.set_font('Arial', '', 9)
+    
+    # Linha com a conta: Apresentado - Glosa = Líquido
+    pdf.cell(63, 7, f"Valor Apresentado: R$ {v_apres:,.2f}", 1)
+    pdf.cell(63, 7, f"(-) Valor da Glosa: R$ {glosa:,.2f}", 1)
+    pdf.cell(64, 7, f"(=) Valor Líquido: R$ {v_liquido_calculado:,.2f}", 1, 1)
+    
     status_glosa = "SIM" if glosa > 0 else "NÃO"
-    pdf.cell(60, 7, f"Houve Glosa: {status_glosa}", 1)
-    pdf.cell(130, 7, f"Valor da Glosa: R$ {glosa:,.2f}", 1, 1)
+    pdf.cell(0, 7, f"Houve Glosa: {status_glosa}", 1, 1)
+    
     if glosa > 0:
-        pdf.multi_cell(0, 5, f"Justificativa: {just_limpa}", 1)
+        pdf.multi_cell(0, 5, f"Justificativa Técnica: {just_limpa}", 1)
     pdf.ln(3)
 
     # --- 6. TABELA DINÂMICA (SÓ ITENS COM VALOR > 0) ---
     pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 7, 'DETALHAMENTO POR CENTRO DE CUSTO (ITENS AUDITADOS)', 0, 1, 'L', True)
+    pdf.cell(0, 7, 'DETALHAMENTO POR CENTRO DE CUSTO', 0, 1, 'L', True)
     pdf.set_font('Arial', 'B', 8)
     pdf.cell(155, 6, 'Descrição do Procedimento/Exame', 1)
     pdf.cell(35, 6, 'Valor (R$)', 1, 1, 'C')
@@ -334,7 +347,6 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.set_font('Arial', '', 8)
     total_auditado = 0
     
-    # Loop inteligente: Se o valor for 0, o item não entra no PDF
     for grupo in g_listas:
         for item in grupo:
             valor = valores_detalhados.get(item, 0.0)
@@ -353,7 +365,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     pdf.ln(2)
     pdf.set_font('Arial', 'B', 10)
     pdf.set_fill_color(230, 230, 230)
-    pdf.cell(155, 8, 'VALOR LÍQUIDO FINAL AUDITADO', 1, 0, 'L', True)
+    pdf.cell(155, 8, 'TOTAL FINAL AUDITADO (VALOR LÍQUIDO)', 1, 0, 'L', True)
     pdf.cell(35, 8, f"R$ {total_auditado:,.2f}", 1, 1, 'R', True)
 
     return pdf.output(dest='S').encode('latin-1', errors='ignore')
