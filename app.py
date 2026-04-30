@@ -566,7 +566,18 @@ else:
     elif st.session_state.modulo_ativo == "AUDITORIA" or st.session_state.modulo_ativo == "ADMIN":
         st.header("⚖️ Divisão de Auditoria em Saúde ⚕️")
         
+        # 1. 🧼 Limpeza de espaços (Garante que não haja "mes_competencia ")
         df.columns = [str(col).strip() for col in df.columns]
+
+        # 2. 🛡️ Tradução Preventiva (Garante que 'mês' com acento vire 'mes' sem acento)
+        # Adicionei as variações mais comuns que causam erro
+        df = df.rename(columns={
+            'mês_competência': 'mes_competencia',
+            'mês_competencia': 'mes_competencia',
+            'mes_competência': 'mes_competencia',
+            'Mês': 'mes_competencia',
+            'MES': 'mes_competencia'
+        })
 
         # Criação das 6 abas solicitadas
         t_fila, t_mesa, t_auditadas, t_busca, t_stats, t_rel = st.tabs([
@@ -574,15 +585,19 @@ else:
             "🔍 Consultas", "📊 Produtividade", "💬 Relacionamento"
         ])
 
-        # --- NOVO: MAPEAMENTO DE MESES PARA EXIBIÇÃO ---
+        # --- MAPEAMENTO DE MESES PARA EXIBIÇÃO ---
         mapa_meses = {
-        1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
-        7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+            1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+            7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
         }
     
-        # Criamos uma coluna nova 'mes_sigla' para visualização sem estragar os cálculos
-        # Certificamos que 'mes_competencia' é numérico para o mapeamento funcionar
-        df['mes_sigla'] = pd.to_numeric(df['mes_competencia'], errors='coerce').map(mapa_meses)
+        # 3. ⚙️ Criação da sigla (Agora com proteção contra erro de coluna ausente)
+        if 'mes_competencia' in df.columns:
+            df['mes_sigla'] = pd.to_numeric(df['mes_competencia'], errors='coerce').map(mapa_meses)
+        else:
+            # Se mesmo assim não achar, ele cria a coluna vazia para não travar o app
+            df['mes_sigla'] = ""
+            st.error("⚠️ Atenção: Coluna 'mes_competencia' não localizada na planilha!")
 
         # 1. ABA: FILA DE ESPERA
         with t_fila:
