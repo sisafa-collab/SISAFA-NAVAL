@@ -943,22 +943,35 @@ else:
                             use_container_width=True
                         )
 
-                    # 3. Botão Finalizar (Com inclusão de histórico)
+                    # 3. Botão Finalizar (Alinhado com o layout do seu app)
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if glosa_input > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            with st.spinner("Gravando..."):
+                            with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
-                                    # Captura o nome do usuário logado
+                                    # 1. CAPTURA DE DADOS
                                     auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
+                                    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
                                     
-                                    # Gravação na aba de auditoria analítica
+                                    # 2. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
+                                    aba_proc = sh.worksheet("SISAFA-NAVAL-Processos")
+                                    celula = aba_proc.find(str(nup_audit))
+                                    if celula:
+                                        aba_proc.update_cell(celula.row, 11, 3)     # Status
+                                        aba_proc.update_cell(celula.row, 14, agora) # Data Último Status
+                                    
+                                    # 3. GRAVAÇÃO NA ABA DE AUDITORIA (Dados Técnicos)
                                     aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                    # ... (sua lógica de linha_save e append_row continua aqui) ...
+                                    # aba_audit.append_row(sua_linha_save) # Descomente e use sua variável
                                     
-                                    # --- 🛡️ REGISTRO NO HISTÓRICO ---
-                                    # Registra a ação no log geral do SISAFA
+                                    # 4. LANÇAMENTO NO HISTÓRICO (Para os Gráficos de Produtividade)
+                                    aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
+                                    # Formato: [NUP, Data, Status Origem, Status Destino, Responsável]
+                                    nova_linha_hist = [nup_audit, agora, 2, 3, auditor_nome]
+                                    aba_hist.append_row(nova_linha_hist)
+
+                                    # 5. REGISTRO NO LOG DE AÇÕES
                                     registrar_acao(
                                         nup_audit, 
                                         num_fat, 
@@ -966,9 +979,10 @@ else:
                                         f"FINALIZADA POR: {auditor_nome}"
                                     )
                                     
-                                    st.success(f"✅ Processo de auditagem finalizado! Obrigado, {auditor_nome}!")
+                                    st.success(f"✅ Auditagem gravada e histórico atualizado!")
                                     time.sleep(1)
                                     st.rerun()
+                                    
                                 except Exception as e:
                                     st.error(f"Erro ao salvar: {e}")
 
