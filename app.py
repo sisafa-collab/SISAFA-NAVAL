@@ -856,9 +856,9 @@ else:
                     # 2. Botão de Download na col_pdf
                     with col_pdf:
                         st.download_button(
-                            label="📄 GERAR PDF DA AUDITORIA",
+                            label="📄 GERAR CAPA DA AUDITORIA (PDF)",
                             data=pdf_bytes,
-                            file_name=f"Auditoria_{num_fat.replace('/', '-')}.pdf",
+                            file_name=f"Auditoria_{str(num_fat).replace('/', '-')}.pdf",
                             mime="application/pdf",
                             use_container_width=True
                         )
