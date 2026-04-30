@@ -955,7 +955,7 @@ else:
                                     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
                                     
                                     # 2. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
-                                    aba_proc = sh.worksheet("SISAFA-NAVAL-Processos")
+                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                                     celula = aba_proc.find(str(nup_audit))
                                     if celula:
                                         aba_proc.update_cell(celula.row, 11, 3)     # Status
