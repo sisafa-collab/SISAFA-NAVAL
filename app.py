@@ -971,7 +971,29 @@ else:
                                     auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     
-                                    # 2. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
+                                    # 2. GRAVAÇÃO DOS VALORES ANALÍTICOS (Aba Auditoria)
+                                    # Esta aba guarda o 'porquê' do valor, detalhando os Grupos I a VI
+                                    aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
+                                    
+                                    # Transformamos os valores dos inputs em uma lista plana
+                                    lista_valores_grupos = list(valores_detalhados.values())
+                                    
+                                    # Montamos a linha completa (Ajuste a ordem conforme suas colunas)
+                                    # Ordem sugerida: Timestamp | NUP | Fatura | Grupos I-V | Grupo VI Tipo | Grupo VI Valor | Grupo VI Desc | Auditor
+                                    linha_analitica = [
+                                        agora, 
+                                        nup_audit, 
+                                        num_fat,
+                                    ] + lista_valores_grupos + [
+                                        sel_g6, 
+                                        val_g6, 
+                                        desc_g6, 
+                                        auditor_nip
+                                    ]
+                                    
+                                    aba_audit_detalhe.append_row(linha_analitica)                           
+                                    
+                                    # 3. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                                     celula = aba_proc.find(str(nup_audit))
                                     
@@ -979,7 +1001,7 @@ else:
                                         aba_proc.update_cell(celula.row, 11, 3)     # Status
                                         aba_proc.update_cell(celula.row, 14, agora) # Data Último Status
                                         
-                                        # 3. LANÇAMENTO NO HISTÓRICO (Ordem exata solicitada)
+                                        # 3.1 LANÇAMENTO NO HISTÓRICO (Ordem exata solicitada)
                                         # Ordem: timestamp | nup | Numero_da_fatura | status_origem | status_destino | usuario | valor_no_momento | obs
                                         aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
                                         linha_hist = [
@@ -1012,7 +1034,7 @@ else:
                                 except Exception as e:
                                     st.error(f"Erro ao salvar: {e}")
 
-                    # 4. Botão de E-mail (Seu código original)
+                    # Botão de E-mail (Seu código original)
                     if col_mail.button("📧 ENCAMINHAR GLOSA P/ OSE", use_container_width=True, disabled=not trava_confirmacao):
                         if disparar_email_glosa(email_dest, num_fat, glosa_input, just_glosa, nome_ose, email_aud):
                             registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_dest}")
