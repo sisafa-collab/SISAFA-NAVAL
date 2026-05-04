@@ -967,14 +967,14 @@ else:
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     # 1. CAPTURA DE DADOS
-                                    auditor_nip = st.session_state.get('user_id', 'N/A')
-                                    auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
+                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+                                    auditor_nome = str(st.session_state.get('user_full_name', 'Auditor(a)'))
                                     agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                                     
-                                    cnpj_ose = dados_nup.get('cnpj', '')
-                                    nome_ose = dados_nup.get('ose', '')
-                                    mes_comp = dados_nup.get('mes_competencia', '')
-                                    ano_comp = dados_nup.get('ano_competencia', '')
+                                    cnpj_ose = str(dados_nup.get('cnpj', ''))
+                                    nome_ose = str(dados_nup.get('ose', ''))
+                                    mes_comp = int(dados_nup.get('mes_competencia', 0))
+                                    ano_comp = int(dados_nup.get('ano_competencia', 0))
 
                                     # 2. GRAVAÇÃO DOS VALORES ANALÍTICOS (Aba Auditoria)
                                     # Esta aba guarda o 'porquê' do valor, detalhando os Grupos I a VI
@@ -982,24 +982,24 @@ else:
 
                                     campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                                     
-                                    lista_detalhamento = [valores_detalhados.get(campo, 0) for campo in campos_todos_grupos]
-                                    
+                                    lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]                                    
 
                                     # Montamos a linha completa (Ajuste a ordem conforme suas colunas)
                                     # Ordem sugerida: Timestamp | NUP | Fatura | Grupos I-V | Grupo VI Tipo | Grupo VI Valor | Grupo VI Desc | Auditor
                                     linha_analitica = [
                                         agora, 
-                                        nup_audit, 
-                                        cnpj_ose,        # cnpj
-                                        nome_ose,        # ose
-                                        num_fat,         # Numero_da_fatura
-                                        mes_comp,        # mes_competencia
-                                        ano_comp         # ano_competencia
+                                        str(nup_audit), 
+                                        cnpj_ose, 
+                                        nome_ose, 
+                                        str(num_fat), 
+                                        mes_comp, 
+                                        ano_comp
                                     ] + lista_detalhamento + [
-                                        sel_g6,          # Grupo (VI)
-                                        desc_g6,         # Descrição (VI)
-                                        qtd_g6,          # Quantidade (VI)
-                                        val_g6           # Custo total (VI)
+                                        str(sel_g6), 
+                                        str(desc_g6), 
+                                        int(qtd_g6), 
+                                        float(val_g6), 
+                                        auditor_nip
                                     ]
                                     aba_audit_detalhe.append_row(linha_analitica)                           
                                     
