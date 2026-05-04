@@ -2720,7 +2720,7 @@ else:
                         resumo_etapa, 
                         x='etapa', 
                         y='dias', 
-                        title="Média de Dias Real (Estoque Atual + Finalizados)",
+                        title="Média de dias em cada etapa",
                         labels={'dias': 'Média de Dias', 'etapa': 'Setor / Etapa'},
                         color='dias',
                         color_continuous_scale='Reds',
