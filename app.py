@@ -967,6 +967,7 @@ else:
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     # 1. CAPTURA DE DADOS
+                                    auditor_nip = st.session_state.get('user_id', 'N/A')
                                     auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     
