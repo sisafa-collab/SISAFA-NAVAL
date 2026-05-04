@@ -1079,21 +1079,18 @@ else:
                     if st.button("📤 ENCAMINHAR PARA EXECUÇÃO", use_container_width=True, type="primary"):
                         if lote_selecionado:
                             with st.spinner("Registrando encaminhamento..."):
-                                for n in lote_selecionado:
-                                    # 1. Muda o Status para 4 (Aguardando NE)
-                                    mover_status(n, 4)
-                                    
-                                    # 2. Captura dados para o registro
+                                for n in lote_selecionado:                                    
+                                    # 1. Captura dados para o registro
                                     linha_f = df_auditadas[df_auditadas['nup'] == n].iloc[0]
                                     fat_n = linha_f['Numero_da_fatura']
                                     v_liq = linha_f['v_liq_limpo'] # Valor já limpo pela sua função no topo da aba
                                     
-                                    # 3. Registra na aba LOGS_ACOES (Micro)
+                                    # 2. Registra na aba LOGS_ACOES (Micro)
                                     registrar_acao(n, fat_n, "ENCAMINHADO_PARA_FINANCEIRO", "Processo enviado para a Execução Financeira.")
                                     
-                                    # 4. Registra na aba SISAFA-NAVAL-historico (Macro)
+                                    # 3. Registra na aba SISAFA-NAVAL-historico (Macro)
                                     # Status Origem: 3 | Status Destino: 4
-                                    registrar_historico(n, fat_n, "3", "4", v_liq, "ENVIADO PARA O FINANCEIRO")
+                                    registrar_historico(n, fat_n, "3", "3", v_liq, "ENVIADO PARA O FINANCEIRO")
                             
                             st.success(f"✅ {len(lote_selecionado)} faturas encaminhadas com sucesso!")
                             time.sleep(1.2)
