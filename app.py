@@ -57,8 +57,6 @@ caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 
 st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
 
-# --- OCULTAR ELEMENTOS DA INTERFACE (Gatinho, Menu e Rodapé) ---
-# Este bloco deve ficar no topo do seu script
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -74,7 +72,6 @@ hide_st_style = """
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
-
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
@@ -2682,51 +2679,54 @@ else:
                     st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
                     mapa_status = {
-                        1: "📥 Cadastrada (SECOM)",
-                        2: "🩺 Em Auditagem",
-                        3: "✅ Auditada",
-                        4: "💰 Aguardando NE",
-                        5: "🏦 Empenhada",
-                        6: "📝 Aguardando NF",
-                        7: "⏳ Em liquidação",
-                        8: "💵 Liquidada"
+                        1: "1. 📥 Cadastrada (SECOM)",
+                        2: "2. 🩺 Em Auditagem",
+                        3: "3. ✅ Auditada",
+                        4: "4. 💰 Aguardando NE",
+                        5: "5. 🏦 Empenhada",
+                        6: "6. 📝 Aguardando NF",
+                        7: "7. ⏳ Em liquidação",
+                        8: "8. 💵 Liquidada"
                     }
 
                     # --- TRATAMENTO DE DATAS ---
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
                     df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # --- CÁLCULO DE TEMPO NA ETAPA DE ORIGEM ---
-                    # O tempo decorrido até o próximo registro pertence ao status_origem
-                    df_hist['tempo_segundos'] = df_hist.groupby('nup')['timestamp'].diff().shift(-1).dt.total_seconds()
+                    # --- LÓGICA DE TEMPO REAL (SEM PONTO CEGO) ---
+                    # Usamos 'hoje' como data de fim para processos que ainda não mudaram de status
+                    hoje = pd.Timestamp.now()
                     
-                    # Removemos o último registro de cada NUP (pois ele ainda está na etapa atual)
-                    df_permanencia = df_hist.dropna(subset=['tempo_segundos']).copy()
+                    # Identificamos a data da próxima movimentação
+                    df_hist['proximo_timestamp'] = df_hist.groupby('nup')['timestamp'].shift(-1)
                     
-                    # Converte para dias e mapeia nomes
-                    df_permanencia['dias'] = df_permanencia['tempo_segundos'] / (24 * 3600)
-                    df_permanencia['etapa'] = df_permanencia['status_origem'].map(mapa_status)
+                    # SE NÃO HOUVER PRÓXIMO REGISTRO, O CRONÔMETRO CONTA ATÉ HOJE!
+                    df_hist['data_fim'] = df_hist['proximo_timestamp'].fillna(hoje)
                     
-                    # Filtrar apenas as etapas do nosso mapa (1 a 8)
-                    df_permanencia = df_permanencia.dropna(subset=['etapa'])
+                    # Cálculo real da permanência em dias
+                    df_hist['tempo_segundos'] = (df_hist['data_fim'] - df_hist['timestamp']).dt.total_seconds()
+                    df_hist['dias'] = df_hist['tempo_segundos'] / (24 * 3600)
+                    
+                    # Mapeamento e Limpeza
+                    df_hist['etapa'] = df_hist['status_origem'].map(mapa_status)
+                    df_permanencia = df_hist.dropna(subset=['etapa']).copy()
 
-                    # --- AGRUPAMENTO ---
+                    # --- AGRUPAMENTO DAS MÉDIAS ---
                     resumo_etapa = df_permanencia.groupby(['status_origem', 'etapa'])['dias'].mean().reset_index()
-                    resumo_etapa = resumo_etapa.sort_values('status_origem') # Garante a ordem 1 a 8
+                    resumo_etapa = resumo_etapa.sort_values('status_origem')
 
-                    # --- GRÁFICO ---
+                    # --- GRÁFICO SINCERO ---
                     fig_prod = px.bar(
                         resumo_etapa, 
                         x='etapa', 
                         y='dias', 
-                        title="Média de Dias que a Fatura permanece em cada Setor",
+                        title="Média de Dias Real (Estoque Atual + Finalizados)",
                         labels={'dias': 'Média de Dias', 'etapa': 'Setor / Etapa'},
                         color='dias',
                         color_continuous_scale='Reds',
                         text_auto='.1f'
                     )
                     
-                    # Ajuste visual para não cortar os nomes longos
                     fig_prod.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_prod, use_container_width=True)
 
@@ -2736,16 +2736,16 @@ else:
                         total_nup = df['nup'].nunique()
                         concluidos = df[df['status'] == 8]['nup'].nunique()
                         taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
-                        st.metric("Taxa de Liquidação (Eficiência)", f"{taxa:.1f}%")
+                        st.metric("Taxa de Liquidação Total", f"{taxa:.1f}%")
                     with c2:
-                        # Tempo total médio (Lead Time)
+                        # Lead Time Médio Total considerando o tempo acumulado até hoje
                         lead_time = df_permanencia.groupby('nup')['dias'].sum().mean()
-                        st.metric("Tempo Médio do Ciclo Total", f"{lead_time:.1f} dias")
+                        st.metric("Ciclo Médio Total (Lead Time)", f"{lead_time:.1f} dias")
 
                     st.divider()
 
             except Exception as e:
-                st.error(f"Erro nos indicadores: {e}")
+                st.error(f"Erro ao processar indicadores: {e}")
 
             # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
