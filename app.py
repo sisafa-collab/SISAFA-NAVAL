@@ -999,7 +999,6 @@ else:
                                         str(desc_g6), 
                                         int(qtd_g6), 
                                         float(val_g6), 
-                                        auditor_nip
                                     ]
                                     aba_audit_detalhe.append_row(linha_analitica)                           
                                     
@@ -1008,8 +1007,11 @@ else:
                                     celula = aba_proc.find(str(nup_audit))
                                     
                                     if celula:
-                                        aba_proc.update_cell(celula.row, 11, 3)     # Status
-                                        aba_proc.update_cell(celula.row, 14, agora) # Data Último Status
+                                        aba_proc.update_cell(celula.row, 7, float(glosa_input))      # Coluna G: Glosa
+                                        aba_proc.update_cell(celula.row, 8, float(v_liquido_alvo))  # Coluna H: Valor Líquido
+                                        aba_proc.update_cell(celula.row, 11, 3)                     # Coluna K: Status (Auditada)
+                                        aba_proc.update_cell(celula.row, 12, str(auditor_nip))      # Coluna L: NIP
+                                        aba_proc.update_cell(celula.row, 14, agora)
                                         
                                         # 3.1 LANÇAMENTO NO HISTÓRICO (Ordem exata solicitada)
                                         # Ordem: timestamp | nup | Numero_da_fatura | status_origem | status_destino | usuario | valor_no_momento | obs
@@ -2377,7 +2379,7 @@ else:
                     
                     with col_f1:
                         st.markdown("##### 📤 1. Informar Nota Fiscal")
-                        nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 2026/550", key=f"nf_input_{ne_alvo}")
+                        nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 550/2026", key=f"nf_input_{ne_alvo}")
                         
                         if st.button("💾 Registrar NF no SISAFA", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
                             if nf_in:
