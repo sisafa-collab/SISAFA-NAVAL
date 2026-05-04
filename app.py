@@ -1022,49 +1022,38 @@ else:
                                     ano_comp = int(dados_nup.get('ano_competencia', 0))
 
                                     # 2. GRAVAÇÃO DOS VALORES ANALÍTICOS (Aba Auditoria)
-                                    # Esta aba guarda o 'porquê' do valor, detalhando os Grupos I a VI
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
-
                                     campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
-                                    
-                                    # Recuperamos a lista de itens do Grupo VI do session_state
+
+                                    # 1. Limpeza da lista do Grupo VI
                                     key_lista_g6 = f"lista_g6_{nup_audit}"
                                     lista_g6_bruta = st.session_state.get(key_lista_g6, [])
                                     lista_g6_limpa = [it for it in lista_g6_bruta if str(it.get('tipo', '')).strip() != ""]
 
-                                    if not lista_g6_limpa:
-                                        lista_g6_limpa = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
-
+                                    # 2. Preparação das Linhas
                                     todas_as_linhas = []
+                                    valores_reais = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
+                                    valores_zerados = [0.0] * len(campos_todos_grupos)
 
-                                    # Percorremos cada item para gravar uma linha por item do Grupo VI
-                                    for i, item_g6 in enumerate(lista_g6_limpa):
-                                        if i == 0:
-                                            # PRIMEIRA LINHA: Pega os valores reais de todos os grupos
-                                            lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
-                                        else:
-                                            # DEMAIS LINHAS: Zera os grupos fixos para não duplicar valores no BI/Excel
-                                            lista_detalhamento = [0.0] * len(campos_todos_grupos)
+                                    if not lista_g6_limpa:
+                                        # Caso sem Grupo VI: Uma linha com valores reais
+                                        linha = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + \
+                                                valores_reais + ["", "", 0, 0.0, auditor_nip]
+                                        todas_as_linhas.append(linha)
+                                    else:
+                                        # Caso com Grupo VI: Primeira linha leva os valores reais
+                                        item1 = lista_g6_limpa[0]
+                                        linha1 = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + \
+                                                 valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor']), auditor_nip]
+                                        todas_as_linhas.append(linha1)
+                                        
+                                        # Demais linhas levam zeros nos grupos I-V
+                                        for extra in lista_g6_limpa[1:]:
+                                            linha_ex = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + \
+                                                       valores_zerados + [str(extra['tipo']), str(extra['desc']), int(extra['qtd']), float(extra['valor'])]
+                                            todas_as_linhas.append(linha_ex)
 
-
-                                    # Montamos a linha completa (Ajuste a ordem conforme suas colunas)
-                                    # Ordem sugerida: Timestamp | NUP | Fatura | Grupos I-V | Grupo VI Tipo | Grupo VI Valor | Grupo VI Desc | Auditor
-                                    linha_analitica = [
-                                        agora, 
-                                        str(nup_audit), 
-                                        cnpj_ose, 
-                                        nome_ose, 
-                                        str(num_fat), 
-                                        mes_comp, 
-                                        ano_comp
-                                    ] + lista_detalhamento + [
-                                        str(item_g6['tipo']), 
-                                        str(item_g6['desc']), 
-                                        int(item_g6['qtd']), 
-                                        float(item_g6['valor']), 
-                                    ]
-                                    todas_as_linhas.append(linha_analitica)                           
-                                    
+                                    # 3. ENVIO ÚNICO PARA A PLANILHA (Fora de qualquer loop)
                                     if todas_as_linhas:
                                         aba_audit_detalhe.append_rows(todas_as_linhas)
 
