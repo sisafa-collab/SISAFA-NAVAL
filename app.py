@@ -979,10 +979,12 @@ else:
                                     # 2. GRAVAÇÃO DOS VALORES ANALÍTICOS (Aba Auditoria)
                                     # Esta aba guarda o 'porquê' do valor, detalhando os Grupos I a VI
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
+
+                                    campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                                     
-                                    # Transformamos os valores dos inputs em uma lista plana
-                                    lista_valores_grupos = list(valores_detalhados.values())
+                                    lista_detalhamento = [valores_detalhados.get(campo, 0) for campo in campos_todos_grupos]
                                     
+
                                     # Montamos a linha completa (Ajuste a ordem conforme suas colunas)
                                     # Ordem sugerida: Timestamp | NUP | Fatura | Grupos I-V | Grupo VI Tipo | Grupo VI Valor | Grupo VI Desc | Auditor
                                     linha_analitica = [
