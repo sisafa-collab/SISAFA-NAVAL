@@ -1044,7 +1044,7 @@ else:
                                         # Caso com Grupo VI: Primeira linha leva os valores reais
                                         item1 = lista_g6_limpa[0]
                                         linha1 = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + \
-                                                 valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor']), auditor_nip]
+                                                 valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor'])]
                                         todas_as_linhas.append(linha1)
                                         
                                         # Demais linhas levam zeros nos grupos I-V
