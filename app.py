@@ -301,12 +301,14 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     # --- 1. MARCA D'ÁGUA ---
     try:
-        pdf.set_alpha(0.15)  # Define a transparência (15%)
+        pdf.set_alpha(0.15)  # Funciona apenas na fpdf2
         pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
-        pdf.set_alpha(1.0)   # CRÍTICO: Volta a opacidade para 100% para o texto sair forte
-    except:
-        pdf.set_alpha(1.0)   # Garante o reset se a imagem falhar
-        pass
+        pdf.set_alpha(1.0)   # Retorna ao normal
+    except AttributeError:
+        # Caso a fpdf2 não esteja instalada, ele ignora a transparência e segue o baile
+        pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
+    except Exception as e:
+        st.error(f"Erro na marca d'água: {e}")
 
     # --- 2. TRATAMENTO DE VARIÁVEIS ---
     auditor_limpo = tratar_texto_pdf(auditor)
