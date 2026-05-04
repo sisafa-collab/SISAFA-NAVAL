@@ -294,7 +294,7 @@ def tratar_texto_pdf(texto):
     # Remove caracteres que o PDF não entende (emojis, aspas especiais, etc)
     return str(texto).encode('latin-1', 'ignore').decode('latin-1')
 
-def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, sel_g6, val_g6, desc_g6, v_apres):
+def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, lista_g6, v_apres):
     pdf = FPDF()
     pdf.set_margins(10, 10, 10)
     pdf.add_page()
@@ -362,6 +362,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     pdf.set_font('Arial', '', 8)
     total_auditado = 0
+    # 1. Loop para os Grupos I ao V (Fixos)
     for grupo in g_listas:
         for item in grupo:
             valor = valores_detalhados.get(item, 0.0)
@@ -370,11 +371,20 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
                 pdf.cell(155, 5, tratar_texto_pdf(item), 1)
                 pdf.cell(35, 5, f"{valor:,.2f}", 1, 1, 'R')
             
-    if sel_g6 and val_g6 > 0:
-        total_auditado += val_g6
-        texto_g6 = tratar_texto_pdf(f"OUTROS: {sel_g6} ({desc_g6})")
-        pdf.cell(155, 5, texto_g6, 1)
-        pdf.cell(35, 5, f"{val_g6:,.2f}", 1, 1, 'R')
+    # 2. PROCESSAMENTO DO GRUPO VI (Dinâmico)
+    # Note que este 'for' está no mesmo nível do 'for grupo in g_listas'
+    for item in lista_g6:
+        # Só imprime se o tipo foi selecionado e o valor for real
+        if item['tipo'] and item['valor'] > 0:
+            total_auditado += item['valor']
+            
+            # Detalhamento: Tipo + Descrição + Quantidade
+            info_detalhada = f"OUTROS: {item['tipo']} - {item['desc']} (Qtd: {item['qtd']})"
+            texto_g6 = tratar_texto_pdf(info_detalhada)
+            
+            # Alinhamento mantido: 155 para descrição, 35 para o valor à direita
+            pdf.cell(155, 5, texto_g6, 1)
+            pdf.cell(35, 5, f"{item['valor']:,.2f}", 1, 1, 'R')
 
     # --- 7. TOTAL FINAL ---
     pdf.ln(2)
@@ -773,7 +783,7 @@ else:
                 st.divider()
 
             # --- MESA DE TRABALHO (VISÃO COLETIVA) ---
-            st.subheader("🩺 Mesa de Trabalho da Auditoria")
+            st.subheader("🩺 Mesa de Trabalho da Auditoria 🐆")
             df_mesa = df[df['status'] == 2].copy()
 
             if df_mesa.empty:
@@ -882,7 +892,6 @@ else:
                         valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
                     # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
-                    header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
                     mapa_cores_outros = {
                         "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
                         "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
@@ -890,23 +899,54 @@ else:
                         "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
                     }
 
-                    sel_g6 = st.selectbox("Selecione o tipo de custo extra:", [""] + list(mapa_cores_outros.keys()), key=f"g6_sel_{nup_audit}")
-                    val_g6, desc_g6, qtd_g6 = 0.0, "", 0
-                    if sel_g6:
-                        cor_viva = mapa_cores_outros[sel_g6]
-                        st.markdown(f'<div style="background-color:{cor_viva};padding:10px;border-radius:10px;border:1px solid #d3d3d3;margin-bottom:10px;"><b style="color:black;">Lançamento em: {sel_g6}</b></div>', unsafe_allow_html=True)
-                        desc_g6 = st.text_input("Descrição detalhada:", key=f"g6_desc_{nup_audit}")
-                        cq1, cq2 = st.columns(2)
-                        qtd_g6 = cq1.number_input("Quantidade:", min_value=1, step=1, key=f"g6_qtd_{nup_audit}")
-                        val_g6 = cq2.number_input("Custo Total (R$):", min_value=0.0, format="%.2f", key=f"g6_val_{nup_audit}")
+                    header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
+                
+                    key_lista_g6 = f"lista_g6_{nup_audit}"
+                    if key_lista_g6 not in st.session_state:
+                        st.session_state[key_lista_g6] = [{"tipo": "", "desc": "", "qtd": 1, "valor": 0.0}]
+
+                    # Renderiza os campos de entrada para cada item
+                    for idx, item in enumerate(st.session_state[key_lista_g6]):
+                        with st.container(border=True):
+                            c1, c2 = st.columns([4, 1])
+                            
+                            tipo = c1.selectbox(
+                                f"Tipo de custo extra {idx+1}:", 
+                                [""] + list(mapa_cores_outros.keys()), 
+                                key=f"tipo_{idx}_{nup_audit}"
+                            )
+                            
+                            # Botão de remoção (ativo se houver mais de um item)
+                            if len(st.session_state[key_lista_g6]) > 1:
+                                if c2.button("🗑️", key=f"del_{idx}_{nup_audit}"):
+                                    st.session_state[key_lista_g6].pop(idx)
+                                    st.rerun()
+                            
+                            if tipo:
+                                cor_viva = mapa_cores_outros[tipo]
+                                st.markdown(f'<div style="background-color:{cor_viva};padding:5px;border-radius:5px;margin-bottom:10px;"><b style="color:black;">Lançamento em: {tipo}</b></div>', unsafe_allow_html=True)
+                                
+                                desc = st.text_input("Descrição detalhada:", value=item["desc"], key=f"desc_{idx}_{nup_audit}")
+                                cq1, cq2 = st.columns(2)
+                                qtd = cq1.number_input("Quantidade:", min_value=1, value=item["qtd"], step=1, key=f"qtd_{idx}_{nup_audit}")
+                                valor = cq2.number_input("Custo Total (R$):", min_value=0.0, value=item["valor"], format="%.2f", key=f"val_{idx}_{nup_audit}")
+                                
+                                # Sincroniza os dados com o session_state
+                                st.session_state[key_lista_g6][idx] = {"tipo": tipo, "desc": desc, "qtd": qtd, "valor": valor}
+
+                    # Opção de adicionar nova linha de custo
+                    if st.button("➕ ADICIONAR OUTRO ITEM NO GRUPO VI"):
+                        st.session_state[key_lista_g6].append({"tipo": "", "desc": "", "qtd": 1, "valor": 0.0})
+                        st.rerun()
 
                     # --- 4. VALIDAÇÃO MATEMÁTICA ---
-                    soma_geral = round(sum(valores_detalhados.values()) + val_g6, 2)
+                    total_g6 = sum(it["valor"] for it in st.session_state[key_lista_g6])                   
+                    soma_geral = round(sum(valores_detalhados.values()) + total_g6, 2)
                     diferenca = round(v_liquido_alvo - soma_geral, 2)
 
                     st.divider()
                     if diferenca == 0:
-                        st.success(f"✅ A soma bateu! (R$ {soma_geral:,.2f})")
+                        st.success(f"✅ A soma bateu! (R$ {soma_geral:,.2f}😬🍾🎊💯👏👏👏👏👏👏)")
                         trava_cc = False
                     else:
                         st.error(f"❌ Diferença: R$ {diferenca:,.2f} (Total itens: R$ {soma_geral:,.2f})")
@@ -945,9 +985,7 @@ else:
                         just_glosa, 
                         valores_detalhados, 
                         [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto],
-                        sel_g6, 
-                        val_g6, 
-                        desc_g6,
+                        st.session_state[key_lista_g6],
                         v_apres
                     )
 
@@ -984,7 +1022,19 @@ else:
 
                                     campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                                     
-                                    lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]                                    
+                                    # Recuperamos a lista de itens do Grupo VI do session_state
+                                    key_lista_g6 = f"lista_g6_{nup_audit}"
+                                    lista_g6_final = st.session_state.get(key_lista_g6, [])
+
+                                    # Percorremos cada item para gravar uma linha por item do Grupo VI
+                                    for i, item_g6 in enumerate(lista_g6_final):
+                                        if i == 0:
+                                            # PRIMEIRA LINHA: Salva os valores reais dos Grupos I ao V
+                                            lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
+                                        else:
+                                            # DEMAIS LINHAS: Zera os Grupos I ao V para evitar duplicidade na soma total
+                                            lista_detalhamento = [0.0] * len(campos_todos_grupos)
+
 
                                     # Montamos a linha completa (Ajuste a ordem conforme suas colunas)
                                     # Ordem sugerida: Timestamp | NUP | Fatura | Grupos I-V | Grupo VI Tipo | Grupo VI Valor | Grupo VI Desc | Auditor
@@ -997,10 +1047,10 @@ else:
                                         mes_comp, 
                                         ano_comp
                                     ] + lista_detalhamento + [
-                                        str(sel_g6), 
-                                        str(desc_g6), 
-                                        int(qtd_g6), 
-                                        float(val_g6), 
+                                        str(item_g6['tipo']), 
+                                        str(item_g6['desc']), 
+                                        int(item_g6['qtd']), 
+                                        float(item_g6['valor']), 
                                     ]
                                     aba_audit_detalhe.append_row(linha_analitica)                           
                                     
