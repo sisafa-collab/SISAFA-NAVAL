@@ -969,8 +969,13 @@ else:
                                     # 1. CAPTURA DE DADOS
                                     auditor_nip = st.session_state.get('user_id', 'N/A')
                                     auditor_nome = st.session_state.get('user_full_name', 'Auditor(a)')
-                                    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                                     
+                                    cnpj_ose = dados_nup.get('cnpj', '')
+                                    nome_ose = dados_nup.get('ose', '')
+                                    mes_comp = dados_nup.get('mes_competencia', '')
+                                    ano_comp = dados_nup.get('ano_competencia', '')
+
                                     # 2. GRAVAÇÃO DOS VALORES ANALÍTICOS (Aba Auditoria)
                                     # Esta aba guarda o 'porquê' do valor, detalhando os Grupos I a VI
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
@@ -983,14 +988,17 @@ else:
                                     linha_analitica = [
                                         agora, 
                                         nup_audit, 
-                                        num_fat,
-                                    ] + lista_valores_grupos + [
-                                        sel_g6, 
-                                        val_g6, 
-                                        desc_g6, 
-                                        auditor_nip
+                                        cnpj_ose,        # cnpj
+                                        nome_ose,        # ose
+                                        num_fat,         # Numero_da_fatura
+                                        mes_comp,        # mes_competencia
+                                        ano_comp         # ano_competencia
+                                    ] + lista_detalhamento + [
+                                        sel_g6,          # Grupo (VI)
+                                        desc_g6,         # Descrição (VI)
+                                        qtd_g6,          # Quantidade (VI)
+                                        val_g6           # Custo total (VI)
                                     ]
-                                    
                                     aba_audit_detalhe.append_row(linha_analitica)                           
                                     
                                     # 3. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
