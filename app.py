@@ -1027,7 +1027,7 @@ else:
                                     lista_g6_preenchida = [it for it in st.session_state.get(key_lista_g6, []) if it['tipo'] != ""]
 
                                     if not lista_g6_preenchida:
-                                    lista_g6_preenchida = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
+                                        lista_g6_preenchida = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
 
                                     # Percorremos cada item para gravar uma linha por item do Grupo VI
                                     for i, item_g6 in enumerate(lista_g6_preenchida):
