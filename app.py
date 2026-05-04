@@ -301,8 +301,11 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     # --- 1. MARCA D'ÁGUA ---
     try:
+        pdf.set_alpha(0.15)  # Define a transparência (15%)
         pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
+        pdf.set_alpha(1.0)   # CRÍTICO: Volta a opacidade para 100% para o texto sair forte
     except:
+        pdf.set_alpha(1.0)   # Garante o reset se a imagem falhar
         pass
 
     # --- 2. TRATAMENTO DE VARIÁVEIS ---
@@ -1024,13 +1027,16 @@ else:
                                     
                                     # Recuperamos a lista de itens do Grupo VI do session_state
                                     key_lista_g6 = f"lista_g6_{nup_audit}"
-                                    lista_g6_preenchida = [it for it in st.session_state.get(key_lista_g6, []) if it['tipo'] != ""]
+                                    lista_g6_bruta = st.session_state.get(key_lista_g6, [])
+                                    lista_g6_limpa = [it for it in lista_g6_bruta if str(it.get('tipo', '')).strip() != ""]
 
-                                    if not lista_g6_preenchida:
-                                        lista_g6_preenchida = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
+                                    if not lista_g6_limpa:
+                                        lista_g6_limpa = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
+
+                                    todas_as_linhas = []
 
                                     # Percorremos cada item para gravar uma linha por item do Grupo VI
-                                    for i, item_g6 in enumerate(lista_g6_preenchida):
+                                    for i, item_g6 in enumerate(lista_g6_limpa):
                                         if i == 0:
                                             # PRIMEIRA LINHA: Pega os valores reais de todos os grupos
                                             lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
@@ -1055,8 +1061,12 @@ else:
                                         int(item_g6['qtd']), 
                                         float(item_g6['valor']), 
                                     ]
-                                    aba_audit_detalhe.append_row(linha_analitica)                           
+                                    todas_as_linhas.append_row(linha_analitica)                           
                                     
+                                    if todas_as_linhas:
+                                        aba_audit_detalhe.append_rows(todas_as_linhas)
+
+
                                     # 3. EVOLUÇÃO NA PLANILHA PRINCIPAL (Status 2 -> 3)
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                                     celula = aba_proc.find(str(nup_audit))
