@@ -1024,15 +1024,18 @@ else:
                                     
                                     # Recuperamos a lista de itens do Grupo VI do session_state
                                     key_lista_g6 = f"lista_g6_{nup_audit}"
-                                    lista_g6_final = st.session_state.get(key_lista_g6, [])
+                                    lista_g6_preenchida = [it for it in st.session_state.get(key_lista_g6, []) if it['tipo'] != ""]
+
+                                    if not lista_g6_preenchida:
+                                    lista_g6_preenchida = [{'tipo': '', 'desc': '', 'qtd': 0, 'valor': 0.0}]
 
                                     # Percorremos cada item para gravar uma linha por item do Grupo VI
-                                    for i, item_g6 in enumerate(lista_g6_final):
+                                    for i, item_g6 in enumerate(lista_g6_preenchida):
                                         if i == 0:
-                                            # PRIMEIRA LINHA: Salva os valores reais dos Grupos I ao V
+                                            # PRIMEIRA LINHA: Pega os valores reais de todos os grupos
                                             lista_detalhamento = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
                                         else:
-                                            # DEMAIS LINHAS: Zera os Grupos I ao V para evitar duplicidade na soma total
+                                            # DEMAIS LINHAS: Zera os grupos fixos para não duplicar valores no BI/Excel
                                             lista_detalhamento = [0.0] * len(campos_todos_grupos)
 
 
