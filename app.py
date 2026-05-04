@@ -812,8 +812,9 @@ else:
                                     if celula:
                                         # Coluna 2 = NUP | Coluna 15 = Valor Apresentado
                                         aba_proc.update_cell(celula.row, 2, str(novo_nup))
-                                        aba_proc.update_cell(celula.row, 15, str(novo_valor_apres))
-                                        
+                                        aba_proc.update_cell(celula.row, 6, str(novo_valor_apres))
+                                        aba_proc.update_cell(celula.row, 8, str(novo_valor_apres))
+
                                         registrar_acao(nup_audit, num_fat, "CORRECAO_CADASTRO", f"NUP: {novo_nup} | Valor: {novo_valor_apres}")
                                         st.success("✅ Cadastro corrigido!")
                                         time.sleep(1)
