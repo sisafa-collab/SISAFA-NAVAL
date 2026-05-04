@@ -202,14 +202,14 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
         <body style="font-family: Arial, sans-serif;">
             <p>À (ao) <b>{nome_ose}</b>,</p>
             <p>Informamos que a auditagem da <b>Fatura nº {num_fatura}</b> resultou em uma glosa de <b>R$ {valor_glosa:,.2f}</b>.</p>
-            <p><b>Justificativa:</b> {justificativa}</p>
-            <p>O relatório de glosa seguirá formalmente assim que possível.</p>
+            <p><b>Justificativa resumida:</b> {justificativa}</p>
+            <p>O relatório de glosa seguirá formalmente assim que possível, para o caso de necessidade de interposição de recurso pela via administrativa.</p>
             <br>
             <p>Cordialmente,</p>
             <p><b>Equipe de Auditoria em Saúde</b><br>
             Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília</p>
             <hr>
-            <p><small style="color: gray;">E-mail automático gerado pelo SISAFA-NAVAL. Favor não responder.</small></p>
+            <p><small style="color: gray;">🛑⚠️ E-mail automático gerado pelo Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília. Favor não responder.⚠️🛑</small></p>
         </body>
     </html>
     """
