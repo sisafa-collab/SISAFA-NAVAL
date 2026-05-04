@@ -301,7 +301,7 @@ def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhado
     
     # --- 1. MARCA D'ÁGUA ---
     try:
-        pdf.set_alpha(0.15)  # Funciona apenas na fpdf2
+        pdf.set_alpha(0.08)  # Funciona apenas na fpdf2
         pdf.image('LOGO-SISAFA-NAVAL.png', x=60, y=95, w=90) 
         pdf.set_alpha(1.0)   # Retorna ao normal
     except AttributeError:
@@ -1063,7 +1063,7 @@ else:
                                         int(item_g6['qtd']), 
                                         float(item_g6['valor']), 
                                     ]
-                                    todas_as_linhas.append_row(linha_analitica)                           
+                                    todas_as_linhas.append(linha_analitica)                           
                                     
                                     if todas_as_linhas:
                                         aba_audit_detalhe.append_rows(todas_as_linhas)
