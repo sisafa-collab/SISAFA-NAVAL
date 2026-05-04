@@ -207,6 +207,7 @@ def disparar_email_glosa(destinatario, num_fatura, valor_glosa, justificativa, n
             <br>
             <p>Cordialmente,</p>
             <p><b>Equipe de Auditoria em Saúde</b><br>
+            <p><b>☎️ Telefone: 3445-7318 ☎️</b><br>
             Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília</p>
             <hr>
             <p><small style="color: gray;">🛑⚠️ E-mail automático gerado pelo Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília. Favor não responder.⚠️🛑</small></p>
@@ -794,7 +795,7 @@ else:
                     
                     # --- 🛠️ GAVETA DE CORREÇÃO DE NUP/VALOR ---
                     with st.expander("⚙️ Corrigir Dados Básicos (NUP ou Valor Apresentado)", expanded=False):
-                        st.warning("⚠️ Alterar aqui mudará o registro na planilha de processos.")
+                        st.warning("⚠️ Altere aqui para corrigir os dados. Jamais reclame do retrabalho! Confira o Adicional de Compensação por Disponibilidade no Bilhete de Pagamento ❤️‍🔥⚓")
                         ce1, ce2 = st.columns(2)
                         
                         novo_nup = ce1.text_input("Corrigir NUP:", value=str(nup_audit), key=f"edit_nup_{nup_audit}")
