@@ -410,21 +410,19 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # --- 0. MARCA D'ÁGUA (No fundo) ---
-    # Colocamos logo no início para o texto ser escrito "por cima"
+
+    # --- 0. MARCA D'ÁGUA ---
     try:
-        # Usando o caminho que você definiu
-        pasta_projeto = os.path.dirname(os.path.abspath(__file__))
-        caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png")
-        
-        pdf.set_alpha(0.06)  # Bem transparente
-        # Centralizado na página A4 (x=60, y=95 costuma ser o 'meio' visual)
-        pdf.image(caminho_logo_relatorio, x=60, y=95, w=90)
-        pdf.set_alpha(1.0)   # Reset obrigatório para o texto sair normal
-    except:
-        pdf.set_alpha(1.0)
-        pass
-    
+        pdf.set_alpha(0.08)  # Funciona apenas na fpdf2
+        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90) 
+        pdf.set_alpha(1.0)   # Retorna ao normal
+    except AttributeError:
+        # Caso a fpdf2 não esteja instalada, ele ignora a transparência e segue o baile
+        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90) 
+    except Exception as e:
+        st.error(f"Erro na marca d'água: {e}")
+
+
     # --- 1. CABEÇALHO (Informação Restrita - LGPD/Marinha) ---
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(0, 4, "INFORMAÇÃO PESSOAL - ACESSO RESTRITO", ln=True, align='C')
