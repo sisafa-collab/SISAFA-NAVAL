@@ -969,11 +969,49 @@ else:
                                 except Exception as e:
                                     st.error(f"Erro na correção: {e}")
 
-                    # --- 1. RESUMO FINANCEIRO (Soma Automática dos Pacientes) ---
-                    # Definimos a chave para recuperar a lista de glosas detalhadas
+                    # Sem esse bloco aqui, o Selectbox lá embaixo não sabe o que é 'tabela_ref_glosa'
+                    try:
+                        aba_ref = sh.worksheet("SISAFA-NAVAL-Tabela-de-referencia-de-glosa")
+                        dados_glosa_brutos = aba_ref.get_all_records()
+                        tabela_ref_glosa = {str(row['Cod_glosa']): row['Desc_glosa'] for row in dados_glosa_brutos}
+                    except:
+                        st.error("❌ Erro na leitura da Tabela de Referência de Glosas! Procure o CT Matheus")
+                        tabela_ref_glosa = {}
+
+
+                    # --- DETALHAMENTO DO RELATÓRIO DE GLOSA (PADRÃO HOSBRA) ---
+                    st.markdown("---")
+                    st.subheader("📋 Detalhamento do Relatório de Glosa p/ paciente")
                     key_glosas = f"relatorio_glosa_{nup_audit}"
+
+                    if key_glosas not in st.session_state:
+                        st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""}]
+
+                    for idx, item in enumerate(st.session_state[key_glosas]):
+                        with st.container(border=True):
+                            col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
+                            item['paciente'] = col_p1.text_input(f"Iniciais do Paciente {idx+1}", value=item['paciente'], key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
+                            item['valor'] = col_p2.number_input(f"Valor R$", min_value=0.0, value=item['valor'], key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
+                            item['tipo'] = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], key=f"t_gl_{idx}_{nup_audit}")
+                            
+                            # Seletor baseado na Tabela de Referência carregada no início do código
+                            escolha = st.selectbox("Código da Glosa", [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()], key=f"c_gl_{idx}_{nup_audit}")
+                            if escolha:
+                                item['cod'] = escolha.split(" - ")[0]
+                                item['desc_glosa'] = escolha.split(" - ")[1]
+                            item['just'] = st.text_input("Observação específica (Relatório)", value=item['just'], key=f"obs_gl_{idx}_{nup_audit}")
+
+                    if st.button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒"):
+                        st.session_state[key_glosas].append({"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""})
+                        st.rerun()
+
+
+                    # --- 1. RESUMO FINANCEIRO (Soma Automática dos Pacientes) ---
+                    
                     # Calculamos o total somando os valores de cada paciente inserido
+                    st.divider()
                     total_glosa_geral = sum(g['valor'] for g in st.session_state.get(key_glosas, []))
+                    v_liquido_alvo = round(v_apres - total_glosa_geral, 2)
 
                     c1, c2 = st.columns(2)
                     with c1:
@@ -1086,31 +1124,6 @@ else:
                     # Opção de adicionar nova linha de custo
                     if st.button("➕ ADICIONAR OUTRO ITEM NO GRUPO VI"):
                         st.session_state[key_lista_g6].append({"tipo": "", "desc": "", "qtd": 1, "valor": 0.0})
-                        st.rerun()
-
-                    # --- DETALHAMENTO DO RELATÓRIO DE GLOSA (PADRÃO HOSBRA) ---
-                    st.markdown("---")
-                    st.subheader("📋 Detalhamento do Relatório de Glosa p/ paciente")
-
-                    if key_glosas not in st.session_state:
-                        st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""}]
-
-                    for idx, item in enumerate(st.session_state[key_glosas]):
-                        with st.container(border=True):
-                            col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
-                            item['paciente'] = col_p1.text_input(f"Iniciais do Paciente {idx+1}", value=item['paciente'], key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
-                            item['valor'] = col_p2.number_input(f"Valor R$", min_value=0.0, value=item['valor'], key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
-                            item['tipo'] = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], key=f"t_gl_{idx}_{nup_audit}")
-                            
-                            # Seletor baseado na Tabela de Referência carregada no início do código
-                            escolha = st.selectbox("Código da Glosa", [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()], key=f"c_gl_{idx}_{nup_audit}")
-                            if escolha:
-                                item['cod'] = escolha.split(" - ")[0]
-                                item['desc_glosa'] = escolha.split(" - ")[1]
-                            item['just'] = st.text_input("Observação específica (Relatório)", value=item['just'], key=f"obs_gl_{idx}_{nup_audit}")
-
-                    if st.button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒"):
-                        st.session_state[key_glosas].append({"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""})
                         st.rerun()
 
 
