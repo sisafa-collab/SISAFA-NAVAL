@@ -384,11 +384,6 @@ def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, val
     pdf.cell(140, 8, u"TOTAL FINAL AUDITADO (VALOR LÍQUIDO)", 1, 0, 'L', True)
     pdf.cell(50, 8, f"R$ {v_liq:,.2f}", 1, 1, 'R', True)
 
-    # --- RODAPÉ ---
-    pdf.ln(10)
-    pdf.set_font("Arial", 'I', 8)
-    pdf.multi_cell(0, 4, limpar("SISTEMA DE ACOMPANHAMENTO DE FATURAS DO HOSPITAL NAVAL DE BRASÍLIA"), align='C')
-
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 
@@ -790,6 +785,14 @@ else:
             # --- CÁLCULO DOS INDICADORES ---
             df_fila = df[df['status'] == 1].copy()
             
+            if 'status' in df.columns:
+                    df_fila = df[df['status'] == 1].copy()
+                else:
+                    # Se não achar, ele cria um df_fila vazio para não dar erro lá na frente
+                    df_fila = pd.DataFrame(columns=df.columns)
+                    st.warning("⚠️ Coluna 'status' não encontrada. Verifique o cabeçalho da planilha.")
+
+
             if not df_fila.empty:
                 df_fila['valor_limpo'] = df_fila['valor_apresentado'].apply(limpar_valor)
                 df_fila['dt_entrada'] = pd.to_datetime(df_fila['data_entrada'], dayfirst=True, errors='coerce')
