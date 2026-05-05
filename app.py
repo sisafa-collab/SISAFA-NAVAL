@@ -389,11 +389,18 @@ def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, val
 def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio):
     from fpdf import FPDF
     
+    # --- FILTRO DE SEGURANÇA (Ponto Crítico) ---
+    def limpar(txt):
+        """Remove caracteres que travam o PDF, preservando o que é possível."""
+        if not txt: return ""
+        # Converte para latin-1 e ignora o que for 'proibido' (emojis, símbolos raros)
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # --- 0. MARCA D'ÁGUA (Versão Sem Alpha) ---
+    # --- 0. MARCA D'ÁGUA ---
     try:
         pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90)
     except:
@@ -401,99 +408,100 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     
     # --- 1. CABEÇALHO (LGPD/Marinha) ---
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(0, 4, "INFORMAÇÃO PESSOAL - ACESSO RESTRITO", ln=True, align='C')
+    pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
     pdf.set_font("Arial", '', 7)
-    pdf.multi_cell(0, 3, "Art. 5º, Inciso X da Constituição Federal do Brasil/1988\nArt. 31 da Lei nº 12.527/2011 | Art. 55 e Art. 62 do Dec 7.724/2012", align='C')
+    pdf.multi_cell(0, 3, limpar("Art. 5º, Inciso X da Constituição Federal do Brasil/1988\nArt. 31 da Lei nº 12.527/2011 | Art. 55 e Art. 62 do Dec 7.724/2012"), align='C')
     
     # --- 2. IDENTIFICAÇÃO INSTITUCIONAL ---
     pdf.ln(4)
     pdf.set_font("Arial", 'B', 11)
-    pdf.cell(0, 5, "MARINHA DO BRASIL", ln=True, align='C')
-    pdf.cell(0, 5, "HOSPITAL NAVAL DE BRASÍLIA", ln=True, align='C')
-    pdf.cell(0, 5, "AUDITORIA EM SAÚDE", ln=True, align='C')
+    pdf.cell(0, 5, limpar("MARINHA DO BRASIL"), ln=True, align='C')
+    pdf.cell(0, 5, limpar("HOSPITAL NAVAL DE BRASÍLIA"), ln=True, align='C')
+    pdf.cell(0, 5, limpar("AUDITORIA EM SAÚDE"), ln=True, align='C')
     pdf.set_fill_color(230, 230, 230)
-    pdf.cell(0, 8, "RELATÓRIO DE GLOSA", 1, ln=True, align='C', fill=True)
+    pdf.cell(0, 8, limpar("RELATÓRIO DE GLOSA"), 1, ln=True, align='C', fill=True)
 
     # --- 3. DADOS DA OSE ---
     pdf.ln(3)
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(95, 5, "Organização Civil de Saúde (OCS) credenciada", 1, 0, 'L', True)
-    pdf.cell(95, 5, "Nº do Edital de Credenciamento", 1, 1, 'L', True)
+    pdf.cell(95, 5, limpar("Organização Civil de Saúde (OCS) credenciada"), 1, 0, 'L', True)
+    pdf.cell(95, 5, limpar("Nº do Edital de Credenciamento"), 1, 1, 'L', True)
     
     pdf.set_font("Arial", '', 8)
-    pdf.cell(95, 6, f"{dados_ose.get('Razão Social', 'N/A')}", 1)
-    pdf.cell(95, 6, f"{dados_ose.get('Numero_edital', 'N/A')}", 1, 1)
+    pdf.cell(95, 6, limpar(dados_ose.get('Razão Social', 'N/A')), 1)
+    pdf.cell(95, 6, limpar(dados_ose.get('Numero_edital', 'N/A')), 1, 1)
     
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(60, 5, "Nº do Termo de Credenciamento", 1, 0, 'L', True)
-    pdf.cell(40, 5, "Validade Edital", 1, 0, 'L', True)
-    pdf.cell(90, 5, "Endereço eletrônico da OCS", 1, 1, 'L', True)
+    pdf.cell(60, 5, limpar("Nº do Termo de Credenciamento"), 1, 0, 'L', True)
+    pdf.cell(40, 5, limpar("Validade Edital"), 1, 0, 'L', True)
+    pdf.cell(90, 5, limpar("Endereço eletrônico da OCS"), 1, 1, 'L', True)
     
     pdf.set_font("Arial", '', 7)
-    pdf.cell(60, 6, f"{dados_ose.get('Termo de credenciamento', 'N/A')}", 1)
-    pdf.cell(40, 6, f"{dados_ose.get('Validade_edital', 'N/A')}", 1)
-    pdf.cell(90, 6, f"{dados_ose.get('E-mail Principal da OSE', 'N/A')[:65]}", 1, 1)
+    pdf.cell(60, 6, limpar(dados_ose.get('Termo de credenciamento', 'N/A')), 1)
+    pdf.cell(40, 6, limpar(dados_ose.get('Validade_edital', 'N/A')), 1)
+    pdf.cell(90, 6, limpar(dados_ose.get('E-mail Principal da OSE', 'N/A')[:65]), 1, 1)
 
     # --- 4. DADOS DO PROCESSO ---
     pdf.ln(3)
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(60, 5, "NUP", 1, 0, 'L', True)
-    pdf.cell(30, 5, "Nº Relatório", 1, 0, 'L', True)
-    pdf.cell(40, 5, "Nº Fatura/Remessa", 1, 0, 'L', True)
-    pdf.cell(60, 5, "Valor a Pagar (Líquido)", 1, 1, 'L', True)
+    pdf.cell(30, 5, limpar("Nº Relatório"), 1, 0, 'L', True)
+    pdf.cell(40, 5, limpar("Nº Fatura/Remessa"), 1, 0, 'L', True)
+    pdf.cell(60, 5, limpar("Valor a Pagar (Líquido)"), 1, 1, 'L', True)
 
     total_glosa = sum(g['valor'] for g in lista_glosas)
+    # Certifique-se que limpar_valor() está definida no seu app
     v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
     valor_liquido = v_apres_limpo - total_glosa
     
     pdf.set_font("Arial", '', 9)
-    pdf.cell(60, 7, f"{dados_nup['nup']}", 1)
+    pdf.cell(60, 7, limpar(dados_nup['nup']), 1)
     pdf.cell(30, 7, f"{num_relatorio}/26", 1)
-    pdf.cell(40, 7, f"{dados_nup['Numero_da_fatura']}", 1)
+    pdf.cell(40, 7, limpar(dados_nup['Numero_da_fatura']), 1)
     pdf.set_font("Arial", 'B', 9)
     pdf.cell(60, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
 
     # --- 5. TABELA DE PACIENTES E GLOSAS ---
     pdf.ln(3)
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(10, 6, u"Nº", 1, 0, 'C', True)
+    pdf.cell(10, 6, "N", 1, 0, 'C', True)
     pdf.cell(40, 6, "Paciente", 1, 0, 'L', True)
     pdf.cell(30, 6, "Valor da Glosa", 1, 0, 'C', True)
     pdf.cell(25, 6, "Tipo", 1, 0, 'C', True)
     pdf.cell(15, 6, "Cod.", 1, 0, 'C', True)
-    pdf.cell(70, 6, u"Observações", 1, 1, 'C', True)
+    pdf.cell(70, 6, limpar("Observações"), 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 7)
     for i, g in enumerate(lista_glosas, 1):
         pdf.cell(10, 8, f"{i}", 1, 0, 'C')
-        pdf.cell(40, 8, f"{g['paciente']}", 1, 0, 'L')
+        pdf.cell(40, 8, limpar(g['paciente']), 1, 0, 'L')
         pdf.cell(30, 8, f"R$ {g['valor']:,.2f}", 1, 0, 'R')
-        pdf.cell(25, 8, f"{g['tipo']}", 1, 0, 'C')
-        pdf.cell(15, 8, f"{g['cod']}", 1, 0, 'C')
+        pdf.cell(25, 8, limpar(g['tipo']), 1, 0, 'C')
+        pdf.cell(15, 8, limpar(g['cod']), 1, 0, 'C')
         
         curr_x = pdf.get_x()
         curr_y = pdf.get_y()
-        pdf.multi_cell(70, 4, f"{g['just']}", 1, 'L')
+        pdf.multi_cell(70, 4, limpar(g['just']), 1, 'L')
         pdf.set_xy(curr_x + 70, curr_y + 8)
 
     # --- 6. RODAPÉ E ASSINATURAS ---
     pdf.ln(10)
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(0, 5, u"Legendas: Adm: Administrativa | Téc: Técnica", ln=True)
-    pdf.cell(0, 5, u"Brasília, na data da assinatura eletrônica.", ln=True, align='R')
+    pdf.cell(0, 5, limpar("Legendas: Adm: Administrativa | Téc: Técnica"), ln=True)
+    pdf.cell(0, 5, limpar("Brasília, na data da assinatura eletrônica."), ln=True, align='R')
     
     pdf.ln(10)
     pdf.cell(0, 4, "GISELLE BITENCOURT - Capitão de Fragata (S)", ln=True, align='C')
-    pdf.cell(0, 4, u"Encarregada da Auditoria em Saúde", ln=True, align='C')
+    pdf.cell(0, 4, limpar("Encarregada da Auditoria em Saúde"), ln=True, align='C')
     pdf.ln(4)
     pdf.cell(0, 4, "CAMILA GUERRA FELICIANO MORAIS - Capitão-Tenente (S)", ln=True, align='C')
-    pdf.cell(0, 4, u"Encarregada da Auditoria de Contas Hospitalares", ln=True, align='C')
+    pdf.cell(0, 4, limpar("Encarregada da Auditoria de Contas Hospitalares"), ln=True, align='C')
     pdf.ln(4)
-    pdf.cell(0, 4, f"{auditor_info['nome']}", ln=True, align='C')
-    pdf.cell(0, 4, "Auditor Responsável", ln=True, align='C')
+    pdf.cell(0, 4, limpar(auditor_info['nome']), ln=True, align='C')
+    pdf.cell(0, 4, limpar("Auditor Responsável"), ln=True, align='C')
 
-    # Retorno de bytes compatível com o download_button do Streamlit
-    return pdf.output(dest='S')
+    # A mágica final: o encode com 'ignore' garante que nada trave a saída de bytes
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 
 def obter_proximo_numero_glosa():
@@ -1166,7 +1174,7 @@ else:
                     
                     pdf_glosa_bytes = gerar_relatorio_glosa_pdf(
                         dados_nup, dados_ose_contrato, st.session_state[key_glosas], 
-                        {"nome": auditor_atual, "posto": "Auditor Responsável"}, num_relatorio
+                        {"nome": auditor_atual, "posto": "Auditor Responsavel"}, num_relatorio
                     )
 
                     # 2. BOTÕES DE DOWNLOAD (col_pdf)
