@@ -535,7 +535,7 @@ try:
         df = carregar_dados_cache(ABA_PROCESSOS)
         
         # --- MANOBRA DE SEGURANÇA SISAFA (ADICIONE ISSO AQUI) ---
-        colunas_necessarias = ['status', 'mes_competencia', 'nup', 'valor_apresentado']
+        colunas_necessarias = ['status', 'mes_competencia', 'ano_competencia', 'nup', 'valor_apresentado']
         for col in colunas_necessarias:
             if col not in df.columns:
                 df[col] = 0  # Cria a coluna com zero se ela não existir
