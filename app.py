@@ -386,8 +386,6 @@ def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, val
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 
-
-
 def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio):
     from fpdf import FPDF
     
@@ -495,7 +493,7 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.cell(0, 4, u"Encarregada da Auditoria de Contas Hospitalares", ln=True, align='C')
     pdf.ln(4)
     pdf.cell(0, 4, f"{auditor_info['nome']}", ln=True, align='C')
-    pdf.cell(0, 4, "Auditor Responsável", ln=True, align='C')
+    pdf.cell(0, 4, "Auditor Responsavel", ln=True, align='C')
 
     # Retorno de bytes compatível com o download_button do Streamlit
     return pdf.output(dest='S').encode('latin-1')
@@ -1171,7 +1169,7 @@ else:
                     
                     pdf_glosa_bytes = gerar_relatorio_glosa_pdf(
                         dados_nup, dados_ose_contrato, st.session_state[key_glosas], 
-                        {"nome": auditor_atual, "posto": "Auditor Responsável"}, num_relatorio
+                        {"nome": auditor_atual, "posto": "Auditor Responsavel"}, num_relatorio
                     )
 
                     # 2. BOTÕES DE DOWNLOAD (col_pdf)
