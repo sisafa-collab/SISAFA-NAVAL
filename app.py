@@ -1014,7 +1014,7 @@ else:
                                     # 1. CAPTURA DE DADOS
                                     auditor_nip = str(st.session_state.get('user_id', 'N/A'))
                                     auditor_nome = str(st.session_state.get('user_full_name', 'Auditor(a)'))
-                                    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                                    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     
                                     cnpj_ose = str(dados_nup.get('cnpj', ''))
                                     nome_ose = str(dados_nup.get('ose', ''))
