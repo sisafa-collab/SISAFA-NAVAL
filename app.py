@@ -312,6 +312,12 @@ def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, val
     pdf.set_auto_page_break(auto=True, margin=15)
     agora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # --- 0. MARCA D'ÁGUA ---
+    try:
+        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90)
+    except:
+        pass 
+
     # --- CABEÇALHO ---
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 6, "Hospital Naval de Brasília (HNBra)", ln=True, align='C')
