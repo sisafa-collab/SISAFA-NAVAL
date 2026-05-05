@@ -936,7 +936,14 @@ else:
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
-                    
+                    try:
+                        aba_contratos = sh.worksheet(ABA_TABELA_A)
+                        lista_tabela_a = aba_contratos.get_all_records()
+                    except Exception as e:
+                        st.error(f"Erro ao acessar a Tabela A: {e}")
+                        lista_tabela_a = []
+
+
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
                     
                     # --- 🛠️ GAVETA DE CORREÇÃO DE NUP/VALOR ---
