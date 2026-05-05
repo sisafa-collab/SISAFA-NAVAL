@@ -527,8 +527,12 @@ def carregar_imagem(caminho):
     return caminho if os.path.exists(caminho) else None
 
 # --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
-# Definimos a lista uma única vez para não dar erro de digitação
-COLUNAS_OBRIGATORIAS = ['status', 'mes_competencia', 'ano_competencia', 'nup', 'valor_apresentado', 'cnpj']
+
+# 1. LISTA COMPLETA DE MUNIÇÃO (Todas as colunas que o app usa)
+COLUNAS_MESTRE = [
+    'status', 'mes_competencia', 'ano_competencia', 'nup', 
+    'valor_apresentado', 'cnpj', 'glosa', 'paciente', 'just'
+]
 
 try:
     client = conectar_google()
@@ -537,26 +541,26 @@ try:
         aba_p = sh.worksheet(ABA_PROCESSOS)
         df = carregar_dados_cache(ABA_PROCESSOS)
         
-        # Se o cache voltar vazio ou incompleto, a gente restaura a estrutura aqui
+        # Se o cache vier vazio, criamos a estrutura do zero
         if df is None or df.empty:
-            df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
+            df = pd.DataFrame(columns=COLUNAS_MESTRE)
             
-        for col in COLUNAS_OBRIGATORIAS:
+        # 2. MANOBRA DE RESTAURAÇÃO AUTOMÁTICA
+        for col in COLUNAS_MESTRE:
             if col not in df.columns:
-                df[col] = 0  # Cria a coluna com zero se ela não existir
-                st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada automaticamente.")
+                # Se a coluna sumiu, criamos ela com 0 ou vazio para não dar KeyError
+                df[col] = 0 if col in ['status', 'glosa', 'valor_apresentado'] else ""
+                st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada.")
     else:
         sh = None
-        # Se a conexão falhar, o DF nasce vazio, mas com as "gavetas" prontas
-        df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
+        df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
 except Exception as e:
-    st.warning("⚠️ Conexão instável com o Google. Tentando reconectar...")
+    st.warning("⚠️ Conexão instável com o Google. Usando DataFrame de emergência.")
     sh = None
-    # Blindagem final: Mesmo no erro, o DF precisa ter as colunas para o app não travar
-    df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
+    df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
-    
+
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
