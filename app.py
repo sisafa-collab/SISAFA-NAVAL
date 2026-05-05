@@ -527,6 +527,9 @@ def carregar_imagem(caminho):
     return caminho if os.path.exists(caminho) else None
 
 # --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
+# Definimos a lista uma única vez para não dar erro de digitação
+COLUNAS_OBRIGATORIAS = ['status', 'mes_competencia', 'ano_competencia', 'nup', 'valor_apresentado', 'cnpj']
+
 try:
     client = conectar_google()
     if client:
@@ -534,22 +537,26 @@ try:
         aba_p = sh.worksheet(ABA_PROCESSOS)
         df = carregar_dados_cache(ABA_PROCESSOS)
         
-        # --- MANOBRA DE SEGURANÇA SISAFA (ADICIONE ISSO AQUI) ---
-        colunas_necessarias = ['status', 'mes_competencia', 'ano_competencia', 'nup', 'valor_apresentado']
-        for col in colunas_necessarias:
+        # Se o cache voltar vazio ou incompleto, a gente restaura a estrutura aqui
+        if df is None or df.empty:
+            df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
+            
+        for col in COLUNAS_OBRIGATORIAS:
             if col not in df.columns:
                 df[col] = 0  # Cria a coluna com zero se ela não existir
                 st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada automaticamente.")
     else:
         sh = None
-        # Se falhar, cria o DF já com as colunas para não dar KeyError depois
-        df = pd.DataFrame(columns=['status', 'mes_competencia', 'nup', 'valor_apresentado'])
+        # Se a conexão falhar, o DF nasce vazio, mas com as "gavetas" prontas
+        df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
+
 except Exception as e:
     st.warning("⚠️ Conexão instável com o Google. Tentando reconectar...")
     sh = None
-    # Mesma coisa aqui: DF vazio, mas com a estrutura que o sistema espera
-    df = pd.DataFrame(columns=['status', 'mes_competencia', 'nup', 'valor_apresentado'])
+    # Blindagem final: Mesmo no erro, o DF precisa ter as colunas para o app não travar
+    df = pd.DataFrame(columns=COLUNAS_OBRIGATORIAS)
 
+    
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
