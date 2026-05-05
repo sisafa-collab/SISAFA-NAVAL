@@ -297,111 +297,98 @@ def tratar_texto_pdf(texto):
     # Remove caracteres que o PDF não entende (emojis, aspas especiais, etc)
     return str(texto).encode('latin-1', 'ignore').decode('latin-1')
 
-def gerar_relatorio_pdf(dados_nup, auditor, glosa, just_glosa, valores_detalhados, g_listas, lista_g6, v_apres):
+def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio):
+    from fpdf import FPDF
+    import re
+
+    # Função auxiliar para garantir que o texto não quebre o PDF (limpa emojis e símbolos)
+    def limpar(txt):
+        if not txt: return ""
+        # Mantém apenas caracteres que o Latin-1 aceita e remove emojis
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
     pdf = FPDF()
-    pdf.set_margins(10, 10, 10)
     pdf.add_page()
-    
-    # --- 1. MARCA D'ÁGUA ---
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # --- 0. MARCA D'ÁGUA ---
     try:
-        pdf.set_alpha(0.08)  # Funciona apenas na fpdf2
-        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90) 
-        pdf.set_alpha(1.0)   # Retorna ao normal
-    except AttributeError:
-        # Caso a fpdf2 não esteja instalada, ele ignora a transparência e segue o baile
-        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90) 
-    except Exception as e:
-        st.error(f"Erro na marca d'água: {e}")
+        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90)
+    except: pass
 
-    # --- 2. TRATAMENTO DE VARIÁVEIS ---
-    auditor_limpo = tratar_texto_pdf(auditor)
-    just_limpa = tratar_texto_pdf(just_glosa)
-    nup_limpo = tratar_texto_pdf(dados_nup['nup'])
-    fat_limpa = tratar_texto_pdf(dados_nup['Numero_da_fatura'])
+    # --- 1. CABEÇALHO ---
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
+    pdf.set_font("Arial", '', 7)
+    pdf.multi_cell(0, 3, limpar("Art. 5º, Inciso X, da CF/88\nArt. 31 da Lei nº 12.527/2011"), align='C')
     
-    # Cálculo direto usando o v_apres que veio do App
-    v_liquido_calculado = v_apres - glosa
-
-    # Função interna para formatar moeda no padrão BR (R$ 1.234,56)
-    def fmt(valor):
-        return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-
-    # --- 3. CABEÇALHO ---
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 8, 'Hospital Naval de Brasília (HNBra)', 0, 1, 'C')
-    pdf.set_font('Arial', 'I', 10)
-    pdf.cell(0, 6, 'Relatório de Auditoria de Fatura', 0, 1, 'C')
+    # --- 2. IDENTIFICAÇÃO INSTITUCIONAL ---
     pdf.ln(4)
-
-    # --- 4. DADOS DO PROCESSO ---
-    pdf.set_fill_color(245, 245, 245)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 7, 'DADOS DO PROCESSO', 0, 1, 'L', True)
-    pdf.set_font('Arial', '', 9)
-    pdf.cell(95, 7, f"NUP: {nup_limpo}", 1)
-    pdf.cell(95, 7, f"Fatura: {fat_limpa}", 1, 1)
-    pdf.cell(95, 7, f"Auditor(a): {auditor_limpo}", 1)
-    pdf.cell(95, 7, f"Data/Hora: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}", 1, 1)
-    pdf.ln(3)
-
-    # --- 5. RESUMO FINANCEIRO (A CONTA EXATA) ---
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 7, 'RESUMO FINANCEIRO DA AUDITORIA', 0, 1, 'L', True)
-    pdf.set_font('Arial', '', 9)
-    
-    # Exibição da conta matemática clara
-    pdf.cell(63, 7, f"Valor Apresentado: {fmt(v_apres)}", 1)
-    pdf.cell(63, 7, f"(-) Valor da Glosa: {fmt(glosa)}", 1)
-    pdf.cell(64, 7, f"(=) Valor Líquido: {fmt(v_liquido_calculado)}", 1, 1)
-    
-    status_glosa = "SIM" if glosa > 0 else "NÃO"
-    pdf.cell(0, 7, f"Houve Glosa: {status_glosa}", 1, 1)
-    
-    if glosa > 0:
-        pdf.multi_cell(0, 5, f"Justificativa Técnica: {just_limpa}", 1)
-    pdf.ln(3)
-
-    # --- 6. TABELA DINÂMICA ---
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 7, 'DETALHAMENTO POR CENTRO DE CUSTO', 0, 1, 'L', True)
-    pdf.set_font('Arial', 'B', 8)
-    pdf.cell(155, 6, 'Descrição do Procedimento/Exame', 1)
-    pdf.cell(35, 6, 'Valor (R$)', 1, 1, 'C')
-    
-    pdf.set_font('Arial', '', 8)
-    total_auditado = 0
-    # 1. Loop para os Grupos I ao V (Fixos)
-    for grupo in g_listas:
-        for item in grupo:
-            valor = valores_detalhados.get(item, 0.0)
-            if valor > 0:
-                total_auditado += valor
-                pdf.cell(155, 5, tratar_texto_pdf(item), 1)
-                pdf.cell(35, 5, f"{valor:,.2f}", 1, 1, 'R')
-            
-    # 2. PROCESSAMENTO DO GRUPO VI (Dinâmico)
-    # Note que este 'for' está no mesmo nível do 'for grupo in g_listas'
-    for item in lista_g6:
-        # Só imprime se o tipo foi selecionado e o valor for real
-        if item['tipo'] and item['valor'] > 0:
-            total_auditado += item['valor']
-            
-            # Detalhamento: Tipo + Descrição + Quantidade
-            info_detalhada = f"OUTROS: {item['tipo']} - {item['desc']} (Qtd: {item['qtd']})"
-            texto_g6 = tratar_texto_pdf(info_detalhada)
-            
-            # Alinhamento mantido: 155 para descrição, 35 para o valor à direita
-            pdf.cell(155, 5, texto_g6, 1)
-            pdf.cell(35, 5, f"{item['valor']:,.2f}", 1, 1, 'R')
-
-    # --- 7. TOTAL FINAL ---
-    pdf.ln(2)
-    pdf.set_font('Arial', 'B', 10)
+    pdf.set_font("Arial", 'B', 11)
+    pdf.cell(0, 5, limpar("MARINHA DO BRASIL"), ln=True, align='C')
+    pdf.cell(0, 5, limpar("HOSPITAL NAVAL DE BRASÍLIA"), ln=True, align='C')
     pdf.set_fill_color(230, 230, 230)
-    pdf.cell(155, 8, 'TOTAL FINAL AUDITADO (VALOR LÍQUIDO)', 1, 0, 'L', True)
-    pdf.cell(35, 8, f"{fmt(total_auditado)}", 1, 1, 'R', True)
+    pdf.cell(0, 8, limpar("RELATÓRIO DE GLOSA"), 1, ln=True, align='C', fill=True)
+    
+    # --- 3. DADOS DA OSE ---
+    pdf.ln(3)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(95, 5, limpar("Organização Civil de Saúde (OCS)"), 1, 0, 'L', True)
+    pdf.cell(95, 5, limpar("Nº do Edital"), 1, 1, 'L', True)
+    
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(95, 6, limpar(dados_ose.get('Razão Social', 'N/A')), 1)
+    pdf.cell(95, 6, limpar(dados_ose.get('Numero_edital', 'N/A')), 1, 1)
+    
+    # --- 4. DADOS DO PROCESSO ---
+    pdf.ln(3)
+    total_glosa = sum(g['valor'] for g in lista_glosas)
+    # Aqui usamos a sua função limpar_valor externa para o cálculo
+    v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
+    valor_liquido = v_apres_limpo - total_glosa
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(60, 5, "NUP", 1, 0, 'L', True)
+    pdf.cell(30, 5, limpar("Nº Relatório"), 1, 0, 'L', True)
+    pdf.cell(40, 5, limpar("Nº Fatura"), 1, 0, 'L', True)
+    pdf.cell(60, 5, limpar("Valor Líquido"), 1, 1, 'L', True)
+    
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(60, 7, limpar(dados_nup['nup']), 1)
+    pdf.cell(30, 7, f"{num_relatorio}/26", 1)
+    pdf.cell(40, 7, limpar(dados_nup['Numero_da_fatura']), 1)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(60, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
 
-    return pdf.output(dest='S').encode('latin-1', errors='ignore')
+    # --- 5. TABELA DE PACIENTES ---
+    pdf.ln(3)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(10, 6, "N", 1, 0, 'C', True)
+    pdf.cell(40, 6, "Paciente", 1, 0, 'L', True)
+    pdf.cell(30, 6, "Valor Glosa", 1, 0, 'C', True)
+    pdf.cell(110, 6, limpar("Observações"), 1, 1, 'C', True)
+
+    pdf.set_font("Arial", '', 7)
+    for i, g in enumerate(lista_glosas, 1):
+        pdf.cell(10, 8, f"{i}", 1, 0, 'C')
+        pdf.cell(40, 8, limpar(g['paciente']), 1, 0, 'L')
+        pdf.cell(30, 8, f"R$ {g['valor']:,.2f}", 1, 0, 'R')
+        
+        # Multi_cell para justificativas (usando a limpeza)
+        x_atual = pdf.get_x()
+        y_atual = pdf.get_y()
+        pdf.multi_cell(110, 4, limpar(g['just']), 1, 'L')
+        pdf.set_xy(x_atual + 110, y_atual)
+        pdf.ln(8)
+
+    # --- 6. ASSINATURAS ---
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(0, 4, limpar(f"{auditor_info['nome']}"), ln=True, align='C')
+    pdf.cell(0, 4, "Auditor Responsavel", ln=True, align='C')
+
+    # Retorno seguro para Streamlit
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio):
     from fpdf import FPDF
