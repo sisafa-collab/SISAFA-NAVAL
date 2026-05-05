@@ -782,16 +782,14 @@ else:
 
         # 1. ABA: FILA DE ESPERA
         with t_fila:
-            # --- CÁLCULO DOS INDICADORES ---
-            df_fila = df[df['status'] == 1].copy()
-            
+            # --- MANOBRA DE SEGURANÇA SISAFA ---
+            # Primeiro verificamos se a coluna existe. Se existir, filtramos.
             if 'status' in df.columns:
                 df_fila = df[df['status'] == 1].copy()
             else:
-                # Se não achar, ele cria um df_fila vazio para não dar erro
+                # Se não existir, criamos um DataFrame vazio para o sistema não "capotar"
                 df_fila = pd.DataFrame(columns=df.columns)
-                st.warning("⚠️ Coluna 'status' não encontrada. Verifique o cabeçalho da planilha.")
-
+                st.warning("⚠️ Atenção: Coluna 'status' não localizada na planilha!")
 
             if not df_fila.empty:
                 df_fila['valor_limpo'] = df_fila['valor_apresentado'].apply(limpar_valor)
