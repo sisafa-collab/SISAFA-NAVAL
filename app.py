@@ -786,11 +786,11 @@ else:
             df_fila = df[df['status'] == 1].copy()
             
             if 'status' in df.columns:
-                    df_fila = df[df['status'] == 1].copy()
-                else:
-                    # Se não achar, ele cria um df_fila vazio para não dar erro lá na frente
-                    df_fila = pd.DataFrame(columns=df.columns)
-                    st.warning("⚠️ Coluna 'status' não encontrada. Verifique o cabeçalho da planilha.")
+                df_fila = df[df['status'] == 1].copy()
+            else:
+                # Se não achar, ele cria um df_fila vazio para não dar erro
+                df_fila = pd.DataFrame(columns=df.columns)
+                st.warning("⚠️ Coluna 'status' não encontrada. Verifique o cabeçalho da planilha.")
 
 
             if not df_fila.empty:
