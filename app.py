@@ -533,13 +533,22 @@ try:
         sh = client.open_by_key(ID_PLANILHA)
         aba_p = sh.worksheet(ABA_PROCESSOS)
         df = carregar_dados_cache(ABA_PROCESSOS)
+        
+        # --- MANOBRA DE SEGURANÇA SISAFA (ADICIONE ISSO AQUI) ---
+        colunas_necessarias = ['status', 'mes_competencia', 'nup', 'valor_apresentado']
+        for col in colunas_necessarias:
+            if col not in df.columns:
+                df[col] = 0  # Cria a coluna com zero se ela não existir
+                st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada automaticamente.")
     else:
         sh = None
-        df = pd.DataFrame()
+        # Se falhar, cria o DF já com as colunas para não dar KeyError depois
+        df = pd.DataFrame(columns=['status', 'mes_competencia', 'nup', 'valor_apresentado'])
 except Exception as e:
     st.warning("⚠️ Conexão instável com o Google. Tentando reconectar...")
     sh = None
-    df = pd.DataFrame()
+    # Mesma coisa aqui: DF vazio, mas com a estrutura que o sistema espera
+    df = pd.DataFrame(columns=['status', 'mes_competencia', 'nup', 'valor_apresentado'])
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
