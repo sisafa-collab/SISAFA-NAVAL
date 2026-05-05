@@ -528,10 +528,11 @@ def carregar_imagem(caminho):
 
 # --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
 
-# 1. LISTA COMPLETA DE MUNIÇÃO (Todas as colunas que o app usa)
+# 1. LISTA MESTRE DE MUNIÇÃO (Todas as colunas que o app usa em todas as abas)
 COLUNAS_MESTRE = [
     'status', 'mes_competencia', 'ano_competencia', 'nup', 
-    'valor_apresentado', 'cnpj', 'glosa', 'paciente', 'just'
+    'valor_apresentado', 'cnpj', 'glosa', 'paciente', 'just',
+    'ose', 'v_ap_num'  # <-- Adicionamos os novos alvos aqui
 ]
 
 try:
@@ -541,26 +542,28 @@ try:
         aba_p = sh.worksheet(ABA_PROCESSOS)
         df = carregar_dados_cache(ABA_PROCESSOS)
         
-        # Se o cache vier vazio, criamos a estrutura do zero
         if df is None or df.empty:
             df = pd.DataFrame(columns=COLUNAS_MESTRE)
             
         # 2. MANOBRA DE RESTAURAÇÃO AUTOMÁTICA
         for col in COLUNAS_MESTRE:
             if col not in df.columns:
-                # Se a coluna sumiu, criamos ela com 0 ou vazio para não dar KeyError
-                df[col] = 0 if col in ['status', 'glosa', 'valor_apresentado'] else ""
+                # Se for coluna de valor, criamos com 0; se for texto, com vazio ""
+                if col in ['status', 'glosa', 'valor_apresentado', 'v_ap_num']:
+                    df[col] = 0
+                else:
+                    df[col] = ""
                 st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada.")
     else:
         sh = None
         df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
 except Exception as e:
-    st.warning("⚠️ Conexão instável com o Google. Usando DataFrame de emergência.")
+    st.warning("⚠️ Conexão instável com o Google. Usando DataFrame de emergência estruturado.")
     sh = None
     df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
-
+    
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
