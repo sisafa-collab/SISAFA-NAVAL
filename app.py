@@ -65,6 +65,9 @@ st.set_page_config(
     initial_sidebar_state="expanded" 
 )
 
+st.cache_data.clear()
+st.cache_resource.clear()
+
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -145,7 +148,9 @@ def carregar_dados_cache(nome_aba):
                     df[col] = 0 if col in ['status', 'glosa', 'v_ap_num', 'valor_apresentado'] else ""
             return df
     except Exception as e:
-        print(f"Erro na faina de carga (Aba {nome_aba}): {e}")
+        # Trocamos o 'print' por 'st.error' para vermos o que o Google está reclamando!
+        st.error(f"🚨 ERRO NA CONEXÃO COM O GOOGLE (Aba {nome_aba}): {e}")
+        return pd.DataFrame() # Retorna vazio para disparar nosso alarme
     
     return pd.DataFrame(columns=COLUNAS_MESTRE)
 
