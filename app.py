@@ -68,51 +68,27 @@ st.set_page_config(
 
 
 # --- ESTILIZAÇÃO CSS (CIRÚRGICA) ---
-estilo_seguro = """
-    <style>
-    /* 1. Esconde o menu de hambúrguer padrão e o rodapé */
+/* Estilo Corrigido */
+<style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 2. Esconde apenas os botões da direita (Share, Star e GitHub) */
-    /* Mantendo o container para não quebrar o layout da página */
-    [data-testid="stToolbar"] {
-        right: 0px;
-        visibility: hidden;
+    /* Esconde os botões de Share e o menu extra, mas mantém o Header vivo */
+    header[data-testid="stHeader"] {
+        background-color: rgba(0,0,0,0);
+    }
+    
+    /* Remove especificamente os botões de cima da direita */
+    [data-testid="stStatusWidget"], [data-testid="stActionButtonIcon"] {
+        display: none;
     }
 
-    /* 3. FORÇA a visibilidade do botão da barra lateral (lado esquerdo) */
-    /* Isso garante que, mesmo escondendo a toolbar, a navegação não suma */
+    /* Garante que o botão da lateral (o sanduíche) continue clicável e visível */
     button[data-testid="stSidebarCollapseButton"] {
         visibility: visible !important;
-        color: #2e6b54 !important; /* Cor verde para combinar com o SISAFA */
+        color: #2e6b54 !important;
     }
-
-    /* 4. Remove o selo 'Hosted with Streamlit' que fica no rodapé/lateral */
-    .viewerBadge_container {display: none !important;}
-
-    /* Estilos de interface do SISAFA */
-    .block-container { padding-top: 2rem; }
-    .welcome-box { 
-        background: #f0f2f6; 
-        padding: 15px; 
-        border-radius: 10px; 
-        border-left: 8px solid #2e6b54; 
-        margin-bottom: 25px; 
-        font-size: 18px; 
-        font-weight: bold; 
-        color: #1B3129; 
-    }
-    .stButton>button { 
-        background-color: #2e6b54; 
-        color: white; 
-        border-radius: 5px; 
-        font-weight: bold; 
-    }
-    </style>
-"""
-
-st.markdown(estilo_seguro, unsafe_allow_html=True)
+</style>
 
 # --- FUNÇÕES DE CONEXÃO ---
 def conectar_google():
@@ -1388,10 +1364,15 @@ else:
                         valores_detalhados, [g1_hosp, g2_lab, g3_spec, g4_terap, g5_odonto],
                         st.session_state[key_lista_g6], v_apres
                     )
+
                     
                     pdf_glosa_bytes = gerar_relatorio_glosa_pdf(
-                        dados_nup, dados_ose_contrato, st.session_state[key_glosas], 
-                        {"nome": auditor_atual, "posto": "Auditor Responsavel"}, num_relatorio
+                        dados_nup, 
+                        dados_ose_contrato, 
+                        st.session_state[key_glosas], 
+                        {"nome": auditor_atual, "posto": "Auditor Responsavel"}, 
+                        num_relatorio,
+                        just_glosa  
                     )
 
                     # 2. BOTÕES DE DOWNLOAD (col_pdf)
