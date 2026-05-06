@@ -67,23 +67,28 @@ st.set_page_config(
 )
 
 
-# --- ESTILIZAÇÃO CSS (CORRIGIDA E BLINDADA) ---
+# --- ESTILIZAÇÃO CSS (CIRÚRGICA) ---
 estilo_seguro = """
     <style>
-    /* Esconde o menu de hambúrguer padrão e o rodapé do Streamlit */
+    /* Esconde o menu de hambúrguer (três linhas) e o rodapé */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Esconde a barra de ferramentas do Streamlit Cloud (Share, Star, GitHub) */
-    [data-testid="stToolbar"] {visibility: hidden !important;}
-    .viewerBadge_container {display: none !important;}
-    
-    /* Garante um respiro no topo para não colar os elementos */
-    .block-container {
-        padding-top: 2rem; 
+    /* Mira APENAS nos botões de nuvem do lado direito (Share, GitHub, etc.) */
+    /* Deixando o lado esquerdo (onde fica o botão da sidebar) intacto */
+    [data-testid="stToolbar"] {
+        display: none !important;
     }
     
-    /* Estilo das caixas e botões */
+    /* Se a barra lateral sumir em telas pequenas, este comando garante 
+       que o botão de expansão da sidebar continue visível na esquerda */
+    [data-testid="stSidebarCollapseButton"] {
+        visibility: visible !important;
+        display: block !important;
+    }
+
+    /* Estilo das caixas e botões do SISAFA */
+    .block-container { padding-top: 2rem; }
     .welcome-box { 
         background: #f0f2f6; 
         padding: 15px; 
