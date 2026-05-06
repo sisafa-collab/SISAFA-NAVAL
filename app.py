@@ -1387,11 +1387,20 @@ else:
 
                     # --- 3. BOTÃO FINALIZAR ---
                     
+                    # --- 3. BOTÃO FINALIZAR ---
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if total_glosa_geral > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            # 1. PREPARAÇÃO DOS DADOS (Definição de variáveis)
+                            # --- EXTRAÇÃO DE DADOS PARA A PLANILHA (O QUE ESTAVA FALTANDO) ---
+                            # Pegamos os dados dos objetos que já existem no seu código
+                            cnpj_ose = dados_ose_contrato.get('CNPJ', 'N/A')
+                            nome_ose = dados_ose_contrato.get('Razão Social', 'N/A')
+                            num_fat = dados_nup.get('Numero_da_fatura', 'N/A')
+                            mes_comp = dados_nup.get('mes_competencia', 'N/A')
+                            ano_comp = dados_nup.get('ano_competencia', 'N/A')
+                            
+                            # Variáveis que já corrigimos antes
                             campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                             v_liquido_alvo = v_apres - total_glosa_geral 
 
@@ -1402,7 +1411,7 @@ else:
                                 if item.get('tipo') and float(item.get('valor', 0)) > 0
                             ]
 
-                            # 2. EXECUÇÃO DA GRAVAÇÃO (Um único bloco spinner)
+                            # 2. EXECUÇÃO DA GRAVAÇÃO
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
