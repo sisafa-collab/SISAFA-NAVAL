@@ -1401,7 +1401,7 @@ else:
                                 
                                 # 2. Dados Numéricos (Conversão segura para evitar ValueError)
                                 # Dica: Convertemos para float e depois int para aceitar formatos como "150.0"
-                                num_fat = int(float(dados_nup.get('Numero_da_fatura', 0)))
+                                num_fat = str(dados_nup.get('Numero_da_fatura', 'S/N'))
                                 mes_comp = int(float(dados_nup.get('mes_competencia', 0)))
                                 ano_comp = int(float(dados_nup.get('ano_competencia', 0)))
                                 v_apres = float(dados_nup.get('valor_apresentado', 0.0))
