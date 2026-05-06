@@ -560,6 +560,17 @@ def obter_proximo_numero_glosa():
                 # Mostra outros erros (como aba com nome errado)
                 raise e
 
+@st.cache_data(ttl=3600)
+def obter_tabela_referencia_glosa():
+    """Lê a tabela de referência do Google apenas 1 vez por hora."""
+    if sh is None: 
+        return {}
+    try:
+        aba_ref = sh.worksheet("SISAFA-NAVAL-Tabela-de-referencia-de-glosa")
+        dados_glosa_brutos = aba_ref.get_all_records()
+        return {str(row['Cod_glosa']): row['Desc_glosa'] for row in dados_glosa_brutos}
+    except Exception as e:
+        return {}
 
 # --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
@@ -1084,27 +1095,81 @@ else:
                     st.subheader("📋 Detalhamento do Relatório de Glosa p/ paciente")
                     key_glosas = f"relatorio_glosa_{nup_audit}"
 
+                    # Garante que a lista exista na memória com todos os campos necessários
                     if key_glosas not in st.session_state:
-                        st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""}]
+                        st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
 
-                    for idx, item in enumerate(st.session_state[key_glosas]):
-                        with st.container(border=True):
-                            col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
-                            item['paciente'] = col_p1.text_input(f"Iniciais do Paciente {idx+1}", value=item['paciente'], key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
-                            item['valor'] = col_p2.number_input(f"Valor R$", min_value=0.0, value=item['valor'], key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
-                            item['tipo'] = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], key=f"t_gl_{idx}_{nup_audit}")
-                            
-                            # Seletor baseado na Tabela de Referência carregada no início do código
-                            escolha = st.selectbox("Código da Glosa", [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()], key=f"c_gl_{idx}_{nup_audit}")
-                            if escolha:
-                                item['cod'] = escolha.split(" - ")[0]
-                                item['desc_glosa'] = escolha.split(" - ")[1]
-                            item['just'] = st.text_input("Observação específica (Relatório)", value=item['just'], key=f"obs_gl_{idx}_{nup_audit}")
+                    # Puxa a tabela do cache (a função que você colocou lá no topo do arquivo)
+                    tabela_ref_glosa = obter_tabela_referencia_glosa()
+                    if not tabela_ref_glosa:
+                        st.warning("⚠️ Tabela de Referência de Glosas indisponível. Verifique a conexão.")
 
-                    if st.button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒"):
-                        st.session_state[key_glosas].append({"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": ""})
+                    # =======================================================
+                    # TRAVA 2: FORMULÁRIO (Impede o recarregamento da tela)
+                    # =======================================================
+                    with st.form(key=f"form_pacientes_{nup_audit}"):
+                        st.info("⚠️ Preencha os dados dos pacientes livremente. O sistema não vai travar. Ao terminar, clique em **CONFIRMAR PACIENTES**.")
+                        
+                        novos_dados = []
+                        
+                        # Renderiza os campos de cada paciente dentro do formulário
+                        for idx, item in enumerate(st.session_state[key_glosas]):
+                            with st.container(border=True):
+                                col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
+                                
+                                temp_pac = col_p1.text_input(f"Iniciais do Paciente {idx+1}", value=item.get('paciente', ''), key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
+                                temp_val = col_p2.number_input(f"Valor R$", min_value=0.0, value=float(item.get('valor', 0.0)), key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
+                                
+                                # Ajusta o índice do Selectbox baseado no que já estava salvo
+                                index_tipo = 0 if item.get('tipo', 'Administrativa') == "Administrativa" else 1
+                                temp_tip = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], index=index_tipo, key=f"t_gl_{idx}_{nup_audit}")
+                                
+                                # Monta a lista de opções da glosa
+                                lista_opcoes_glosa = [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()]
+                                
+                                # Tenta encontrar a opção salva para deixar selecionada
+                                valor_atual_glosa = f"{item.get('cod', '')} - {item.get('desc_glosa', '')}"
+                                index_glosa = 0
+                                if valor_atual_glosa in lista_opcoes_glosa and item.get('cod', '') != "":
+                                    index_glosa = lista_opcoes_glosa.index(valor_atual_glosa)
+
+                                escolha = st.selectbox("Código da Glosa", lista_opcoes_glosa, index=index_glosa, key=f"c_gl_{idx}_{nup_audit}")
+                                temp_jus = st.text_input("Observação específica (Relatório)", value=item.get('just', ''), key=f"obs_gl_{idx}_{nup_audit}")
+                                
+                                # Separa o código e a descrição da glosa escolhida
+                                temp_cod = escolha.split(" - ")[0] if escolha else ""
+                                temp_desc = escolha.split(" - ")[1] if escolha else ""
+                                
+                                # Guarda o que foi digitado nesta linha
+                                novos_dados.append({
+                                    "paciente": temp_pac, 
+                                    "valor": temp_val, 
+                                    "cod": temp_cod, 
+                                    "tipo": temp_tip, 
+                                    "just": temp_jus, 
+                                    "desc_glosa": temp_desc
+                                })
+
+                        # Botões do formulário (Eles controlam quando o app deve agir)
+                        col_add, col_salvar = st.columns(2)
+                        btn_add = col_add.form_submit_button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒")
+                        btn_salvar = col_salvar.form_submit_button("💾 CONFIRMAR PACIENTES", type="primary")
+
+                    # =======================================================
+                    # AÇÕES DOS BOTÕES DO FORMULÁRIO
+                    # =======================================================
+                    if btn_salvar:
+                        # Salva tudo de uma vez na memória principal
+                        st.session_state[key_glosas] = novos_dados
+                        st.success("✅ Pacientes confirmados e calculados com sucesso!")
+                        time.sleep(1)
                         st.rerun()
 
+                    if btn_add:
+                        # Salva o que foi digitado até agora e adiciona uma linha em branco
+                        st.session_state[key_glosas] = novos_dados
+                        st.session_state[key_glosas].append({"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""})
+                        st.rerun()
 
                     # --- 1. RESUMO FINANCEIRO (Soma Automática dos Pacientes) ---
                     
