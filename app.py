@@ -80,14 +80,43 @@ hide_st_style = """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 st.sidebar.title("Teste de Visibilidade") # Se isso aparecer, o sidebar está vivo.
 
-# --- ESTILIZAÇÃO CSS ---
-st.markdown("""
+# --- ESTILIZAÇÃO CSS (CORRIGIDA E BLINDADA) ---
+# Removemos o bloqueio da stAppToolbar para garantir que o botão de expandir a sidebar sempre exista.
+estilo_seguro = """
     <style>
-    [data-testid="stSidebarNav"] {display: none;} 
-    .welcome-box { background: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 8px solid #2e6b54; margin-bottom: 25px; font-size: 18px; font-weight: bold; color: #1B3129; }
-    .stButton>button { background-color: #2e6b54; color: white; border-radius: 5px; font-weight: bold; }
+    /* Esconde apenas o menu de hambúrguer padrão e o rodapé da marca do Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Garante um respiro no topo para não colar os elementos */
+    .block-container {
+        padding-top: 2rem; 
+    }
+    
+    /* Estilo das caixas e botões do SISAFA */
+    .welcome-box { 
+        background: #f0f2f6; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border-left: 8px solid #2e6b54; 
+        margin-bottom: 25px; 
+        font-size: 18px; 
+        font-weight: bold; 
+        color: #1B3129; 
+    }
+    .stButton>button { 
+        background-color: #2e6b54; 
+        color: white; 
+        border-radius: 5px; 
+        font-weight: bold; 
+    }
     </style>
-    """, unsafe_allow_html=True)
+"""
+
+st.markdown(estilo_seguro, unsafe_allow_html=True)
+
+# Teste para confirmar se ela voltou à vida:
+st.sidebar.title("⚓ Sistema Ativo")
 
 # --- FUNÇÕES DE CONEXÃO E CACHE (BLINDAGEM DO GOOGLE) ---
 
