@@ -70,24 +70,28 @@ st.set_page_config(
 # --- ESTILIZAÇÃO CSS (CIRÚRGICA) ---
 estilo_seguro = """
     <style>
-    /* Esconde o menu de hambúrguer (três linhas) e o rodapé */
+    /* 1. Esconde o menu de hambúrguer padrão e o rodapé */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Mira APENAS nos botões de nuvem do lado direito (Share, GitHub, etc.) */
-    /* Deixando o lado esquerdo (onde fica o botão da sidebar) intacto */
+    /* 2. Esconde apenas os botões da direita (Share, Star e GitHub) */
+    /* Mantendo o container para não quebrar o layout da página */
     [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    
-    /* Se a barra lateral sumir em telas pequenas, este comando garante 
-       que o botão de expansão da sidebar continue visível na esquerda */
-    [data-testid="stSidebarCollapseButton"] {
-        visibility: visible !important;
-        display: block !important;
+        right: 0px;
+        visibility: hidden;
     }
 
-    /* Estilo das caixas e botões do SISAFA */
+    /* 3. FORÇA a visibilidade do botão da barra lateral (lado esquerdo) */
+    /* Isso garante que, mesmo escondendo a toolbar, a navegação não suma */
+    button[data-testid="stSidebarCollapseButton"] {
+        visibility: visible !important;
+        color: #2e6b54 !important; /* Cor verde para combinar com o SISAFA */
+    }
+
+    /* 4. Remove o selo 'Hosted with Streamlit' que fica no rodapé/lateral */
+    .viewerBadge_container {display: none !important;}
+
+    /* Estilos de interface do SISAFA */
     .block-container { padding-top: 2rem; }
     .welcome-box { 
         background: #f0f2f6; 
@@ -1053,9 +1057,14 @@ else:
                         ⚠️ **Orientações**
 
                         Preencha os dados de **todos** os pacientes antes de clicar em **CONFIRMAR PACIENTES**. 
-                        O sistema é lento, mas não esmoreça! ⚓
+                        O sistema é lento, porém, pouco didático. 
+                        
+                        Não esmoreça! ⚓
                     
                         *"Em todo trabalho há proveito; meras palavras, porém, levam à penúria." (Provérbios 14:23)*
+                        *"Não há substituto para o trabalho duro." (Thomas Edison)*
+                        *"Todo cadáver no Monte Everest já foi um dia alguém motivado, proativo e fora da sua zona de conforto" (autor desconhecido)*
+                        ⚓🇧🇷🫡
                         """)
                         
                         novos_dados = []
