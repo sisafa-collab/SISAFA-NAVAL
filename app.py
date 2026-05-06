@@ -129,30 +129,13 @@ def obter_cliente_google():
     return conectar_google()
 
 # Cria uma conexão estável e cacheada para a planilha inteira
-@st.cache_data(ttl=70) # 70 segundos de autonomia para leitura
-def carregar_dados_cache(nome_aba):
-    """Lê a planilha e já entrega o DF blindado com todas as colunas mestre."""
-    try:
-        # AQUI ESTÁ O SEGREDO: Usamos o sh blindado que já está na memória!
-        sh_c = abrir_planilha_mestre() 
-        
-        if sh_c:
-            aba = sh_c.worksheet(nome_aba)
-            dados = aba.get_all_records()
-            
-            df = pd.DataFrame(dados) if dados else pd.DataFrame(columns=COLUNAS_MESTRE)
-            
-            # MANOBRA DE RESTAURAÇÃO INTEGRADA: Garante estanqueidade do DF
-            for col in COLUNAS_MESTRE:
-                if col not in df.columns:
-                    df[col] = 0 if col in ['status', 'glosa', 'v_ap_num', 'valor_apresentado'] else ""
-            return df
-    except Exception as e:
-        # Trocamos o 'print' por 'st.error' para vermos o que o Google está reclamando!
-        st.error(f"🚨 ERRO NA CONEXÃO COM O GOOGLE (Aba {nome_aba}): {e}")
-        return pd.DataFrame() # Retorna vazio para disparar nosso alarme
-    
-    return pd.DataFrame(columns=COLUNAS_MESTRE)
+@st.cache_resource(ttl=600) 
+def abrir_planilha_mestre():
+    """Abre a planilha uma vez e guarda na memória por 10 minutos"""
+    client = obter_cliente_google()
+    if client:
+        return client.open_by_key(ID_PLANILHA) 
+    return None
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
@@ -582,6 +565,33 @@ COLUNAS_MESTRE = [
     'ose', 'v_ap_num', 'data_entrada', 'Numero_da_fatura'
 ]
 
+# ==========================================
+# ENCAIXE DA FUNÇÃO DE LEITURA AQUI
+# ==========================================
+@st.cache_data(ttl=70)
+def carregar_dados_cache(nome_aba):
+    """Lê a planilha e já entrega o DF blindado com todas as colunas mestre."""
+    try:
+        sh_c = abrir_planilha_mestre() 
+        
+        if sh_c:
+            aba = sh_c.worksheet(nome_aba)
+            dados = aba.get_all_records()
+            
+            df = pd.DataFrame(dados) if dados else pd.DataFrame(columns=COLUNAS_MESTRE)
+            
+            # MANOBRA DE RESTAURAÇÃO INTEGRADA
+            for col in COLUNAS_MESTRE:
+                if col not in df.columns:
+                    df[col] = 0 if col in ['status', 'glosa', 'v_ap_num', 'valor_apresentado'] else ""
+            return df
+    except Exception as e:
+        # Mostra o erro real na tela para podermos diagnosticar
+        st.error(f"🚨 ERRO NA CONEXÃO COM O GOOGLE (Aba {nome_aba}): {e}")
+    
+    return pd.DataFrame(columns=COLUNAS_MESTRE)
+# ==========================================
+
 # --- 2. CONEXÃO GLOBAL BLINDADA ---
 try:
     # AQUI ESTÁ A CORREÇÃO: Puxamos a planilha direto do cofre (cache)!
@@ -598,7 +608,6 @@ except Exception as e:
     st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
     sh = None
     df = pd.DataFrame(columns=COLUNAS_MESTRE)
-
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
