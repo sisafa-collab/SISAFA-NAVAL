@@ -320,96 +320,7 @@ def tratar_texto_pdf(texto):
     return str(texto).encode('latin-1', 'ignore').decode('latin-1')
 
 
-def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, valores_dict, listas_grupos, lista_g6, v_apres):
-    from fpdf import FPDF
-    import datetime
-
-    # Função interna para limpar caracteres que o PDF clássico não aceita
-    def limpar(txt):
-        if not txt: return ""
-        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    agora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # --- 0. MARCA D'ÁGUA ---
-    try:
-        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90)
-    except:
-        pass 
-
-    # --- CABEÇALHO ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 6, "Hospital Naval de Brasília (HNBra)", ln=True, align='C')
-    pdf.cell(0, 6, u"Relatório de Auditoria de Fatura", ln=True, align='C')
-    pdf.ln(5)
-
-    # --- DADOS DO PROCESSO ---
-    pdf.set_fill_color(230, 230, 230)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 7, "DADOS DO PROCESSO", 1, ln=True, fill=True)
-    pdf.set_font("Arial", '', 10)
-    
-    linha_proc = f"NUP: {dados_nup.get('nup', 'N/A')} | Fatura: {dados_nup.get('Numero_da_fatura', 'N/A')}"
-    pdf.cell(0, 7, limpar(linha_proc), 1, ln=True)
-    
-    linha_auditor = f"Auditor(a): {auditor_nome} | Data/Hora: {agora}"
-    pdf.cell(0, 7, limpar(linha_auditor), 1, ln=True)
-    pdf.ln(5)
-
-    # --- RESUMO FINANCEIRO DA AUDITORIA ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 7, "RESUMO FINANCEIRO DA AUDITORIA", 1, ln=True, fill=True)
-    pdf.set_font("Arial", '', 10)
-    
-    v_liq = v_apres - total_glosa
-    pdf.cell(0, 7, f"Valor Apresentado: R$ {v_apres:,.2f}", 1, ln=True)
-    pdf.cell(0, 7, f"(-) Valor da Glosa: R$ {total_glosa:,.2f}", 1, ln=True)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 7, f"(=) Valor Liquido: R$ {v_liq:,.2f}", 1, ln=True)
-    pdf.ln(5)
-
-    # --- STATUS DA GLOSA ---
-    pdf.set_font("Arial", 'B', 10)
-    houve_glosa = "SIM" if total_glosa > 0 else "NAO"
-    pdf.cell(0, 7, f"Houve Glosa: {houve_glosa}", 1, ln=True)
-    pdf.set_font("Arial", '', 9)
-    # Aqui usamos a justificativa que você preenche na tela
-    pdf.multi_cell(0, 7, limpar(f"Justificativa Técnica: {justificativa if justificativa else 'N/A'}"), 1)
-    pdf.ln(5)
-
-    # --- DETALHAMENTO POR CENTRO DE CUSTO ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(140, 7, u"Descrição do Procedimento/Exame", 1, 0, 'L', True)
-    pdf.cell(50, 7, u"Valor (R$)", 1, 1, 'C', True)
-    
-    pdf.set_font("Arial", '', 9)
-    # Percorre Grupos I ao V
-    for grupo_campos in listas_grupos:
-        for campo in grupo_campos:
-            val = float(valores_dict.get(campo, 0))
-            if val > 0:
-                pdf.cell(140, 6, limpar(campo), 1, 0, 'L')
-                pdf.cell(50, 6, f"{val:,.2f}", 1, 1, 'R')
-
-    # Adiciona Grupo VI (Outros)
-    for item in lista_g6:
-        if item['tipo'] and float(item.get('valor', 0)) > 0:
-            desc_g6 = f"OUTROS: {item['tipo']} - {item['desc']} (Qtd: {item['qtd']})"
-            pdf.cell(140, 6, limpar(desc_g6), 1, 0, 'L')
-            pdf.cell(50, 6, f"{float(item['valor']):,.2f}", 1, 1, 'R')
-
-    # --- TOTAL FINAL ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(140, 8, u"TOTAL FINAL AUDITADO (VALOR LÍQUIDO)", 1, 0, 'L', True)
-    pdf.cell(50, 8, f"R$ {v_liq:,.2f}", 1, 1, 'R', True)
-
-    return pdf.output(dest='S').encode('latin-1', 'ignore')
-
-
-def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio):
+def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio, justificativa):
     from fpdf import FPDF
     import datetime
     
@@ -417,26 +328,24 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
-    # (1) PAPEL NA HORIZONTAL: orientation='L'
+    # (1) PAPEL NA HORIZONTAL: orientation='L' (Landscape)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # --- 0. MARCA D'ÁGUA (Ajustada para o centro do Landscape) ---
+    # --- 0. MARCA D'ÁGUA ---
     try:
         pdf.image('SISAFA-NAVAL-relatorio.png', x=100, y=60, w=100)
     except:
         pass 
     
-    # --- 1. CABEÇALHO (2) TEXTO EM VERMELHO ---
+    # --- 1. CABEÇALHO (EM VERMELHO) ---
     pdf.set_font("Arial", 'B', 9)
-    pdf.set_text_color(220, 0, 0) # Cor Vermelha
+    pdf.set_text_color(220, 0, 0) # Vermelho
     pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
     pdf.set_font("Arial", '', 8)
     pdf.multi_cell(0, 3, limpar("Art. 5º, Inciso X da Constituição Federal do Brasil/1988\nArt. 31 da Lei nº 12.527/2011 | Art. 55 e Art. 62 do Dec 7.724/2012"), align='C')
-    
-    # Reseta cor para preto
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(0, 0, 0) # Reset para Preto
 
     # --- 2. IDENTIFICAÇÃO INSTITUCIONAL ---
     pdf.ln(4)
@@ -447,73 +356,84 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_fill_color(230, 230, 230)
     pdf.cell(0, 10, limpar("RELATÓRIO DE GLOSA"), 1, ln=True, align='C', fill=True)
 
-    # --- 3. DADOS DA OSE (Larguras ajustadas para Landscape) ---
+    # --- 3. DADOS DA OSE ---
     pdf.ln(3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(140, 6, limpar("Organização Civil de Saúde (OCS) credenciada"), 1, 0, 'L', True)
-    pdf.cell(137, 6, limpar("Nº do Edital de Credenciamento"), 1, 1, 'L', True)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(140, 5, limpar("Organização Civil de Saúde (OCS) credenciada"), 1, 0, 'L', True)
+    pdf.cell(137, 5, limpar("Nº do Edital de Credenciamento"), 1, 1, 'L', True)
     
-    pdf.set_font("Arial", '', 9)
-    pdf.cell(140, 7, limpar(dados_ose.get('Razão Social', 'N/A')), 1)
-    pdf.cell(137, 7, limpar(dados_ose.get('Numero_edital', 'N/A')), 1, 1)
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(140, 6, limpar(dados_ose.get('Razão Social', 'N/A')), 1)
+    pdf.cell(137, 6, limpar(dados_ose.get('Numero_edital', 'N/A')), 1, 1)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(70, 5, limpar("Nº do Termo de Credenciamento"), 1, 0, 'L', True)
+    pdf.cell(50, 5, limpar("Validade Edital"), 1, 0, 'L', True)
+    pdf.cell(157, 5, limpar("Endereço eletrônico da OCS"), 1, 1, 'L', True)
+    
+    pdf.set_font("Arial", '', 7)
+    pdf.cell(70, 6, limpar(dados_ose.get('Termo de credenciamento', 'N/A')), 1)
+    pdf.cell(50, 6, limpar(dados_ose.get('Validade_edital', 'N/A')), 1)
+    pdf.cell(157, 6, limpar(dados_ose.get('E-mail Principal da OSE', 'N/A')[:100]), 1, 1)
 
     # --- 4. DADOS DO PROCESSO ---
     pdf.ln(3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(80, 6, "NUP", 1, 0, 'L', True)
-    pdf.cell(50, 6, limpar("Nº Relatório"), 1, 0, 'L', True)
-    pdf.cell(60, 6, limpar("Nº Fatura/Remessa"), 1, 0, 'L', True)
-    pdf.cell(87, 6, limpar("Valor a Pagar (Líquido)"), 1, 1, 'L', True)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(80, 5, "NUP", 1, 0, 'L', True)
+    pdf.cell(50, 5, limpar("Nº Relatório"), 1, 0, 'L', True)
+    pdf.cell(60, 5, limpar("Nº Fatura/Remessa"), 1, 0, 'L', True)
+    pdf.cell(87, 5, limpar("Valor a Pagar (Líquido)"), 1, 1, 'L', True)
 
     total_glosa = sum(float(g['valor']) for g in lista_glosas)
     v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
     valor_liquido = v_apres_limpo - total_glosa
     
-    pdf.set_font("Arial", '', 10)
-    pdf.cell(80, 8, limpar(dados_nup['nup']), 1)
-    pdf.cell(50, 8, f"{num_relatorio}/26", 1)
-    pdf.cell(60, 8, limpar(dados_nup['Numero_da_fatura']), 1)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(87, 8, f"R$ {valor_liquido:,.2f}", 1, 1)
-
-    # --- 5. TABELA DE PACIENTES (4) LOOP CORRIGIDO ---
-    pdf.ln(4)
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(80, 7, limpar(dados_nup['nup']), 1)
+    pdf.cell(50, 7, f"{num_relatorio}/26", 1)
+    pdf.cell(60, 7, limpar(dados_nup['Numero_da_fatura']), 1)
     pdf.set_font("Arial", 'B', 9)
-    # Larguras: N(10) + Paciente(60) + Valor(40) + Tipo(35) + Cod(20) + Obs(112) = 277mm (total útil landscape)
-    pdf.cell(10, 7, "N", 1, 0, 'C', True)
-    pdf.cell(60, 7, "Paciente", 1, 0, 'L', True)
-    pdf.cell(40, 7, "Valor da Glosa", 1, 0, 'C', True)
-    pdf.cell(35, 7, "Tipo", 1, 0, 'C', True)
-    pdf.cell(20, 7, "Cod.", 1, 0, 'C', True)
-    pdf.cell(112, 7, limpar("Observações"), 1, 1, 'C', True)
+    pdf.cell(87, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
 
-    pdf.set_font("Arial", '', 8)
+    # --- 5. TABELA DE PACIENTES E GLOSAS ---
+    pdf.ln(3)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(10, 6, "N", 1, 0, 'C', True)
+    pdf.cell(50, 6, "Paciente", 1, 0, 'L', True)
+    pdf.cell(35, 6, "Valor da Glosa", 1, 0, 'C', True)
+    pdf.cell(30, 6, "Tipo", 1, 0, 'C', True)
+    pdf.cell(20, 6, "Cod.", 1, 0, 'C', True)
+    pdf.cell(132, 6, limpar("Descrição"), 1, 1, 'C', True) # Mudado de Observações para Descrição
+
+    pdf.set_font("Arial", '', 7)
     for i, g in enumerate(lista_glosas, 1):
-        # O problema do loop era o set_xy manual que sobrepunha as linhas. 
-        # Usaremos o comportamento natural do multi_cell para quebrar a linha.
         inicio_y = pdf.get_y()
         pdf.cell(10, 8, f"{i}", 1, 0, 'C')
-        pdf.cell(60, 8, limpar(g['paciente']), 1, 0, 'L')
-        pdf.cell(40, 8, f"R$ {float(g['valor']):,.2f}", 1, 0, 'R')
-        pdf.cell(35, 8, limpar(g['tipo']), 1, 0, 'C')
+        pdf.cell(50, 8, limpar(g['paciente']), 1, 0, 'L')
+        pdf.cell(35, 8, f"R$ {float(g['valor']):,.2f}", 1, 0, 'R')
+        pdf.cell(30, 8, limpar(g['tipo']), 1, 0, 'C')
         pdf.cell(20, 8, limpar(g['cod']), 1, 0, 'C')
-        # multi_cell no último campo para permitir observações longas
-        pdf.multi_cell(112, 8, limpar(g['just']), 1, 'L')
+        pdf.multi_cell(132, 8, limpar(g['just']), 1, 'L')
 
-    # --- 6. RODAPÉ (3) ASSINATURAS LADO A LADO ---
-    pdf.ln(15)
+    # --- NOVO CAMPO: OBSERVAÇÃO (Justificativa Técnica) ---
+    pdf.ln(2)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(0, 6, limpar("Observação:"), 0, 1)
+    pdf.set_font("Arial", '', 8)
+    pdf.multi_cell(0, 5, limpar(justificativa), 1)
+
+    # --- 6. RODAPÉ E DATAS ---
+    pdf.ln(5)
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(0, 5, limpar("Legendas: Adm: Administrativa | Téc: Técnica"), ln=True)
-    pdf.cell(0, 5, limpar(f"Brasília, {datetime.datetime.now().strftime('%d/%m/%Y')}."), ln=True, align='R')
+    pdf.cell(140, 5, limpar("Legendas: Adm: Administrativa | Téc: Técnica"), 0, 0, 'L')
+    pdf.cell(137, 5, limpar(f"Brasília, {datetime.datetime.now().strftime('%d/%m/%Y')}."), 0, 1, 'R')
     
+    # --- 7. ASSINATURAS LADO A LADO ---
     pdf.ln(10)
-    # Definimos a largura de cada coluna de assinatura (277 / 3 = ~92mm)
     largura_col = 92
     y_assinaturas = pdf.get_y()
-
-    # Nome / Posto / Função em 3 colunas
     pdf.set_font("Arial", 'B', 8)
-    
+
     # Coluna 1: GISELLE
     pdf.set_xy(10, y_assinaturas)
     pdf.multi_cell(largura_col, 4, limpar("GISELLE BITENCOURT\nCapitão de Fragata (S)\nEncarregada da Auditoria em Saúde"), 0, 'C')
@@ -522,9 +442,23 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_xy(10 + largura_col, y_assinaturas)
     pdf.multi_cell(largura_col, 4, limpar("CAMILA GUERRA FELICIANO MORAIS\nCapitão-Tenente (S)\nEncarregada da Auditoria de Contas Hospitalares"), 0, 'C')
 
-    # Coluna 3: AUDITOR (BRUNO MATHEUS)
+    # Coluna 3: AUDITOR
     pdf.set_xy(10 + (largura_col * 2), y_assinaturas)
     pdf.multi_cell(largura_col, 4, limpar(f"{auditor_info['nome']}\nAuditor Responsável"), 0, 'C')
+
+    # --- 8. RODAPÉ FINAL (VERMELHO) ---
+    pdf.ln(15)
+    pdf.set_text_color(220, 0, 0)
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
+    pdf.set_font("Arial", '', 7)
+    rodape_legal = (
+        "Art. 5º, Inciso X, da Constituição Federal do Brasil/1988\n"
+        "Art. 31 da Lei nº 12.527, de 18 de novembro de 2011\n"
+        "Art. 55 ao Art. 62 do Dec nº 7.724, de 16 de maio de 2012"
+    )
+    pdf.multi_cell(0, 3, limpar(rodape_legal), align='C')
+    pdf.set_text_color(0, 0, 0)
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
@@ -1110,7 +1044,14 @@ else:
                     # TRAVA 2: FORMULÁRIO (Impede o recarregamento da tela)
                     # =======================================================
                     with st.form(key=f"form_pacientes_{nup_audit}"):
-                        st.info("⚠️ Preencha os dados dos pacientes. Somente clique em **CONFIRMAR PACIENTES** ao terminar de inserir as informações afetas a TODOS os pacientes. O sistema é lento, mas não esmoreça!")
+                        st.info("""
+                        ⚠️ **Orientações**
+
+                        Preencha os dados de **todos** os pacientes antes de clicar em **CONFIRMAR PACIENTES**. 
+                        O sistema é lento, mas não esmoreça! ⚓
+                    
+                        *"Em todo trabalho há proveito; meras palavras, porém, levam à penúria." (Provérbios 14:23)*
+                        """)
                         
                         novos_dados = []
                         
