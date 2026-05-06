@@ -7,6 +7,7 @@ import base64
 import pandas as pd
 from datetime import datetime
 import time
+import gspread.exceptions
 import smtplib
 import re
 from email.message import EmailMessage
@@ -110,16 +111,18 @@ st.markdown(estilo_seguro, unsafe_allow_html=True)
 @st.cache_resource
 def obter_cliente_google():
     """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
-    return conectar_google()
+    return conectar_google() # Mantive sua função original aqui
 
-# Cria uma conexão estável e cacheada para a planilha inteira
-@st.cache_resource(ttl=600) 
+@st.cache_resource 
 def abrir_planilha_mestre():
-    """Abre a planilha uma vez e guarda na memória por 10 minutos"""
+    """Abre a planilha uma vez e guarda na memória para a sessão inteira"""
     client = obter_cliente_google()
     if client:
         return client.open_by_key(ID_PLANILHA) 
     return None
+
+# Variável global: O aplicativo inteiro vai usar essa única conexão a partir de agora
+sh = abrir_planilha_mestre()
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
@@ -157,28 +160,31 @@ def conectar_google():
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
-        client = conectar_google()
-        sh = client.open_by_key(ID_PLANILHA)
-        aba = sh.worksheet(ABA_HISTORICO)
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        aba.append_row([agora, nup, fatura, origem, destino, st.session_state.user_id, valor, obs])
+        # Usa o 'sh' global, sem fazer novo login!
+        if sh:
+            aba = sh.worksheet(ABA_HISTORICO)
+            agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            aba.append_row([agora, nup, fatura, origem, destino, st.session_state.user_id, valor, obs])
     except Exception as e:
         st.error(f"Erro na aba HISTÓRICO: {e}")
 
 def registrar_acao(nup, fatura, acao, detalhes=""):
     try:
-        client = conectar_google()
-        sh = client.open_by_key(ID_PLANILHA)
-        aba = sh.worksheet(ABA_LOGS_ACOES)
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        aba.append_row([str(datetime.now().timestamp()), nup, fatura, acao, st.session_state.user_id, agora, detalhes])
-    except: pass
+        # Usa o 'sh' global
+        if sh:
+            aba = sh.worksheet(ABA_LOGS_ACOES)
+            agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            aba.append_row([str(datetime.now().timestamp()), nup, fatura, acao, st.session_state.user_id, agora, detalhes])
+    except: 
+        pass
 
 def mover_status(nup, novo_status, auditor_nip=None, obs_texto=None, valor_glosa=None, valor_liq=None):
-    client = conectar_google()
-    sh = client.open_by_key(ID_PLANILHA)
+    if not sh:
+        return False
+        
     aba_p = sh.worksheet(ABA_PROCESSOS)
     cell = aba_p.find(nup)
+    
     if cell:
         dados_atuais = aba_p.row_values(cell.row)
         status_origem = dados_atuais[10] 
@@ -186,6 +192,8 @@ def mover_status(nup, novo_status, auditor_nip=None, obs_texto=None, valor_glosa
         valor_atual = valor_liq if valor_liq is not None else dados_atuais[7]
         
         agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Atualizações mantidas, mas sem gerar novo login
         aba_p.update_cell(cell.row, 11, novo_status)
         aba_p.update_cell(cell.row, 14, agora)
         if auditor_nip: aba_p.update_cell(cell.row, 12, auditor_nip)
@@ -518,17 +526,39 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     # A mágica final: o encode com 'ignore' garante que nada trave a saída de bytes
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-
 def obter_proximo_numero_glosa():
-    aba_glosa_folha = sh.worksheet("SISAFA-NAVAL-Auditoria-glosa")
-    # Pega todos os valores da coluna 'Numero_relatorio_glosa' (coluna 12)
-    col_numeros = aba_glosa_folha.col_values(12) 
-    if len(col_numeros) <= 1:
-        return 1
-    # Extrai apenas números válidos e soma +1
-    nums = [int(n) for n in col_numeros[1:] if str(n).isdigit()]
-    return max(nums) + 1 if nums else 1
-
+    max_tentativas = 3
+    
+    # Se a planilha não carregou por algum motivo, encerra para evitar erro
+    if sh is None:
+        st.error("Erro de conexão com a planilha mestre.")
+        return None
+        
+    for tentativa in range(max_tentativas):
+        try:
+            # Tenta acessar a aba de glosa
+            aba_glosa_folha = sh.worksheet("SISAFA-NAVAL-Auditoria-glosa")
+            
+            # --- SUBSTITUA PELO SEU CÓDIGO DE CONTAGEM ---
+            # Exemplo de como pegar o número da próxima linha:
+            valores_coluna = aba_glosa_folha.col_values(1)
+            quantidade_registros = len(valores_coluna) - 1 # Desconta o cabeçalho
+            proximo_numero = quantidade_registros + 1
+            
+            return proximo_numero
+            
+        except gspread.exceptions.APIError as e:
+            # Se o Google reclamar que acessou rápido demais (Erro 429)
+            if e.response.status_code == 429:
+                if tentativa < max_tentativas - 1:
+                    # O SISAFA respira por alguns segundos e tenta de novo sozinho
+                    time.sleep((tentativa + 1) * 2) 
+                else:
+                    st.error("Servidores do Google ocupados. Aguarde alguns segundos e tente novamente.")
+                    st.stop()
+            else:
+                # Mostra outros erros (como aba com nome errado)
+                raise e
 
 
 # --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
