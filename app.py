@@ -1385,38 +1385,52 @@ else:
                         if total_glosa_geral > 0:
                             st.download_button("📋 RELATÓRIO DE GLOSA", data=pdf_glosa_bytes, file_name=f"GLOSA_{num_relatorio}_26.pdf", mime="application/pdf", use_container_width=True)
 
-                    # --- 3. BOTÃO FINALIZAR ---
+                    
                     
                     # --- 3. BOTÃO FINALIZAR ---
+                    
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if total_glosa_geral > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            # --- EXTRAÇÃO DE DADOS PARA A PLANILHA (O QUE ESTAVA FALTANDO) ---
-                            # Pegamos os dados dos objetos que já existem no seu código
-                            cnpj_ose = str(dados_ose_contrato.get('CNPJ', 'N/A'))
-                            nome_ose = str(dados_ose_contrato.get('Razão Social', 'N/A'))
-                            num_fat = int(dados_nup.get('Numero_da_fatura', 0))
-                            mes_comp = int(dados_nup.get('mes_competencia', 0))
-                            ano_comp = int(dados_nup.get('ano_competencia', 0))
-                            v_apres = float(dados_nup.get('valor_apresentado', 0.0))
-                            
-                            # Variáveis que já corrigimos antes
-                            campos_todos_grupos = float(g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto)
-                            v_liquido_alvo = float(v_apres - total_glosa_geral) 
+                            # --- EXTRAÇÃO DE DADOS SEGURA ---
+                            try:
+                                # 1. Dados de Identificação (Strings)
+                                cnpj_ose = str(dados_ose_contrato.get('CNPJ', 'N/A'))
+                                nome_ose = str(dados_ose_contrato.get('Razão Social', 'N/A'))
+                                
+                                # 2. Dados Numéricos (Conversão segura para evitar ValueError)
+                                # Dica: Convertemos para float e depois int para aceitar formatos como "150.0"
+                                num_fat = int(float(dados_nup.get('Numero_da_fatura', 0)))
+                                mes_comp = int(float(dados_nup.get('mes_competencia', 0)))
+                                ano_comp = int(float(dados_nup.get('ano_competencia', 0)))
+                                v_apres = float(dados_nup.get('valor_apresentado', 0.0))
+                                
+                                # 3. Listas de Campos (NUNCA use float() aqui, são nomes de colunas!)
+                                # Apenas somamos as listas para criar uma lista maior com todos os nomes
+                                campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
+                                
+                                # 4. Valores Financeiros
+                                total_glosa_geral = float(total_glosa_geral)
+                                v_liquido_alvo = float(v_apres - total_glosa_geral) 
 
-                            # Filtra o Grupo 6
-                            lista_g6_bruta = st.session_state.get(key_lista_g6, [])
-                            lista_g6_limpa = [
-                                item for item in lista_g6_bruta 
-                                if item.get('tipo') and float(item.get('valor', 0)) > 0
-                            ]
+                                # Filtra o Grupo 6
+                                lista_g6_bruta = st.session_state.get(key_lista_g6, [])
+                                lista_g6_limpa = [
+                                    item for item in lista_g6_bruta 
+                                    if item.get('tipo') and float(item.get('valor', 0)) > 0
+                                ]
+
+                            except Exception as e:
+                                st.error(f"Erro na preparação dos dados: {e}. Verifique se os campos da fatura estão preenchidos.")
+                                st.stop()
 
                             # 2. EXECUÇÃO DA GRAVAÇÃO
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    
+                                    # ... (segue o restante do seu código de gravação igual)
+                                                        
                                     # --- GRAVAÇÃO ANALÍTICA (Aba Auditoria) ---
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
                                     todas_as_linhas = []
