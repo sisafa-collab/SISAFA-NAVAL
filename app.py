@@ -328,6 +328,91 @@ def tratar_texto_pdf(texto):
     # Remove caracteres que o PDF não entende (emojis, aspas especiais, etc)
     return str(texto).encode('latin-1', 'ignore').decode('latin-1')
 
+def gerar_relatorio_pdf(dados_nup, auditor_nome, total_glosa, justificativa, valores_dict, listas_grupos, lista_g6, v_apres):
+    from fpdf import FPDF
+    import datetime
+
+    def limpar(txt):
+        if not txt: return ""
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
+    # (1) VERTICAL E LIMPO: Segue exatamente o modelo da imagem
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # --- 0. MARCA D'ÁGUA (Fundo do documento) ---
+    try:
+        # Centralizada como no seu modelo
+        pdf.image('SISAFA-NAVAL-relatorio.png', x=60, y=95, w=90)
+    except:
+        pass 
+
+    # --- 1. CABEÇALHO ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 6, "Hospital Naval de Brasília (HNBra)", ln=True, align='C')
+    pdf.cell(0, 6, limpar("Relatório de Auditoria de Fatura"), ln=True, align='C')
+    
+    # --- 2. DADOS DO PROCESSO ---
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 7, "DADOS DO PROCESSO", 1, ln=True, fill=True)
+    
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 7, limpar(f"NUP: {dados_nup.get('nup', 'N/A')} | Fatura: {dados_nup.get('Numero_da_fatura', 'N/A')}"), 1, ln=True)
+    pdf.cell(0, 7, limpar(f"Auditor(a): {auditor_nome} | Data/Hora: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"), 1, ln=True)
+
+    # --- 3. RESUMO FINANCEIRO DA AUDITORIA ---
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 7, "RESUMO FINANCEIRO DA AUDITORIA", 1, ln=True, fill=True)
+    
+    pdf.set_font("Arial", '', 10)
+    v_liq = v_apres - total_glosa
+    pdf.cell(0, 7, f"Valor Apresentado: R$ {v_apres:,.2f}", 1, ln=True)
+    pdf.cell(0, 7, f"(-) Valor da Glosa: R$ {total_glosa:,.2f}", 1, ln=True)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 7, f"(=) Valor Liquido: R$ {v_liq:,.2f}", 1, ln=True)
+
+    # --- 4. SEÇÃO DE GLOSA ---
+    pdf.ln(5)
+    houve_glosa = "SIM" if total_glosa > 0 else "NÃO"
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 7, f"Houve Glosa: {houve_glosa}", 1, ln=True)
+    
+    pdf.cell(0, 6, "Justificativa Técnica:", "LR", ln=True)
+    pdf.set_font("Arial", '', 9)
+    pdf.multi_cell(0, 5, limpar(justificativa if justificativa else "N/A"), "LRB")
+
+    # --- 5. TABELA DE ITENS (Onde aparece o SIAD, etc) ---
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(140, 7, limpar("Descrição do Procedimento/Exame"), 1, 0, 'L', True)
+    pdf.cell(50, 7, limpar("Valor (R$)"), 1, 1, 'C', True)
+    
+    pdf.set_font("Arial", '', 9)
+    # Lógica para mostrar apenas os campos que têm valor
+    for grupo in listas_grupos:
+        for campo in grupo:
+            val = float(valores_dict.get(campo, 0))
+            if val > 0:
+                pdf.cell(140, 7, limpar(campo), 1, 0, 'L')
+                pdf.cell(50, 7, f"{val:,.2f}", 1, 1, 'R')
+
+    # Adiciona itens extras do Grupo VI
+    for item in lista_g6:
+        if item['tipo'] and float(item.get('valor', 0)) > 0:
+            pdf.cell(140, 7, limpar(f"OUTROS: {item['tipo']} - {item['desc']}"), 1, 0, 'L')
+            pdf.cell(50, 7, f"{float(item['valor']):,.2f}", 1, 1, 'R')
+
+    # --- 6. TOTAL FINAL (RODAPÉ DA TABELA) ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(140, 8, limpar("TOTAL FINAL AUDITADO (VALOR LÍQUIDO)"), 1, 0, 'L', True)
+    pdf.cell(50, 8, f"R$ {v_liq:,.2f}", 1, 1, 'R', True)
+
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
+
 
 def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, num_relatorio, justificativa):
     from fpdf import FPDF
