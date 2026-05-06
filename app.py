@@ -668,17 +668,39 @@ elif st.session_state.modulo_ativo is None:
 
 # --- 3. AMBIENTE DE TRABALHO (MÓDULO ATIVO) ---
 else:
+    # ⚓ FORÇA A BARRA LATERAL A FICAR VISÍVEL
     with st.sidebar:
-        if os.path.exists(caminho_logo): st.image(caminho_logo)
-        st.markdown(f"<p style='text-align:center;'><b>ID: {st.session_state.user_id}</b><br>Setor: {st.session_state.modulo_ativo}</p>", unsafe_allow_html=True)
-        if st.button("🔄 Trocar de Setor"):
+        st.header("⚓ Menu de Controle")
+        
+        # Logo com verificação de segurança
+        if os.path.exists(caminho_logo): 
+            st.image(caminho_logo)
+        
+        # Informações do Usuário (com proteção contra valores vazios)
+        user_display = st.session_state.get('user_id', 'Não identificado')
+        setor_display = st.session_state.get('modulo_ativo', 'Indefinido')
+        
+        st.markdown(f"""
+            <div style='text-align:center; padding:10px; background-color:#f0f2f6; border-radius:10px;'>
+                <b>ID:</b> {user_display}<br>
+                <b>Setor:</b> {setor_display}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.divider()
+
+        # Botões de Ação
+        if st.button("🔄 Trocar de Setor", use_container_width=True):
             st.session_state.modulo_ativo = None
+            st.cache_data.clear() # Limpa o cache ao trocar para evitar lixo de outro setor
             st.rerun()
-        if st.button("❌ Sair"):
+            
+        if st.button("❌ Sair", use_container_width=True, type="secondary"):
             st.session_state.logged_in = False
             st.session_state.modulo_ativo = None
             st.rerun()
 
+    # O cabeçalho que já está funcionando na sua imagem {3D5F733A-7B21-4666-8803-61A278617E8F}.png
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
     # --- MÓDULOS ESPECÍFICOS ---
