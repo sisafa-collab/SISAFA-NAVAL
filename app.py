@@ -1394,15 +1394,16 @@ else:
                         else:
                             # --- EXTRAÇÃO DE DADOS PARA A PLANILHA (O QUE ESTAVA FALTANDO) ---
                             # Pegamos os dados dos objetos que já existem no seu código
-                            cnpj_ose = dados_ose_contrato.get('CNPJ', 'N/A')
-                            nome_ose = dados_ose_contrato.get('Razão Social', 'N/A')
-                            num_fat = dados_nup.get('Numero_da_fatura', 'N/A')
-                            mes_comp = dados_nup.get('mes_competencia', 'N/A')
-                            ano_comp = dados_nup.get('ano_competencia', 'N/A')
+                            cnpj_ose = str(dados_ose_contrato.get('CNPJ', 'N/A'))
+                            nome_ose = str(dados_ose_contrato.get('Razão Social', 'N/A'))
+                            num_fat = int(dados_nup.get('Numero_da_fatura', 0))
+                            mes_comp = int(dados_nup.get('mes_competencia', 0))
+                            ano_comp = int(dados_nup.get('ano_competencia', 0))
+                            v_apres = float(dados_nup.get('valor_apresentado', 0.0))
                             
                             # Variáveis que já corrigimos antes
-                            campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
-                            v_liquido_alvo = v_apres - total_glosa_geral 
+                            campos_todos_grupos = float(g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto)
+                            v_liquido_alvo = float(v_apres - total_glosa_geral) 
 
                             # Filtra o Grupo 6
                             lista_g6_bruta = st.session_state.get(key_lista_g6, [])
@@ -1456,7 +1457,13 @@ else:
                                                     dados_ose_contrato.get('Numero_edital', 'N/A'),
                                                     dados_ose_contrato.get('Validade_edital', 'N/A'),
                                                     num_fat, mes_comp, ano_comp, v_apres,
-                                                    num_relatorio, g['paciente'], g['valor'], g.get('desc', ''), g['cod'], g['just'], auditor_nip
+                                                    num_relatorio, 
+                                                    str(g['paciente']), 
+                                                    float(g['valor']), # <--- Garante que aqui seja float nativo
+                                                    str(g.get('desc', '')), 
+                                                    str(g['cod']), 
+                                                    str(g['just']), 
+                                                    str(auditor_nip)
                                                 ])
                                         
                                         if lote_glosa:
