@@ -105,6 +105,25 @@ estilo_seguro = """
 
 st.markdown(estilo_seguro, unsafe_allow_html=True)
 
+# --- FUNÇÕES DE CONEXÃO ---
+def conectar_google():
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        if "gcp_service_account" in st.secrets:
+            creds_info = st.secrets["gcp_service_account"]
+            if isinstance(creds_info, str):
+                import json
+                creds_info = json.loads(creds_info.strip())
+            
+            # Garante que a chave privada seja lida corretamente em qualquer servidor
+            if "private_key" in creds_info:
+                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+            
+            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
+            return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Erro na conexão com Google: {e}")
+        return None
 
 # --- FUNÇÕES DE CONEXÃO E CACHE (BLINDAGEM DO GOOGLE) ---
 
@@ -138,25 +157,6 @@ except Exception as e:
     sh = None
     print(f"Erro ao definir 'sh' global: {e}")
 
-# --- FUNÇÕES DE CONEXÃO ---
-def conectar_google():
-    try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            if isinstance(creds_info, str):
-                import json
-                creds_info = json.loads(creds_info.strip())
-            
-            # Garante que a chave privada seja lida corretamente em qualquer servidor
-            if "private_key" in creds_info:
-                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
-            
-            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
-            return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Erro na conexão com Google: {e}")
-        return None
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
