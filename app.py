@@ -72,24 +72,26 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* Estilo Corrigido: Este comentário agora está dentro da string */
+        /* 1. Esconde o menu de hambúrguer (três linhas) */
         #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
         
-        /* Esconde os botões de Share e o menu extra, mas mantém o Header vivo */
+        /* 2. Esconde a barra de status e os botões do topo (GitHub, Estrela, Edit) */
         header[data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0);
-        }
-        
-        /* Remove especificamente os botões de cima da direita */
-        [data-testid="stStatusWidget"], [data-testid="stActionButtonIcon"] {
-            display: none;
+            visibility: hidden;
+            height: 0px;
         }
 
-        /* Garante que o botão da lateral (o sanduíche) continue clicável e visível */
+        /* 3. Esconde o rodapé "Made with Streamlit" */
+        footer {visibility: hidden;}
+        
+        /* 4. Garante que o conteúdo não fique colado no topo agora que o header sumiu */
+        .block-container {
+            padding-top: 2rem;
+        }
+
+        /* 5. Mantém o botão de colapsar a sidebar visível se necessário */
         button[data-testid="stSidebarCollapseButton"] {
             visibility: visible !important;
-            color: #2e6b54 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -525,7 +527,7 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_text_color(220, 0, 0)
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
-    pdf.set_font("Arial", '', 7)
+    pdf.set_font("Arial", '', 8)
     rodape_legal = (
         "Art. 5º, Inciso X, da Constituição Federal do Brasil/1988\n"
         "Art. 31 da Lei nº 12.527, de 18 de novembro de 2011\n"
@@ -1505,7 +1507,7 @@ else:
                                         
                                         registrar_acao(nup_audit, num_fat, "FATURA_AUDITADA", f"Auditada por {auditor_atual}")
                                         st.cache_data.clear()
-                                        st.success(f"✅ Auditagem finalizada com sucesso!")
+                                        st.success(f"✅ Auditagem do NUP {nup_audit} finalizada! Obrigado pela paciência, {auditor_atual}!😅")
                                         time.sleep(1)
                                         st.rerun()
 
