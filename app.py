@@ -58,23 +58,27 @@ caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 
-st.set_page_config(page_title="SISAFA-NAVAL (HNBra)", layout="centered", page_icon="⚓")
+st.set_page_config(
+    page_title="SISAFA-NAVAL (HNBra)", 
+    layout="centered", 
+    page_icon="⚓",
+    initial_sidebar_state="expanded" 
+)
 
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
-            header {visibility: hidden;}
-            /* Esconde especificamente a barra de ferramentas do Streamlit Cloud */
+            /* header {visibility: hidden;}  <-- COMENTE OU REMOVA ESTA LINHA */
             .stAppToolbar {display: none;}
-            /* Remove o padding excessivo no topo que o header deixaria */
             .block-container {
-                padding-top: 1rem;
-                padding-bottom: 0rem;
+                padding-top: 2rem; /* Aumente um pouco aqui já que o header voltou */
             }
             </style>
             """
+
 st.markdown(hide_st_style, unsafe_allow_html=True)
+st.sidebar.title("Teste de Visibilidade") # Se isso aparecer, o sidebar está vivo.
 
 # --- ESTILIZAÇÃO CSS ---
 st.markdown("""
