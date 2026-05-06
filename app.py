@@ -92,20 +92,27 @@ def obter_cliente_google():
     """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
     return conectar_google()
 
-@st.cache_data(ttl=60)  # Guarda os dados por 10 minutos
+@st.cache_data(ttl=300) # 5 minutos de autonomia para leitura
 def carregar_dados_cache(nome_aba):
-    """Lê dados da planilha e guarda na memória para economizar cota"""
+    """Lê a planilha e já entrega o DF blindado com todas as colunas mestre."""
     try:
-        # Tenta usar a conexão que já criamos
-        client_c = conectar_google()
+        client_c = obter_cliente_google() # Usa a função que mantém a sessão ativa
         if client_c:
             sh_c = client_c.open_by_key(ID_PLANILHA)
             aba = sh_c.worksheet(nome_aba)
-            return pd.DataFrame(aba.get_all_records())
+            dados = aba.get_all_records()
+            
+            df = pd.DataFrame(dados) if dados else pd.DataFrame(columns=COLUNAS_MESTRE)
+            
+            # MANOBRA DE RESTAURAÇÃO INTEGRADA: Garante estanqueidade do DF
+            for col in COLUNAS_MESTRE:
+                if col not in df.columns:
+                    df[col] = 0 if col in ['status', 'glosa', 'v_ap_num', 'valor_apresentado'] else ""
+            return df
     except Exception as e:
-        # Se falhar (como a internet do hospital oscilando), avisa mas não trava
-        print(f"Erro ao carregar cache da aba {nome_aba}: {e}")
-    return pd.DataFrame()
+        print(f"Erro na faina de carga (Aba {nome_aba}): {e}")
+    
+    return pd.DataFrame(columns=COLUNAS_MESTRE)
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
@@ -528,42 +535,31 @@ def carregar_imagem(caminho):
 
 # --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
 
-# 1. LISTA MESTRE DE MUNIÇÃO (Todas as colunas que o app usa em todas as abas)
+# 1. LISTA MESTRE DE MUNIÇÃO (Armamento completo para não travar mais)
 COLUNAS_MESTRE = [
     'status', 'mes_competencia', 'ano_competencia', 'nup', 
     'valor_apresentado', 'cnpj', 'glosa', 'paciente', 'just',
-    'ose', 'v_ap_num'  # <-- Adicionamos os novos alvos aqui
+    'ose', 'v_ap_num', 'data_entrada', 'Numero_da_fatura' # <-- Adicionadas
 ]
 
+# --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
 try:
-    client = conectar_google()
+    client = obter_cliente_google()
     if client:
         sh = client.open_by_key(ID_PLANILHA)
-        aba_p = sh.worksheet(ABA_PROCESSOS)
+        # O carregar_dados_cache agora já devolve o df blindado automaticamente
         df = carregar_dados_cache(ABA_PROCESSOS)
-        
-        if df is None or df.empty:
-            df = pd.DataFrame(columns=COLUNAS_MESTRE)
-            
-        # 2. MANOBRA DE RESTAURAÇÃO AUTOMÁTICA
-        for col in COLUNAS_MESTRE:
-            if col not in df.columns:
-                # Se for coluna de valor, criamos com 0; se for texto, com vazio ""
-                if col in ['status', 'glosa', 'valor_apresentado', 'v_ap_num']:
-                    df[col] = 0
-                else:
-                    df[col] = ""
-                st.sidebar.warning(f"⚠️ Coluna '{col}' restaurada.")
     else:
         sh = None
         df = pd.DataFrame(columns=COLUNAS_MESTRE)
-
 except Exception as e:
-    st.warning("⚠️ Conexão instável com o Google. Usando DataFrame de emergência estruturado.")
+    st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
     sh = None
     df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
-    
+
+
+
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
@@ -1275,7 +1271,8 @@ else:
                                         aba_hist.append_row([agora, nup_audit, num_fat, 2, 3, auditor_nip, v_apres, just_glosa])
                                         
                                         registrar_acao(nup_audit, num_fat, "FATURA_AUDITADA", f"Auditada por {auditor_atual}")
-                                        st.success(f"✅ Auditagem do NUP {nup_audit} finalizada!")
+                                        st.cache_data.clear()
+                                        st.success(f"✅ Auditagem do NUP {nup_audit} finalizada! Obrigado pela paciência, {auditor_atual}!😅")
                                         time.sleep(1)
                                         st.rerun()
 
