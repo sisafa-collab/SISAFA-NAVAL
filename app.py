@@ -1386,15 +1386,23 @@ else:
                             st.download_button("📋 RELATÓRIO DE GLOSA", data=pdf_glosa_bytes, file_name=f"GLOSA_{num_relatorio}_26.pdf", mime="application/pdf", use_container_width=True)
 
                     # --- 3. BOTÃO FINALIZAR ---
+                    
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if total_glosa_geral > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            # DEFINIÇÃO DOS CAMPOS (O que estava faltando)
-                            # Unimos todas as listas de campos para garantir a ordem das colunas na planilha
+                            # 1. PREPARAÇÃO DOS DADOS (Definição de variáveis)
                             campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
-                            v_liquido_alvo = v_apres - total_glosa_geral # Cálculo do valor líquido
+                            v_liquido_alvo = v_apres - total_glosa_geral 
 
+                            # Filtra o Grupo 6
+                            lista_g6_bruta = st.session_state.get(key_lista_g6, [])
+                            lista_g6_limpa = [
+                                item for item in lista_g6_bruta 
+                                if item.get('tipo') and float(item.get('valor', 0)) > 0
+                            ]
+
+                            # 2. EXECUÇÃO DA GRAVAÇÃO (Um único bloco spinner)
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1403,7 +1411,7 @@ else:
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
                                     todas_as_linhas = []
                                     
-                                    # Mapeia os valores detalhados para a ordem das colunas
+                                    # Mapeia os valores reais
                                     valores_reais = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
                                     valores_zerados = [0.0] * len(campos_todos_grupos)
 
@@ -1411,10 +1419,12 @@ else:
                                         linha = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_reais + ["", "", 0, 0.0, auditor_nip]
                                         todas_as_linhas.append(linha)
                                     else:
+                                        # Item 1 do G6
                                         item1 = lista_g6_limpa[0]
                                         linha1 = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor']), auditor_nip]
                                         todas_as_linhas.append(linha1)
                                         
+                                        # Itens extras do G6 (com valores dos grupos zerados para não duplicar o total financeiro)
                                         for extra in lista_g6_limpa[1:]:
                                             linha_ex = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_zerados + [str(extra['tipo']), str(extra['desc']), int(extra['qtd']), float(extra['valor']), auditor_nip]
                                             todas_as_linhas.append(linha_ex)
