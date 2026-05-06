@@ -66,29 +66,33 @@ st.set_page_config(
     initial_sidebar_state="expanded" 
 )
 
-
 # --- ESTILIZAÇÃO CSS (CIRÚRGICA) ---
-/* Estilo Corrigido */
-<style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Esconde os botões de Share e o menu extra, mas mantém o Header vivo */
-    header[data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0);
-    }
-    
-    /* Remove especificamente os botões de cima da direita */
-    [data-testid="stStatusWidget"], [data-testid="stActionButtonIcon"] {
-        display: none;
-    }
+# O comentário abaixo com '#' é Python e está tudo bem.
+# Mas o comentário com '/*' precisa estar DENTRO da string abaixo:
 
-    /* Garante que o botão da lateral (o sanduíche) continue clicável e visível */
-    button[data-testid="stSidebarCollapseButton"] {
-        visibility: visible !important;
-        color: #2e6b54 !important;
-    }
-</style>
+st.markdown("""
+    <style>
+        /* Estilo Corrigido: Este comentário agora está dentro da string */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        
+        /* Esconde os botões de Share e o menu extra, mas mantém o Header vivo */
+        header[data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0);
+        }
+        
+        /* Remove especificamente os botões de cima da direita */
+        [data-testid="stStatusWidget"], [data-testid="stActionButtonIcon"] {
+            display: none;
+        }
+
+        /* Garante que o botão da lateral (o sanduíche) continue clicável e visível */
+        button[data-testid="stSidebarCollapseButton"] {
+            visibility: visible !important;
+            color: #2e6b54 !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- FUNÇÕES DE CONEXÃO ---
 def conectar_google():
