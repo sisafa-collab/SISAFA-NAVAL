@@ -67,19 +67,22 @@ st.set_page_config(
 
 
 # --- ESTILIZAÇÃO CSS (CORRIGIDA E BLINDADA) ---
-# Removemos o bloqueio da stAppToolbar para garantir que o botão de expandir a sidebar sempre exista.
 estilo_seguro = """
     <style>
-    /* Esconde apenas o menu de hambúrguer padrão e o rodapé da marca do Streamlit */
+    /* Esconde o menu de hambúrguer padrão e o rodapé do Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    
+    /* Esconde a barra de ferramentas do Streamlit Cloud (Share, Star, GitHub) */
+    [data-testid="stToolbar"] {visibility: hidden !important;}
+    .viewerBadge_container {display: none !important;}
     
     /* Garante um respiro no topo para não colar os elementos */
     .block-container {
         padding-top: 2rem; 
     }
     
-    /* Estilo das caixas e botões do SISAFA */
+    /* Estilo das caixas e botões */
     .welcome-box { 
         background: #f0f2f6; 
         padding: 15px; 
@@ -699,7 +702,6 @@ elif st.session_state.modulo_ativo is None:
 else:
     # ⚓ FORÇA A BARRA LATERAL A FICAR VISÍVEL
     with st.sidebar:
-        st.header("⚓ Menu de Controle")
         
         # Logo com verificação de segurança
         if os.path.exists(caminho_logo): 
