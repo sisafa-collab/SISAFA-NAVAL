@@ -65,23 +65,6 @@ st.set_page_config(
     initial_sidebar_state="expanded" 
 )
 
-st.cache_data.clear()
-st.cache_resource.clear()
-
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            /* header {visibility: hidden;}  <-- COMENTE OU REMOVA ESTA LINHA */
-            .stAppToolbar {display: none;}
-            .block-container {
-                padding-top: 2rem; /* Aumente um pouco aqui já que o header voltou */
-            }
-            </style>
-            """
-
-st.markdown(hide_st_style, unsafe_allow_html=True)
-st.sidebar.title("Teste de Visibilidade") # Se isso aparecer, o sidebar está vivo.
 
 # --- ESTILIZAÇÃO CSS (CORRIGIDA E BLINDADA) ---
 # Removemos o bloqueio da stAppToolbar para garantir que o botão de expandir a sidebar sempre exista.
@@ -118,8 +101,6 @@ estilo_seguro = """
 
 st.markdown(estilo_seguro, unsafe_allow_html=True)
 
-# Teste para confirmar se ela voltou à vida:
-st.sidebar.title("⚓ Sistema Ativo")
 
 # --- FUNÇÕES DE CONEXÃO E CACHE (BLINDAGEM DO GOOGLE) ---
 
