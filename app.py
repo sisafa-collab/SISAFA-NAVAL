@@ -635,11 +635,13 @@ if not st.session_state.logged_in:
         senha = st.text_input("Senha", type="password")
         
         if st.button("ACESSAR SISTEMA", use_container_width=True):
+            # 1. RASTREADOR: Vai piscar amarelo na tela mostrando que o clique funcionou
+            st.warning("🔄 Solicitando acesso ao banco de dados do HNBra...") 
+            
             df_users = carregar_dados_cache(ABA_USUARIOS)
             
             if not df_users.empty:
                 # --- DINÂMICA DE TAMANHO (NIP 8 | CNPJ 14) ---
-                # Identifica o tamanho correto com base na escolha do rádio 'tipo_acesso'
                 tamanho_id = 8 if "Interno" in tipo_acesso else 14
                 
                 # 1. Limpa a coluna da planilha (Primeira Coluna)
@@ -658,12 +660,9 @@ if not st.session_state.logged_in:
                 user_match = df_users[df_users.iloc[:, 0] == u_id_limpo]
                 
                 if not user_match.empty:
-                    # 1. Pegamos o valor bruto da coluna de senha (Índice 4 = Coluna E)
-                    # Forçamos para string e limpamos espaços no início e fim
                     senha_na_planilha = str(user_match.iloc[0, 4]).strip()
                     senha_digitada = senha.strip()
 
-                    # 2. Comparação exata
                     if senha_na_planilha == senha_digitada:
                         st.session_state.logged_in = True
                         st.session_state.user_id = u_id_limpo 
@@ -671,17 +670,17 @@ if not st.session_state.logged_in:
                         st.session_state.user_perfil = str(user_match.iloc[0, 2]).upper()
                         st.rerun()
                     else:
-                        # --- BOX DE DIAGNÓSTICO (Aparecerá apenas se a senha falhar) ---
                         st.error("Senha incorreta.")
                         with st.expander("🔍 Detalhes do erro (Verifique sua Planilha)"):
                             st.write(f"**ID Encontrado:** {u_id_limpo}")
                             st.write(f"**Texto na Planilha:** `{senha_na_planilha}`")
                             st.write(f"**Texto Digitado:** `{senha_digitada}`")
-                            st.write(f"**Tamanho Planilha:** {len(senha_na_planilha)} caracteres")
-                            st.write(f"**Tamanho Digitado:** {len(senha_digitada)} caracteres")
-                            st.info("Dica: Se os tamanhos forem diferentes e o texto parecer igual, há um espaço invisível na sua célula do Google Sheets.")
                 else:
-                    st.error(f"Usuário {u_id_limpo} não cadastrado.")
+                    st.error(f"Usuário {u_id_limpo} não cadastrado no sistema.")
+                    
+            else:
+                # 2. ALARME CRÍTICO: Avisa se o sistema baixou uma tabela de usuários vazia!
+                st.error("🚨 ERRO GRAVE: A tabela de usuários não foi carregada ou está completamente vazia. Verifique a conexão com o Google Sheets.")
 
 # --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
 elif st.session_state.modulo_ativo is None:
