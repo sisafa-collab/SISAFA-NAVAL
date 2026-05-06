@@ -125,13 +125,15 @@ def obter_cliente_google():
     """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
     return conectar_google()
 
-@st.cache_data(ttl=300) # 5 minutos de autonomia para leitura
+# Cria uma conexão estável e cacheada para a planilha inteira
+@st.cache_data(ttl=70) # 70 segundos de autonomia para leitura
 def carregar_dados_cache(nome_aba):
     """Lê a planilha e já entrega o DF blindado com todas as colunas mestre."""
     try:
-        client_c = obter_cliente_google() # Usa a função que mantém a sessão ativa
-        if client_c:
-            sh_c = client_c.open_by_key(ID_PLANILHA)
+        # AQUI ESTÁ O SEGREDO: Usamos o sh blindado que já está na memória!
+        sh_c = abrir_planilha_mestre() 
+        
+        if sh_c:
             aba = sh_c.worksheet(nome_aba)
             dados = aba.get_all_records()
             
@@ -572,25 +574,25 @@ def carregar_imagem(caminho):
 COLUNAS_MESTRE = [
     'status', 'mes_competencia', 'ano_competencia', 'nup', 
     'valor_apresentado', 'cnpj', 'glosa', 'paciente', 'just',
-    'ose', 'v_ap_num', 'data_entrada', 'Numero_da_fatura' # <-- Adicionadas
+    'ose', 'v_ap_num', 'data_entrada', 'Numero_da_fatura'
 ]
 
-# --- 2. CONEXÃO GLOBAL E DEFINIÇÃO DE 'sh' ---
+# --- 2. CONEXÃO GLOBAL BLINDADA ---
 try:
-    client = obter_cliente_google()
-    if client:
-        sh = client.open_by_key(ID_PLANILHA)
-        # O carregar_dados_cache agora já devolve o df blindado automaticamente
+    # AQUI ESTÁ A CORREÇÃO: Puxamos a planilha direto do cofre (cache)!
+    sh = abrir_planilha_mestre() 
+    
+    # Se a conexão deu certo, carrega os dados
+    if sh:
         df = carregar_dados_cache(ABA_PROCESSOS)
     else:
-        sh = None
-        df = pd.DataFrame(columns=COLUNAS_MESTRE)
+        # Força o erro para cair no modo de emergência abaixo
+        raise ValueError("Planilha não conectada.")
+
 except Exception as e:
     st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
     sh = None
     df = pd.DataFrame(columns=COLUNAS_MESTRE)
-
-
 
 
 # --- CONTROLE DE SESSÃO ---
