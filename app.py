@@ -1394,35 +1394,35 @@ else:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
                             # --- EXTRAÇÃO DE DADOS SEGURA ---
+                            # --- Dentro do botão FINALIZAR, no bloco de extração ---
                             try:
-                                # 1. Dados de Identificação (Strings)
+                                # 1. Identificação
                                 cnpj_ose = str(dados_ose_contrato.get('CNPJ', 'N/A'))
                                 nome_ose = str(dados_ose_contrato.get('Razão Social', 'N/A'))
-                                
-                                # 2. Dados Numéricos (Conversão segura para evitar ValueError)
-                                # Dica: Convertemos para float e depois int para aceitar formatos como "150.0"
                                 num_fat = str(dados_nup.get('Numero_da_fatura', 'S/N'))
-                                mes_comp = int(float(dados_nup.get('mes_competencia', 0)))
-                                ano_comp = int(float(dados_nup.get('ano_competencia', 0)))
-                                v_apres = float(dados_nup.get('valor_apresentado', 0.0))
                                 
-                                # 3. Listas de Campos (NUNCA use float() aqui, são nomes de colunas!)
-                                # Apenas somamos as listas para criar uma lista maior com todos os nomes
+                                # 2. Dados de Competência (Garantindo que sejam inteiros nativos)
+                                # Usamos limpar_valor primeiro para lidar com possíveis formatos decimais vindos da planilha
+                                mes_comp = int(limpar_valor(dados_nup.get('mes_competencia', 0)))
+                                ano_comp = int(limpar_valor(dados_nup.get('ano_competencia', 2026)))
+                                
+                                # 3. VALORES FINANCEIROS (Aqui usamos a sua função limpar_valor)
+                                v_apres = limpar_valor(dados_nup.get('valor_apresentado', 0.0))
+                                total_glosa_geral = float(total_glosa_geral) # Já é um número do sistema
+                                v_liquido_alvo = float(v_apres - total_glosa_geral) 
+                                
+                                # 4. Lista de Campos (Nomes das colunas para a planilha)
                                 campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                                 
-                                # 4. Valores Financeiros
-                                total_glosa_geral = float(total_glosa_geral)
-                                v_liquido_alvo = float(v_apres - total_glosa_geral) 
-
-                                # Filtra o Grupo 6
+                                # 5. Filtro do Grupo 6
                                 lista_g6_bruta = st.session_state.get(key_lista_g6, [])
                                 lista_g6_limpa = [
                                     item for item in lista_g6_bruta 
-                                    if item.get('tipo') and float(item.get('valor', 0)) > 0
+                                    if item.get('tipo') and limpar_valor(item.get('valor', 0)) > 0
                                 ]
 
                             except Exception as e:
-                                st.error(f"Erro na preparação dos dados: {e}. Verifique se os campos da fatura estão preenchidos.")
+                                st.error(f"Erro na preparação dos dados: {e}. Verifique o preenchimento dos campos.")
                                 st.stop()
 
                             # 2. EXECUÇÃO DA GRAVAÇÃO
