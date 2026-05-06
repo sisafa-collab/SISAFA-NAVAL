@@ -1463,21 +1463,27 @@ else:
                                         
                                         # O Loop percorre cada glosa registrada no estado da sessão
                                         for g in st.session_state[key_glosas]:
-                                            if g['paciente'] and g['valor'] > 0:
-                                                # Mantém os dados do processo fixos e varia apenas os dados do paciente/glosa
+                                            if g['paciente'] and limpar_valor(g['valor']) > 0:
+                                                # Organização das 18 colunas conforme seu modelo
                                                 lote_glosa.append([
-                                                    agora, nup_audit, cnpj_ose, nome_ose,
-                                                    dados_ose_contrato.get('Termo de credenciamento', 'N/A'),
-                                                    dados_ose_contrato.get('Numero_edital', 'N/A'),
-                                                    dados_ose_contrato.get('Validade_edital', 'N/A'),
-                                                    num_fat, mes_comp, ano_comp, v_apres,
-                                                    num_relatorio, 
-                                                    str(g['paciente']), 
-                                                    float(g['valor']), # <--- Garante que aqui seja float nativo
-                                                    str(g.get('desc', '')), 
-                                                    str(g['cod']), 
-                                                    str(g['just']), 
-                                                    str(auditor_nip)
+                                                    agora,                                  # 1. timestamp
+                                                    str(nup_audit),                         # 2. nup
+                                                    cnpj_ose,                               # 3. cnpj
+                                                    nome_ose,                               # 4. ose
+                                                    dados_ose_contrato.get('Termo de credenciamento', 'N/A'), # 5
+                                                    dados_ose_contrato.get('Numero_edital', 'N/A'),           # 6
+                                                    dados_ose_contrato.get('Validade_edital', 'N/A'),         # 7
+                                                    num_fat,                                # 8. Numero_da_fatura
+                                                    mes_comp,                               # 9. mes_competencia
+                                                    ano_comp,                               # 10. ano_competencia
+                                                    v_apres,                                # 11. valor_apresentado
+                                                    num_relatorio,                          # 12. Numero_relatorio_glosa
+                                                    str(g['paciente']),                     # 13. Nome_paciente
+                                                    limpar_valor(g['valor']),               # 14. Valor_glosa
+                                                    str(g.get('desc_glosa', g.get('desc', 'N/A'))), # 15. Desc_glosa (item do paciente)
+                                                    str(g['cod']),                          # 16. Cod_glosa
+                                                    str(just_glosa),                        # 17. Justificativa Tecnica da Glosa (Resumida/Geral)
+                                                    str(auditor_nip)                        # 18. nip_auditor
                                                 ])
                                         
                                         if lote_glosa:
