@@ -1059,12 +1059,13 @@ else:
                         Preencha os dados de **todos** os pacientes antes de clicar em **CONFIRMAR PACIENTES**. 
                         O sistema é lento, porém, pouco didático. 
                         
-                        Não esmoreça! ⚓
+                        Não esmoreça! ⚓🇧🇷🫡
                     
                         *"Em todo trabalho há proveito; meras palavras, porém, levam à penúria." (Provérbios 14:23)*
+                        
                         *"Não há substituto para o trabalho duro." (Thomas Edison)*
+                        
                         *"Todo cadáver no Monte Everest já foi um dia alguém motivado, proativo e fora da sua zona de conforto" (autor desconhecido)*
-                        ⚓🇧🇷🫡
                         """)
                         
                         novos_dados = []
