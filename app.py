@@ -865,6 +865,15 @@ else:
                         1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
                     ]
                     
+                    # --- O COMANDO QUE ESTAVA FALTANDO AQUI: ---
+                    try:
+                        aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                        aba_proc.append_row(nova_linha)
+                    except Exception as e:
+                        st.error(f"Erro ao conectar com a planilha de processos: {e}")
+                        st.stop()
+                    # -------------------------------------------
+
                     # 2. Alimenta aba HISTORICO e LOGS
                     registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
                     registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
