@@ -3393,14 +3393,25 @@ else:
         df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
+        df_tabela_a = df_tabela_a.loc[:, ~df_tabela_a.columns.duplicated()]
+
         if 'CNPJ' in df_tabela_a.columns:
-            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
+            # 3. Criamos o CNPJ_LIMPO com garantia de ser uma Series (coluna única)
+            df_tabela_a['CNPJ_LIMPO'] = (
+                df_tabela_a['CNPJ']
+                .astype(str)
+                .str.split('.').str[0]
+                .str.strip()
+                .str.zfill(14)
+            )
             dados_minha_ose = df_tabela_a[df_tabela_a['CNPJ_LIMPO'] == user_cnpj].copy()
         else:
+            st.error("❌ Coluna 'CNPJ' não localizada na Tabela A.")
             dados_minha_ose = pd.DataFrame()
 
-        # Preparando as Faturas (df principal)
+        # --- Preparando as Faturas (df principal) ---
         if 'cnpj' in df.columns:
+            # Aplicamos a mesma lógica de limpeza aqui por segurança
             df['cnpj_limpo'] = df['cnpj'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
             df_minhas_faturas = df[df['cnpj_limpo'] == user_cnpj].copy()
         else:
