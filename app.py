@@ -843,7 +843,7 @@ else:
             
             # 3. Checagem de duplicidade (Instantânea usando o DF local)
             elif nup_in in df['nup'].astype(str).values:
-                st.error(f"⚠️ O NUP {nup_in} já consta no sistema. Verifique se não é um lançamento duplicado.")
+                st.error(f"🚫 Opa! Nobre {st.session_state.user_full_name}, o NUP {nup_in} já foi cadastrado por outro (a) usuário (a)! 🚫")
             
             else:
                 st.session_state.confirmar_secom = True
