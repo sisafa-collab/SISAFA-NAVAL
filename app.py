@@ -2646,16 +2646,18 @@ else:
         df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
+        # 2. Criamos o CNPJ_LIMPO de forma simples e segura
         if 'CNPJ' in df_tabela_a.columns:
-            df_tabela_a['CNPJ_LIMPO'] = (
-                df_tabela_a['CNPJ']
-                .astype(str)
-                .str.replace(r'\.0$', '', regex=True) 
-                .str.replace(r'\D', '', regex=True)   
-                .str.zfill(14)                         
-            )
+            # Convertemos para string e limpamos apenas espaços em branco
+            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.strip()
+            
+            # Se por acaso algum CNPJ veio com ".0" no final (comum no Excel), removemos
+            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ_LIMPO'].str.replace(r'\.0$', '', regex=True)
+            
+            # Garantimos que todos tenham 14 dígitos (importante para os que começam com 0)
+            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ_LIMPO'].str.zfill(14)
         else:
-            st.error("❌ ERRO: A coluna 'CNPJ' não foi encontrada no SISAFA. Procure o CT Matheus|")
+            st.error("❌ Coluna 'CNPJ' não encontrada na Tabela A.")
             st.stop()
                 
         user_nip = str(st.session_state.user_id).strip().zfill(8)
