@@ -856,46 +856,51 @@ else:
             
             if col_sim.button("✅ SIM, confirmar dados", use_container_width=True):
                 with st.spinner("Efetuando registro..."):
-                    dt_hoje = datetime.now().strftime("%d/%m/%Y")
-                    
-                    # 1. Alimenta aba PROCESSOS
-                    nova_linha = [
-                        str(datetime.now().timestamp()), nup_in, sel_cnpj, empresa_nome, 
-                        num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
-                        1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
-                    ]
-                    
-                    # --- O COMANDO QUE ESTAVA FALTANDO AQUI: ---
                     try:
+                        # 1. Conexão com a planilha de processos
                         aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
-                        aba_proc.append_row(nova_linha)
-                    except Exception as e:
-                        st.error(f"Erro ao conectar com a planilha de processos: {e}")
-                        st.stop()
-                    # -------------------------------------------
+                        
+                        # --- 🛡️ BLINDAGEM ANTI-DUPLICIDADE EM TEMPO REAL ---
+                        nups_na_planilha = aba_proc.col_values(2) 
+                        if nup_in in nups_na_planilha:
+                            st.error(f"🚫 Opa! Nobre {st.session_state.user_full_name}, o NUP {nup_in} já foi cadastrado por outro usuário! 🚫")
+                            st.session_state.confirmar_secom = False
+                            time.sleep(2)
+                            st.rerun()
 
-                    # 2. Alimenta aba HISTORICO e LOGS
-                    registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
-                    registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
-                    
-                    # --- 🚀 RESET SELETIVO (Manter NUP e CNPJ para agilizar) ---
-                    # Limpamos apenas a Fatura e o Valor
-                    st.session_state["input_fat_secom"] = ""
-                    st.session_state["input_val_secom"] = 0.0
-                    
-                    # Desativa a caixa de confirmação para o próximo lançamento
-                    st.session_state.confirmar_secom = False
-                    
-                    st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida. NUP e OSE preservados.")
-                    
-                    # Redução do delay para aumentar a produtividade
-                    time.sleep(0.5) 
-                    st.rerun()
+                        dt_hoje = datetime.now().strftime("%d/%m/%Y")
+                        
+                        # 2. Prepara e Grava a Linha de Processo
+                        nova_linha = [
+                            str(datetime.now().timestamp()), nup_in, sel_cnpj, empresa_nome, 
+                            num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
+                            1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
+                        ]
+                        aba_proc.append_row(nova_linha)
+                        
+                        # 3. Alimenta aba HISTORICO e LOGS (Apenas UMA vez aqui dentro)
+                        registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
+                        registrar_acao(nup_in, num_fatura, "CADASTRO_INICIAL", f"Fatura cadastrada por {st.session_state.user_full_name}")
+                        
+                        # --- 🚀 RESET DOS CAMPOS ---
+                        # Aqui garantimos que o próximo lançamento venha limpo
+                        st.session_state["input_fat_secom"] = ""
+                        st.session_state["input_val_secom"] = 0.0
+                        st.session_state.confirmar_secom = False
+                        
+                        st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida. Obrigado, {st.session_state.user_full_name}! 🚀")
+                        time.sleep(0.5) 
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Erro ao conectar com a planilha: {e}")
+                        st.stop()
 
             if col_nao.button("❌ NÃO, voltar e corrigir", use_container_width=True):
                 st.session_state.confirmar_secom = False
                 st.rerun()
 
+                    
 
 
 
