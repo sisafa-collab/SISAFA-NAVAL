@@ -2650,9 +2650,7 @@ else:
             df_tabela_a['CNPJ_LIMPO'] = (
                 df_tabela_a['CNPJ']
                 .astype(str)
-                .str.replace(r'\.0$', '', regex=True) # Remove o .0 que o Excel adora colocar
-                .str.replace(r'\D', '', regex=True)    # Remove pontos, traços e barras
-                .str.zfill(14)                         # Garante os 14 dígitos (zeros à esquerda)
+                .str.zfill(14)                         
             )
         else:
             st.error("❌ ERRO: A coluna 'CNPJ' não foi encontrada no SISAFA. Procure o CT Matheus|")
