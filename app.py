@@ -2650,6 +2650,8 @@ else:
             df_tabela_a['CNPJ_LIMPO'] = (
                 df_tabela_a['CNPJ']
                 .astype(str)
+                .str.replace(r'\.0$', '', regex=True) 
+                .str.replace(r'\D', '', regex=True)   
                 .str.zfill(14)                         
             )
         else:
