@@ -900,9 +900,7 @@ else:
                 st.session_state.confirmar_secom = False
                 st.rerun()
 
-                    
-
-
+                
 
 
 
@@ -2122,28 +2120,29 @@ else:
                         cnpj_alvo = f_status_4[f_status_4['nup'].isin(nups_sel)]['cnpj'].iloc[0]
                         
                         with st.spinner(f"Gravando NE {ne_completa}..."):
-                            for nup in nups_sel:
-                                cell = aba_p.find(nup)
-                                if cell:
-                                    aba_p.update_cell(cell.row, 15, ne_completa)
-                                    mover_status(nup, 5)
-                                    # Busca a fatura no dataframe principal
-                                    fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
-                                    registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
-                            
-                            st.success(f"✅ Sucesso! NE {ne_completa} cadastrada.")
-                            
-                            # --- AQUI ACONTECE A MÁGICA DA LIMPEZA ---
-                            # Deletamos as chaves do session_state para resetar os campos
-                            # Ajuste os nomes das chaves ('key') de acordo com o que você usou nos widgets
-                            chaves_para_limpar = [
-                                "input_cod_ne",  # Substitua pela key do seu st.text_input da NE
-                                "multiselect_nups" # Substitua pela key do seu st.multiselect de NUPs
-                            ]
-                            
-                            for chave in chaves_para_limpar:
-                                if chave in st.session_state:
-                                    del st.session_state[chave]
+                            try:
+                                # --- AQUI ESTÁ A CORREÇÃO: DEFININDO A ABA ---
+                                aba_p = sh.worksheet("SISAFA-NAVAL-processos") 
+                                
+                                for nup in nups_sel:
+                                    cell = aba_p.find(str(nup)) # str() garante a busca correta
+                                    if cell:
+                                        # Coluna 15 é onde você guarda a NE na sua planilha
+                                        aba_p.update_cell(cell.row, 15, ne_completa)
+                                        
+                                        # Move para Status 5 (Empenhado)
+                                        mover_status(nup, 5)
+                                        
+                                        # Busca a fatura para o log
+                                        fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
+                                        registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
+                                
+                                st.success(f"✅ Sucesso! NE {ne_completa} cadastrada para {len(nups_sel)} faturas.")
+                                time.sleep(1)
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"Erro ao acessar a planilha de processos: {e}")
                             
                             # ---------------------------------------
                             
