@@ -2647,17 +2647,20 @@ else:
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
         # 2. Criamos o CNPJ_LIMPO de forma simples e segura
+        df_tabela_a = df_tabela_a.loc[:, ~df_tabela_a.columns.duplicated()]
+
+        # 3. Agora criamos o CNPJ_LIMPO com total segurança
         if 'CNPJ' in df_tabela_a.columns:
-            # Convertemos para string e limpamos apenas espaços em branco
-            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.strip()
-            
-            # Se por acaso algum CNPJ veio com ".0" no final (comum no Excel), removemos
-            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ_LIMPO'].str.replace(r'\.0$', '', regex=True)
-            
-            # Garantimos que todos tenham 14 dígitos (importante para os que começam com 0)
-            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ_LIMPO'].str.zfill(14)
+            # Garantimos que a coluna seja tratada como texto e limpamos
+            df_tabela_a['CNPJ_LIMPO'] = (
+                df_tabela_a['CNPJ']
+                .astype(str)
+                .str.replace(r'\.0$', '', regex=True) # Tira o .0 do Excel
+                .str.replace(r'\D', '', regex=True)    # Tira pontos, traços e barras
+                .str.zfill(14)                         # Garante os 14 dígitos
+            )
         else:
-            st.error("❌ Coluna 'CNPJ' não encontrada na Tabela A.")
+            st.error("❌ Coluna 'CNPJ' não localizada. Verifique o cabeçalho da Tabela A.")
             st.stop()
                 
         user_nip = str(st.session_state.user_id).strip().zfill(8)
