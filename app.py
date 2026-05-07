@@ -2647,8 +2647,17 @@ else:
         df_tabela_a.columns = [c.strip().replace(' ', '_').upper() for c in df_tabela_a.columns]
         
         if 'CNPJ' in df_tabela_a.columns:
-            df_tabela_a['CNPJ_LIMPO'] = df_tabela_a['CNPJ'].astype(str).str.split('.').str[0].str.strip().str.zfill(14)
-        
+            df_tabela_a['CNPJ_LIMPO'] = (
+                df_tabela_a['CNPJ']
+                .astype(str)
+                .str.replace(r'\.0$', '', regex=True) # Remove o .0 que o Excel adora colocar
+                .str.replace(r'\D', '', regex=True)    # Remove pontos, traços e barras
+                .str.zfill(14)                         # Garante os 14 dígitos (zeros à esquerda)
+            )
+        else:
+            st.error("❌ ERRO: A coluna 'CNPJ' não foi encontrada no SISAFA. Procure o CT Matheus|")
+            st.stop()
+                
         user_nip = str(st.session_state.user_id).strip().zfill(8)
         is_global = (user_nip == "95039023")
 
