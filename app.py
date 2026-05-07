@@ -464,9 +464,11 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
     valor_liquido = v_apres_limpo - total_glosa
     
+    ano_atual = datetime.datetime.now().strftime('%y')
+
     pdf.set_font("Arial", '', 9)
     pdf.cell(80, 7, limpar(dados_nup['nup']), 1)
-    pdf.cell(50, 7, f"{num_relatorio}/26", 1)
+    pdf.cell(50, 7, f"{num_relatorio}/{ano_atual}", 1)
     pdf.cell(60, 7, limpar(dados_nup['Numero_da_fatura']), 1)
     pdf.set_font("Arial", 'B', 9)
     pdf.cell(87, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
@@ -537,6 +539,28 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_text_color(0, 0, 0)
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
+
+def obter_proximo_numero_relatorio(sh):
+    try:
+        aba_glosa = sh.worksheet("SISAFA-NAVAL-Auditoria-glosa")
+        # Pega todos os valores da coluna "Numero_relatorio_glosa" (Coluna L / índice 11)
+        coluna_relatorios = aba_glosa.col_values(12) 
+        
+        # Remove o cabeçalho e filtra apenas números
+        numeros = []
+        for val in coluna_relatorios[1:]:
+            try:
+                numeros.append(int(float(val)))
+            except:
+                continue
+        
+        if not numeros:
+            return 1
+        return max(numeros) + 1
+    except Exception as e:
+        st.error(f"Erro ao gerar numeração automática: {e}")
+        return 1 # Fallback para não travar o sistema
+
 
 def obter_proximo_numero_glosa():
     max_tentativas = 3
@@ -840,7 +864,6 @@ else:
                         num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
                         1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
                     ]
-                    aba_p.append_row(nova_linha)
                     
                     # 2. Alimenta aba HISTORICO e LOGS
                     registrar_historico(nup_in, num_fatura, "0", "1", v_ap, "Entrada via SECOM")
@@ -1386,123 +1409,94 @@ else:
                         st.download_button("📄 CAPA DA AUDITORIA", data=pdf_capa_bytes, file_name=f"CAPA_{num_fat}.pdf", mime="application/pdf", use_container_width=True)
                         if total_glosa_geral > 0:
                             st.download_button("📋 RELATÓRIO DE GLOSA", data=pdf_glosa_bytes, file_name=f"GLOSA_{num_relatorio}_26.pdf", mime="application/pdf", use_container_width=True)
-
-                    
                     
                     # --- 3. BOTÃO FINALIZAR ---
-                    
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
                         if total_glosa_geral > 0 and not just_glosa:
                             st.error("⚠️ Justificativa obrigatória para glosa.")
                         else:
-                            # --- EXTRAÇÃO DE DADOS SEGURA ---
-                            # --- Dentro do botão FINALIZAR, no bloco de extração ---
                             try:
-                                # 1. Identificação
+                                # --- EXTRAÇÃO E NUMERAÇÃO ---
+                                num_relatorio = obter_proximo_numero_relatorio(sh) # Gera o número automático aqui
+                                
                                 cnpj_ose = str(dados_ose_contrato.get('CNPJ', 'N/A'))
                                 nome_ose = str(dados_ose_contrato.get('Razão Social', 'N/A'))
                                 num_fat = str(dados_nup.get('Numero_da_fatura', 'S/N'))
-                                
-                                # 2. Dados de Competência (Garantindo que sejam inteiros nativos)
-                                # Usamos limpar_valor primeiro para lidar com possíveis formatos decimais vindos da planilha
                                 mes_comp = int(limpar_valor(dados_nup.get('mes_competencia', 0)))
                                 ano_comp = int(limpar_valor(dados_nup.get('ano_competencia', 2026)))
-                                
-                                # 3. VALORES FINANCEIROS (Aqui usamos a sua função limpar_valor)
                                 v_apres = limpar_valor(dados_nup.get('valor_apresentado', 0.0))
-                                total_glosa_geral = float(total_glosa_geral) # Já é um número do sistema
-                                v_liquido_alvo = float(v_apres - total_glosa_geral) 
-                                
-                                # 4. Lista de Campos (Nomes das colunas para a planilha)
                                 campos_todos_grupos = g1_hosp + g2_lab + g3_spec + g4_terap + g5_odonto
                                 
-                                # 5. Filtro do Grupo 6
+                                # Filtro G6
                                 lista_g6_bruta = st.session_state.get(key_lista_g6, [])
-                                lista_g6_limpa = [
-                                    item for item in lista_g6_bruta 
-                                    if item.get('tipo') and limpar_valor(item.get('valor', 0)) > 0
-                                ]
+                                lista_g6_limpa = [it for it in lista_g6_bruta if it.get('tipo') and limpar_valor(it.get('valor', 0)) > 0]
+
+                                # Geração do PDF com o número novo
+                                pdf_glosa_bytes = gerar_relatorio_glosa_pdf(
+                                    dados_nup, dados_ose_contrato, st.session_state[key_glosas], 
+                                    {"nome": auditor_atual, "posto": "Auditor Responsavel"}, 
+                                    num_relatorio, just_glosa
+                                )
 
                             except Exception as e:
-                                st.error(f"Erro na preparação dos dados: {e}. Verifique o preenchimento dos campos.")
+                                st.error(f"Erro na preparação: {e}")
                                 st.stop()
 
-                            # 2. EXECUÇÃO DA GRAVAÇÃO
                             with st.spinner("Gravando e atualizando sistemas..."):
                                 try:
                                     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    # ... (segue o restante do seu código de gravação igual)
-                                                        
-                                    # --- GRAVAÇÃO ANALÍTICA (Aba Auditoria) ---
+                                    
+                                    # --- GRAVAÇÃO ANALÍTICA (SISAFA-NAVAL-Auditoria) ---
                                     aba_audit_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria")
                                     todas_as_linhas = []
-                                    
-                                    # Mapeia os valores reais
                                     valores_reais = [float(valores_detalhados.get(campo, 0)) for campo in campos_todos_grupos]
                                     valores_zerados = [0.0] * len(campos_todos_grupos)
 
                                     if not lista_g6_limpa:
-                                        linha = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_reais + ["", "", 0, 0.0, auditor_nip]
+                                        linha = [agora, str(nup_audit), cnpj_ose, nome_ose, num_fat, mes_comp, ano_comp] + valores_reais + ["", "", 0, 0.0, auditor_nip]
                                         todas_as_linhas.append(linha)
                                     else:
-                                        # Item 1 do G6
                                         item1 = lista_g6_limpa[0]
-                                        linha1 = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor']), auditor_nip]
+                                        linha1 = [agora, str(nup_audit), cnpj_ose, nome_ose, num_fat, mes_comp, ano_comp] + valores_reais + [str(item1['tipo']), str(item1['desc']), int(item1['qtd']), float(item1['valor']), auditor_nip]
                                         todas_as_linhas.append(linha1)
-                                        
-                                        # Itens extras do G6 (com valores dos grupos zerados para não duplicar o total financeiro)
                                         for extra in lista_g6_limpa[1:]:
-                                            linha_ex = [agora, str(nup_audit), cnpj_ose, nome_ose, str(num_fat), mes_comp, ano_comp] + valores_zerados + [str(extra['tipo']), str(extra['desc']), int(extra['qtd']), float(extra['valor']), auditor_nip]
+                                            linha_ex = [agora, str(nup_audit), cnpj_ose, nome_ose, num_fat, mes_comp, ano_comp] + valores_zerados + [str(extra['tipo']), str(extra['desc']), int(extra['qtd']), float(extra['valor']), auditor_nip]
                                             todas_as_linhas.append(linha_ex)
 
-                                    if todas_as_linhas:
-                                        aba_audit_detalhe.append_rows(todas_as_linhas)
+                                    aba_audit_detalhe.append_rows(todas_as_linhas)
 
-                                    # --- GRAVAÇÃO DO RELATÓRIO DE GLOSA (Estrutura 1-para-Muitos) ---
+                                    # --- GRAVAÇÃO DE GLOSA (Estrutura 1-para-Muitos) ---
                                     if total_glosa_geral > 0:
                                         aba_glosa_detalhe = sh.worksheet("SISAFA-NAVAL-Auditoria-glosa")
                                         lote_glosa = []
-                                        
-                                        # O Loop percorre cada glosa registrada no estado da sessão
                                         for g in st.session_state[key_glosas]:
                                             if g['paciente'] and limpar_valor(g['valor']) > 0:
-                                                # Organização das 18 colunas conforme seu modelo
                                                 lote_glosa.append([
-                                                    agora,                                  # 1. timestamp
-                                                    str(nup_audit),                         # 2. nup
-                                                    cnpj_ose,                               # 3. cnpj
-                                                    nome_ose,                               # 4. ose
-                                                    dados_ose_contrato.get('Termo de credenciamento', 'N/A'), # 5
-                                                    dados_ose_contrato.get('Numero_edital', 'N/A'),           # 6
-                                                    dados_ose_contrato.get('Validade_edital', 'N/A'),         # 7
-                                                    num_fat,                                # 8. Numero_da_fatura
-                                                    mes_comp,                               # 9. mes_competencia
-                                                    ano_comp,                               # 10. ano_competencia
-                                                    v_apres,                                # 11. valor_apresentado
-                                                    num_relatorio,                          # 12. Numero_relatorio_glosa
-                                                    str(g['paciente']),                     # 13. Nome_paciente
-                                                    limpar_valor(g['valor']),               # 14. Valor_glosa
-                                                    str(g.get('desc_glosa', g.get('desc', 'N/A'))), # 15. Desc_glosa (item do paciente)
-                                                    str(g['cod']),                          # 16. Cod_glosa
-                                                    str(just_glosa),                        # 17. Justificativa Tecnica da Glosa (Resumida/Geral)
-                                                    str(auditor_nip)                        # 18. nip_auditor
+                                                    agora, str(nup_audit), cnpj_ose, nome_ose,
+                                                    dados_ose_contrato.get('Termo de credenciamento', 'N/A'),
+                                                    dados_ose_contrato.get('Numero_edital', 'N/A'),
+                                                    dados_ose_contrato.get('Validade_edital', 'N/A'),
+                                                    num_fat, mes_comp, ano_comp, v_apres,
+                                                    num_relatorio, # O número automático entra aqui
+                                                    str(g['paciente']), limpar_valor(g['valor']),
+                                                    str(g.get('desc_glosa', g.get('desc', 'N/A'))),
+                                                    str(g['cod']), str(just_glosa), str(auditor_nip)
                                                 ])
-                                        
-                                        if lote_glosa:
-                                            aba_glosa_detalhe.append_rows(lote_glosa)
+                                        aba_glosa_detalhe.append_rows(lote_glosa)
 
-                                    # --- ATUALIZAÇÃO DO STATUS DO PROCESSO ---
-                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                                    # --- ATUALIZAÇÃO DO STATUS (CORRIGINDO O NAMEERROR) ---
+                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos") # Certifique-se que o nome é aba_proc
                                     celula = aba_proc.find(str(nup_audit))
                                     if celula:
                                         aba_proc.update_cell(celula.row, 7, float(total_glosa_geral))
                                         aba_proc.update_cell(celula.row, 8, float(v_liquido_alvo))
-                                        aba_proc.update_cell(celula.row, 11, 3) # Status 3 (Auditado)
+                                        aba_proc.update_cell(celula.row, 11, 3) # Status 3
                                         aba_proc.update_cell(celula.row, 12, str(auditor_nip))
                                         aba_proc.update_cell(celula.row, 14, agora)
                                         
                                         # Histórico
                                         aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
+                                        # CORREÇÃO DO NameError: Use aba_hist em vez de aba_p
                                         aba_hist.append_row([agora, nup_audit, num_fat, 2, 3, auditor_nip, v_apres, just_glosa])
                                         
                                         registrar_acao(nup_audit, num_fat, "FATURA_AUDITADA", f"Auditada por {auditor_atual}")
