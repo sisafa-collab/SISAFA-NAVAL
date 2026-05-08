@@ -3367,77 +3367,114 @@ else:
                     values='v_liq', 
                     names='ose', 
                     hole=0.3,
-                    title="Volume Financeiro Total por empresa ",
+                    title="Volume Financeiro Total por Empresa",
                     color_discrete_sequence=px.colors.qualitative.Bold # Paleta bem colorida e vibrante
                 )
+                
+                # 1. AUMENTA A PIZZA (Empurra ela para ocupar os 75% superiores da área)
                 fig_empresas.update_traces(
+                    domain={'x': [0, 1], 'y': [0.25, 1]},
                     textposition='inside', 
                     textinfo='percent',
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
+                
+                # 2. ARRUMA A LEGENDA (Move pro fundo, horizontal e menor) E MARGENS
+                fig_empresas.update_layout(
+                    legend=dict(
+                        font=dict(size=10), # Reduz o tamanho da fonte
+                        orientation="h",    # Deixa deitada
+                        x=0.5,              # Centraliza
+                        y=0.05,             # Joga pro fundo
+                        xanchor="center",
+                        yanchor="top",
+                        entrywidth=250      # Impede que nomes gigantes quebrem o layout
+                    ),
+                    margin=dict(l=10, r=10, t=50, b=10) # Corta os espaços em branco em volta
+                )
+                
                 st.plotly_chart(fig_empresas, use_container_width=True)
 
+            
             # =======================================================
-            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
+            # === SEÇÃO 5: SITUAÇÃO DAS N.E. AGUARDANDO N.F. ===
             # =======================================================
             st.divider()
             st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
 
+            # 1. Carregamento dos dados da aba Processos (df)
             df_sec5 = df.copy()
-            # Garante as colunas necessárias
+            
+            # 2. Localização da aba de Histórico (aba_hist_nome usa sua constante)
+            # Presumo que você carregue o histórico em um dataframe chamado df_historico
+            # Caso ainda não tenha carregado, use: df_historico = ler_aba(ID_PLANILHA, ABA_HISTORICO)
+            
             if 'status_num' not in df_sec5.columns:
                 df_sec5['status_num'] = pd.to_numeric(df_sec5['status'], errors='coerce').fillna(-1).astype(int)
             if 'v_liq' not in df_sec5.columns:
                 df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
 
-            # Filtra apenas o Status 6
+            # Filtra apenas quem está no Status 6 na aba Processos
             df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
 
             if df_status6.empty:
                 st.success("🎉 Excelente! Nenhuma fatura aguardando Nota Fiscal no momento.")
             else:
-                # -------------------------------------------------------------
-                # ⚙️ CÁLCULO DE TEMPO (Ajuste o nome da coluna de data aqui!)
-                # -------------------------------------------------------------
-                coluna_data_status = 'data_atualizacao' # MUDE AQUI PARA O NOME DA SUA COLUNA DE DATA
-                
-                if coluna_data_status in df_status6.columns:
-                    # Converte para data e calcula a diferença até hoje
-                    df_status6['data_ref'] = pd.to_datetime(df_status6[coluna_data_status], errors='coerce')
+                try:
+                    # --- OPERAÇÃO CRUZAMENTO DE DADOS (Processos x Histórico) ---
+                    # Filtramos no histórico apenas os registros que tiveram destino '6'
+                    df_hist_6 = df_historico[df_historico['status_destino'].astype(str) == '6'].copy()
+                    
+                    # Convertemos o timestamp para data
+                    df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                    
+                    # Pegamos a data MAIS RECENTE de entrada no status 6 para cada NUP
+                    df_entrada_real = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
+                    
+                    # Unimos a data imutável do histórico ao nosso dataframe de faturas atuais
+                    df_status6 = df_status6.merge(df_entrada_real, on='nup', how='left')
+                    
+                    # Cálculo dos dias de parada (Data de hoje - Data de entrada no histórico)
                     hoje = pd.Timestamp.today()
-                    df_status6['dias_parada'] = (hoje - df_status6['data_ref']).dt.days
+                    df_status6['dias_parada'] = (hoje - df_status6['data_entrada']).dt.days
                     
+                    # Métricas para os Cards
                     df_tempo = df_status6.dropna(subset=['dias_parada'])
+                    media_tempo = int(df_tempo['dias_parada'].mean()) if not df_tempo.empty else 0
+                    max_tempo = int(df_tempo['dias_parada'].max()) if not df_tempo.empty else 0
+                    min_tempo = int(df_tempo['dias_parada'].min()) if not df_tempo.empty else 0
                     
-                    if not df_tempo.empty:
-                        media_tempo = int(df_tempo['dias_parada'].mean())
-                        max_tempo = int(df_tempo['dias_parada'].max())
-                        min_tempo = int(df_tempo['dias_parada'].min())
-                    else:
-                        media_tempo, max_tempo, min_tempo = 0, 0, 0
-                else:
-                    media_tempo, max_tempo, min_tempo = 0, 0, 0
-                    st.warning(f"⚠️ A coluna '{coluna_data_status}' não foi encontrada para calcular o tempo. Edite o código com o nome correto.")
+                    total_dinheiro_st6 = df_status6['v_liq'].sum()
 
-                # KPI 1: Total Financeiro Travado
-                total_dinheiro_st6 = df_status6['v_liq'].sum()
+                    # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
+                    col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                    with col_kpi1:
+                        st.metric(label="Volume Aguardando NF 💰💰", value=f"R$ {total_dinheiro_st6:,.2f}")
+                    with col_kpi2:
+                        st.metric(label="Média de Tempo ⏱️", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                    with col_kpi3:
+                        st.metric(label="Fatura Mais Antiga 💣", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="inverse")
+                    with col_kpi4:
+                        st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
 
-                # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
-                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-                
-                # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
-                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-                
-                with col_kpi1:
-                    st.metric(label="Volume Aguardando NF 💰💰", value=f"R$ {total_dinheiro_st6:,.2f}")
-                with col_kpi2:
-                    st.metric(label="Média de Tempo ⏱️", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
-                with col_kpi3:
-                    st.metric(label="Fatura Mais Antiga 💣", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="inverse")
-                with col_kpi4:
-                    st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
+                    # --- GRÁFICO DE PIZZA (POR EMPRESA NO STATUS 6) ---
+                    df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
+                    fig_st6 = px.pie(
+                        df_emp_st6, values='v_liq', names='ose', hole=0.4,
+                        title="Volume Financeiro Aguardando NF por Empresa",
+                        color_discrete_sequence=px.colors.qualitative.Pastel
+                    )
+                    
+                    # Manobra para maximizar a pizza e organizar a legenda
+                    fig_st6.update_traces(domain={'x': [0, 1], 'y': [0.25, 1]}, textposition='inside', textinfo='percent')
+                    fig_st6.update_layout(
+                        legend=dict(font=dict(size=10), orientation="h", x=0.5, y=0.05, xanchor="center", yanchor="top", entrywidth=250),
+                        margin=dict(l=10, r=10, t=50, b=10)
+                    )
+                    st.plotly_chart(fig_st6, use_container_width=True)
 
-
+                except Exception as e:
+                    st.error(f"Erro ao acessar a base {ABA_HISTORICO}: {e}")
 
 
         # =================================================================
