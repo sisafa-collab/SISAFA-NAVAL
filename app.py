@@ -70,25 +70,34 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        [data-testid="stSidebarCollapseButton"] {
-            display: flex !important;
-            visibility: visible !important;
-            color: #2e6b54 !important; /* Setinha verde */
-            z-index: 9999 !important;
-        }
-
+        /* 1. MANTÉM A SETINHA A SALVO E O CABEÇALHO TRANSPARENTE */
         header[data-testid="stHeader"] {
             background-color: transparent !important;
         }
-
-        header[data-testid="stHeader"] > div:nth-child(2), 
-        .stAppDeployButton {
-            display: none !important;
+        
+        button[data-testid="stSidebarCollapseButton"] {
+            color: #2e6b54 !important; /* Deixa a setinha no verde do HOSBRA */
         }
 
-        #MainMenu { visibility: hidden; }
-        footer { visibility: hidden; }
+        /* 2. O TIRO DE SNIPER NO GATO E SEUS AMIGOS (Share, Estrela, Lápis) */
+        /* Varremos todas as classes conhecidas do Streamlit Cloud */
+        .viewerBadge_container,
+        .viewerBadge_link,
+        [class^="viewerBadge"],
+        [data-testid="stToolbar"],
+        [data-testid="stHeaderActionElements"],
+        .stAppDeployButton {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
 
+        /* 3. LIMPEZA DO MENU HAMBÚRGUER E RODAPÉ */
+        #MainMenu { display: none !important; }
+        footer { display: none !important; }
+
+        /* 4. IDENTIDADE VISUAL: Seus botões no Verde SISAFA */
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
@@ -98,6 +107,11 @@ st.markdown("""
         }
         div.stButton > button:hover {
             background-color: #1e4536 !important;
+        }
+        
+        /* Ajuste do topo para não colar muito em cima */
+        .block-container {
+            padding-top: 2rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
