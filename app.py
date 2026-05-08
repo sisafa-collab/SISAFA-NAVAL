@@ -1174,47 +1174,47 @@ else:
                         
                         # Renderiza os campos de cada paciente dentro do formulário
                         for idx, item in enumerate(st.session_state[key_glosas]):
-                                                    with st.container(border=True):
-                                                        # 1. Ajustamos as proporções para dar espaço ao botão de excluir (col_del)
-                                                        col_p1, col_p2, col_p3, col_del = st.columns([3, 2, 2, 1])
+                            with st.container(border=True):
+                                # 1. Ajustamos as proporções para dar espaço ao botão de excluir (col_del)
+                                col_p1, col_p2, col_p3, col_del = st.columns([3, 2, 2, 1])
                                                         
-                                                        temp_pac = col_p1.text_input(f"Iniciais do paciente 🤕 {idx+1}", value=item.get('paciente', ''), key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
-                                                        temp_val = col_p2.number_input(f"Valor R$", min_value=0.0, value=float(item.get('valor', 0.0)), key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
+                                temp_pac = col_p1.text_input(f"Iniciais do paciente 🤕 {idx+1}", value=item.get('paciente', ''), key=f"ini_gl_{idx}_{nup_audit}", placeholder="Ex: B.M.F.")
+                                temp_val = col_p2.number_input(f"Valor R$", min_value=0.0, value=float(item.get('valor', 0.0)), key=f"v_gl_{idx}_{nup_audit}", format="%.2f")
                                                         
-                                                        index_tipo = 0 if item.get('tipo', 'Administrativa') == "Administrativa" else 1
-                                                        temp_tip = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], index=index_tipo, key=f"t_gl_{idx}_{nup_audit}")
+                                index_tipo = 0 if item.get('tipo', 'Administrativa') == "Administrativa" else 1
+                                temp_tip = col_p3.selectbox(f"Tipo", ["Administrativa", "Técnica"], index=index_tipo, key=f"t_gl_{idx}_{nup_audit}")
                                                         
-                                                        # 2. Adicionamos o Checkbox de Exclusão (Alinhado com a parte inferior)
-                                                        col_del.markdown("<br>", unsafe_allow_html=True) # Empurra o botão para alinhar
-                                                        temp_del = col_del.checkbox("🗑️ Excluir", key=f"del_gl_{idx}_{nup_audit}")
+                                # 2. Adicionamos o Checkbox de Exclusão (Alinhado com a parte inferior)
+                                col_del.markdown("<br>", unsafe_allow_html=True) # Empurra o botão para alinhar
+                                temp_del = col_del.checkbox("🗑️ Excluir", key=f"del_gl_{idx}_{nup_audit}")
                                                         
-                                                        lista_opcoes_glosa = [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()]
+                                lista_opcoes_glosa = [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()]
                                                         
-                                                        valor_atual_glosa = f"{item.get('cod', '')} - {item.get('desc_glosa', '')}"
-                                                        index_glosa = 0
-                                                        if valor_atual_glosa in lista_opcoes_glosa and item.get('cod', '') != "":
-                                                            index_glosa = lista_opcoes_glosa.index(valor_atual_glosa)
+                                valor_atual_glosa = f"{item.get('cod', '')} - {item.get('desc_glosa', '')}"
+                                index_glosa = 0
+                                if valor_atual_glosa in lista_opcoes_glosa and item.get('cod', '') != "":
+                                index_glosa = lista_opcoes_glosa.index(valor_atual_glosa)
 
-                                                        escolha = st.selectbox("Código da Glosa", lista_opcoes_glosa, index=index_glosa, key=f"c_gl_{idx}_{nup_audit}")
-                                                        temp_jus = st.text_input("Observação específica (Relatório)", value=item.get('just', ''), key=f"obs_gl_{idx}_{nup_audit}")
+                                escolha = st.selectbox("Código da Glosa", lista_opcoes_glosa, index=index_glosa, key=f"c_gl_{idx}_{nup_audit}")
+                                temp_jus = st.text_input("Observação específica (Relatório)", value=item.get('just', ''), key=f"obs_gl_{idx}_{nup_audit}")
                                                         
-                                                        temp_cod = escolha.split(" - ")[0] if escolha else ""
-                                                        temp_desc = escolha.split(" - ")[1] if escolha else ""
+                                temp_cod = escolha.split(" - ")[0] if escolha else ""
+                                temp_desc = escolha.split(" - ")[1] if escolha else ""
                                                         
-                                                        # 3. A MÁGICA DA EXCLUSÃO: Só grava na lista se NÃO marcou para excluir
-                                                        if not temp_del:
-                                                            novos_dados.append({
-                                                                "paciente": temp_pac, 
-                                                                "valor": temp_val, 
-                                                                "cod": temp_cod, 
-                                                                "tipo": temp_tip, 
-                                                                "just": temp_jus, 
-                                                                "desc_glosa": temp_desc
-                                                            })
+                                # 3. A MÁGICA DA EXCLUSÃO: Só grava na lista se NÃO marcou para excluir
+                                if not temp_del:
+                                    novos_dados.append({
+                                    "paciente": temp_pac, 
+                                    "valor": temp_val, 
+                                    "cod": temp_cod, 
+                                    "tipo": temp_tip, 
+                                    "just": temp_jus, 
+                                    "desc_glosa": temp_desc
+                                    })
 
-                                                col_add, col_salvar = st.columns(2)
-                                                btn_add = col_add.form_submit_button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒")
-                                                btn_salvar = col_salvar.form_submit_button("💾 CONFIRMAR PACIENTES", type="primary")
+                            col_add, col_salvar = st.columns(2)
+                            btn_add = col_add.form_submit_button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒")
+                            btn_salvar = col_salvar.form_submit_button("💾 CONFIRMAR PACIENTES", type="primary")
 
                     # =======================================================
                     # AÇÕES DOS BOTÕES DO FORMULÁRIO
