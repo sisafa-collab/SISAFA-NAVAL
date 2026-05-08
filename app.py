@@ -3344,6 +3344,95 @@ else:
                     
                     st.dataframe(df_resumo_pano_show, use_container_width=True, hide_index=True)
 
+            # =======================================================
+            # === SEÇÃO 4: PANORAMA FINANCEIRO POR EMPRESA (GERAL) ===
+            # =======================================================
+            st.divider()
+            st.subheader("🏢 4. Panorama Financeiro por Empresa")
+
+            # Garante que a coluna calculada exista
+            df_sec4 = df.copy()
+            if 'v_liq' not in df_sec4.columns:
+                df_sec4['v_liq'] = df_sec4['valor_liquido'].apply(limpar_valor)
+
+            # Agrupa tudo por empresa (independente do status)
+            df_empresas_geral = df_sec4.groupby('ose')['v_liq'].sum().reset_index()
+            df_empresas_geral = df_empresas_geral[df_empresas_geral['v_liq'] > 0]
+
+            if df_empresas_geral.empty:
+                st.info("Não há dados financeiros vinculados às empresas no momento.")
+            else:
+                fig_empresas = px.pie(
+                    df_empresas_geral, 
+                    values='v_liq', 
+                    names='ose', 
+                    hole=0.3,
+                    title="Volume Financeiro Total por empresa ",
+                    color_discrete_sequence=px.colors.qualitative.Bold # Paleta bem colorida e vibrante
+                )
+                fig_empresas.update_traces(
+                    textposition='inside', 
+                    textinfo='percent',
+                    hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
+                )
+                st.plotly_chart(fig_empresas, use_container_width=True)
+
+            # =======================================================
+            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
+            # =======================================================
+            st.divider()
+            st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
+
+            df_sec5 = df.copy()
+            # Garante as colunas necessárias
+            if 'status_num' not in df_sec5.columns:
+                df_sec5['status_num'] = pd.to_numeric(df_sec5['status'], errors='coerce').fillna(-1).astype(int)
+            if 'v_liq' not in df_sec5.columns:
+                df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
+
+            # Filtra apenas o Status 6
+            df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
+
+            if df_status6.empty:
+                st.success("🎉 Excelente! Nenhuma fatura aguardando Nota Fiscal no momento.")
+            else:
+                # -------------------------------------------------------------
+                # ⚙️ CÁLCULO DE TEMPO (Ajuste o nome da coluna de data aqui!)
+                # -------------------------------------------------------------
+                coluna_data_status = 'data_atualizacao' # MUDE AQUI PARA O NOME DA SUA COLUNA DE DATA
+                
+                if coluna_data_status in df_status6.columns:
+                    # Converte para data e calcula a diferença até hoje
+                    df_status6['data_ref'] = pd.to_datetime(df_status6[coluna_data_status], errors='coerce')
+                    hoje = pd.Timestamp.today()
+                    df_status6['dias_parada'] = (hoje - df_status6['data_ref']).dt.days
+                    
+                    df_tempo = df_status6.dropna(subset=['dias_parada'])
+                    
+                    if not df_tempo.empty:
+                        media_tempo = int(df_tempo['dias_parada'].mean())
+                        max_tempo = int(df_tempo['dias_parada'].max())
+                        min_tempo = int(df_tempo['dias_parada'].min())
+                    else:
+                        media_tempo, max_tempo, min_tempo = 0, 0, 0
+                else:
+                    media_tempo, max_tempo, min_tempo = 0, 0, 0
+                    st.warning(f"⚠️ A coluna '{coluna_data_status}' não foi encontrada para calcular o tempo. Edite o código com o nome correto.")
+
+                # KPI 1: Total Financeiro Travado
+                total_dinheiro_st6 = df_status6['v_liq'].sum()
+
+                # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
+                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                
+                with col_kpi1:
+                    st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
+                with col_kpi2:
+                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                with col_kpi3:
+                    st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="
+
+
 
 
         # =================================================================
