@@ -2989,7 +2989,20 @@ else:
                             # --- BOTÃO DE DEVOLUÇÃO (Estorno de NE) ---
                             st.divider()
                             with st.expander("🚨 Detectou erro na NE? (Devolver p/ Execução)"):
-                                st.write("Esta ação limpará o número da NE e retornará os processos para a fila de empenho.")
+                                st.write("""
+                                ⚠️ **Orientações** ⚠️
+
+                                Prezado (a), caso tenha constatado algum erro na Nota de Empenho, tais como: 
+                                🛑 Valor incorreto;
+                                🛑 CNPJ incorreto;
+                                🛑 A descrição do empenho está inadequada, entre outros, clique em **Confirmar Devolução p/ Execução** 🔘👈.  
+                                
+                                Quaisquer dúvidas, entre em contrato com a Seção de Execução Financeira! Estamos a disposição para quaisquer dúvidas. ⚓🇧🇷🫡
+                                📞 8916-7349 (Retelma)
+                                📞 8916-7345 (Retelma)
+                                📞 8916-7361 (Retelma) 
+                                """)
+
                                 motivo_estorno = st.text_area("Motivo da devolução:", placeholder="Ex: Valor da NE não confere com o líquido da auditoria.", key=f"motivo_dev_{ne_alvo}")
                                 
                                 if st.button("↩️ Confirmar Devolução p/ Execução", type="primary", use_container_width=True, key=f"btn_dev_{ne_alvo}"):
