@@ -3347,54 +3347,50 @@ else:
             # =======================================================
             # === SEÇÃO 4: PANORAMA FINANCEIRO POR EMPRESA (GERAL) ===
             # =======================================================
+            
             st.divider()
             st.subheader("🏢 4. Panorama Financeiro por Empresa")
 
-            # Garante que a coluna calculada exista
             df_sec4 = df.copy()
             if 'v_liq' not in df_sec4.columns:
                 df_sec4['v_liq'] = df_sec4['valor_liquido'].apply(limpar_valor)
 
-            # Agrupa tudo por empresa (independente do status)
             df_empresas_geral = df_sec4.groupby('ose')['v_liq'].sum().reset_index()
             df_empresas_geral = df_empresas_geral[df_empresas_geral['v_liq'] > 0]
 
             if df_empresas_geral.empty:
                 st.info("Não há dados financeiros vinculados às empresas no momento.")
             else:
+                # 1. A Pizza Gigante (Sem a legenda poluída)
                 fig_empresas = px.pie(
                     df_empresas_geral, 
                     values='v_liq', 
                     names='ose', 
                     hole=0.3,
                     title="Volume Financeiro Total por Empresa",
-                    color_discrete_sequence=px.colors.qualitative.Bold # Paleta bem colorida e vibrante
+                    color_discrete_sequence=px.colors.qualitative.Bold
                 )
                 
-                # 1. AUMENTA A PIZZA (Empurra ela para ocupar os 75% superiores da área)
                 fig_empresas.update_traces(
-                    domain={'x': [0, 1], 'y': [0.25, 1]},
                     textposition='inside', 
                     textinfo='percent',
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
                 
-                # 2. ARRUMA A LEGENDA (Move pro fundo, horizontal e menor) E MARGENS
+                # Desliga a legenda para a pizza ocupar 100% do espaço
                 fig_empresas.update_layout(
-                    legend=dict(
-                        font=dict(size=10), # Reduz o tamanho da fonte
-                        orientation="h",    # Deixa deitada
-                        x=0.5,              # Centraliza
-                        y=0.05,             # Joga pro fundo
-                        xanchor="center",
-                        yanchor="top",
-                        entrywidth=250      # Impede que nomes gigantes quebrem o layout
-                    ),
-                    margin=dict(l=10, r=10, t=50, b=10) # Corta os espaços em branco em volta
+                    showlegend=False, 
+                    margin=dict(l=10, r=10, t=50, b=10)
                 )
                 
                 st.plotly_chart(fig_empresas, use_container_width=True)
 
+                # 2. A Tabela Auxiliar Oculta (Para o Diretor ler os nomes com calma)
+                with st.expander("📋 Ver lista detalhada de valores por empresa"):
+                    df_show_emp = df_empresas_geral.sort_values('v_liq', ascending=False).copy()
+                    df_show_emp['v_liq'] = df_show_emp['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
+                    df_show_emp.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Total'}, inplace=True)
+                    st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
             
             # =======================================================
             # === SEÇÃO 5: SITUAÇÃO DAS N.E. AGUARDANDO N.F. ===
@@ -3402,79 +3398,100 @@ else:
             st.divider()
             st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
 
-            # 1. Carregamento dos dados da aba Processos (df)
             df_sec5 = df.copy()
-            
-            # 2. Localização da aba de Histórico (aba_hist_nome usa sua constante)
-            # Presumo que você carregue o histórico em um dataframe chamado df_historico
-            # Caso ainda não tenha carregado, use: df_historico = ler_aba(ID_PLANILHA, ABA_HISTORICO)
             
             if 'status_num' not in df_sec5.columns:
                 df_sec5['status_num'] = pd.to_numeric(df_sec5['status'], errors='coerce').fillna(-1).astype(int)
             if 'v_liq' not in df_sec5.columns:
                 df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
 
-            # Filtra apenas quem está no Status 6 na aba Processos
+            # Filtra apenas quem está no Status 6
             df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
 
             if df_status6.empty:
                 st.success("🎉 Excelente! Nenhuma fatura aguardando Nota Fiscal no momento.")
             else:
                 try:
-                    # --- OPERAÇÃO CRUZAMENTO DE DADOS (Processos x Histórico) ---
-                    # Filtramos no histórico apenas os registros que tiveram destino '6'
-                    df_hist_6 = df_historico[df_historico['status_destino'].astype(str) == '6'].copy()
+                    # -------------------------------------------------------------
+                    # ⚙️ CONEXÃO COM A CAIXA PRETA (Exatamente como você fez)
+                    # -------------------------------------------------------------
+                    aba_h_sec5 = sh.worksheet("SISAFA-NAVAL-historico")
+                    df_hist_6 = pd.DataFrame(aba_h_sec5.get_all_records())
                     
-                    # Convertemos o timestamp para data
+                    # Filtra no histórico procurando os NUPs que foram PARA o status 6
+                    df_hist_6 = df_hist_6[df_hist_6['status_destino'].astype(str) == '6'].copy()
+                    
+                    # Converte a coluna timestamp
                     df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
                     
-                    # Pegamos a data MAIS RECENTE de entrada no status 6 para cada NUP
-                    df_entrada_real = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
+                    # Pega a entrada MAIS RECENTE no status 6 para cada NUP
+                    df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
                     
-                    # Unimos a data imutável do histórico ao nosso dataframe de faturas atuais
-                    df_status6 = df_status6.merge(df_entrada_real, on='nup', how='left')
+                    # Cruza os dados
+                    df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
                     
-                    # Cálculo dos dias de parada (Data de hoje - Data de entrada no histórico)
+                    # Calcula o tempo
                     hoje = pd.Timestamp.today()
                     df_status6['dias_parada'] = (hoje - df_status6['data_entrada']).dt.days
                     
-                    # Métricas para os Cards
                     df_tempo = df_status6.dropna(subset=['dias_parada'])
-                    media_tempo = int(df_tempo['dias_parada'].mean()) if not df_tempo.empty else 0
-                    max_tempo = int(df_tempo['dias_parada'].max()) if not df_tempo.empty else 0
-                    min_tempo = int(df_tempo['dias_parada'].min()) if not df_tempo.empty else 0
                     
-                    total_dinheiro_st6 = df_status6['v_liq'].sum()
-
-                    # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
-                    col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-                    with col_kpi1:
-                        st.metric(label="Volume Aguardando NF 💰💰", value=f"R$ {total_dinheiro_st6:,.2f}")
-                    with col_kpi2:
-                        st.metric(label="Média de Tempo ⏱️", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
-                    with col_kpi3:
-                        st.metric(label="Fatura Mais Antiga 💣", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="inverse")
-                    with col_kpi4:
-                        st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
-
-                    # --- GRÁFICO DE PIZZA (POR EMPRESA NO STATUS 6) ---
-                    df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
-                    fig_st6 = px.pie(
-                        df_emp_st6, values='v_liq', names='ose', hole=0.4,
-                        title="Volume Financeiro Aguardando NF por Empresa",
-                        color_discrete_sequence=px.colors.qualitative.Pastel
-                    )
-                    
-                    # Manobra para maximizar a pizza e organizar a legenda
-                    fig_st6.update_traces(domain={'x': [0, 1], 'y': [0.25, 1]}, textposition='inside', textinfo='percent')
-                    fig_st6.update_layout(
-                        legend=dict(font=dict(size=10), orientation="h", x=0.5, y=0.05, xanchor="center", yanchor="top", entrywidth=250),
-                        margin=dict(l=10, r=10, t=50, b=10)
-                    )
-                    st.plotly_chart(fig_st6, use_container_width=True)
-
+                    if not df_tempo.empty:
+                        media_tempo = int(df_tempo['dias_parada'].mean())
+                        max_tempo = int(df_tempo['dias_parada'].max())
+                        min_tempo = int(df_tempo['dias_parada'].min())
+                    else:
+                        media_tempo, max_tempo, min_tempo = 0, 0, 0
+                        
                 except Exception as e:
-                    st.error(f"Erro ao acessar a base {ABA_HISTORICO}: {e}")
+                    st.error(f"Erro ao cruzar com o histórico: {e}")
+                    media_tempo, max_tempo, min_tempo = 0, 0, 0
+
+                total_dinheiro_st6 = df_status6['v_liq'].sum()
+
+                # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
+                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                
+                with col_kpi1:
+                    st.metric(label="Volume Aguardando NF 💰💰", value=f"R$ {total_dinheiro_st6:,.2f}")
+                with col_kpi2:
+                    st.metric(label="Média de Tempo ⏱️", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                with col_kpi3:
+                    st.metric(label="Fatura Mais Antiga 💣", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="inverse")
+                with col_kpi4:
+                    st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
+
+                # --- GRÁFICO DE PIZZA (STATUS 6 POR EMPRESA) ---
+                df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
+                
+                fig_st6 = px.pie(
+                    df_emp_st6, 
+                    values='v_liq', 
+                    names='ose', 
+                    hole=0.4,
+                    title="Volume Financeiro Aguardando NF por Empresa",
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                
+                # Aumenta a pizza e oculta a legenda gigante (mesma tática da Seção 4)
+                fig_st6.update_traces(
+                    textposition='inside', 
+                    textinfo='percent',
+                    hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
+                )
+                fig_st6.update_layout(
+                    showlegend=False,
+                    margin=dict(l=10, r=10, t=50, b=10)
+                )
+                
+                st.plotly_chart(fig_st6, use_container_width=True)
+
+                # Tabela auxiliar para o Status 6
+                with st.expander("📋 Ver lista detalhada das NFs pendentes por empresa"):
+                    df_show_st6 = df_emp_st6.sort_values('v_liq', ascending=False).copy()
+                    df_show_st6['v_liq'] = df_show_st6['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
+                    df_show_st6.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Pendente'}, inplace=True)
+                    st.dataframe(df_show_st6, use_container_width=True, hide_index=True)
 
 
         # =================================================================
