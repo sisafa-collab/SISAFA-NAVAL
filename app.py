@@ -75,23 +75,31 @@ st.markdown("""
         /* 1. Esconde o menu de hambúrguer (três linhas) */
         #MainMenu {visibility: hidden;}
         
-        /* 2. Esconde a barra de status e os botões do topo (GitHub, Estrela, Edit) */
-        header[data-testid="stHeader"] {
-            visibility: hidden;
-            height: 0px;
-        }
-
-        /* 3. Esconde o rodapé "Made with Streamlit" */
+        /* 2. Esconde o rodapé "Made with Streamlit" */
         footer {visibility: hidden;}
-        
-        /* 4. Garante que o conteúdo não fique colado no topo agora que o header sumiu */
-        .block-container {
-            padding-top: 2rem;
+
+        /* 3. A "VACINA": Esconde especificamente o botão de Deploy/GitHub */
+        /* Isso remove o gato sem matar o header onde fica o botão da sidebar */
+        .stAppDeployButton {
+            display: none;
         }
 
-        /* 5. Mantém o botão de colapsar a sidebar visível se necessário */
+        /* 4. Garante que o cabeçalho fique transparente e não bloqueie cliques */
+        header[data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0);
+            color: rgba(0,0,0,0);
+        }
+
+        /* 5. Mantém o botão da Sidebar (a setinha) SEMPRE visível e clicável */
         button[data-testid="stSidebarCollapseButton"] {
+            background-color: transparent !important;
+            color: inherit !important; /* Ou a cor do seu tema */
             visibility: visible !important;
+        }
+        
+        /* 6. Remove qualquer margem extra no topo que o header vazio deixaria */
+        .block-container {
+            padding-top: 1rem;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -2993,13 +3001,19 @@ else:
                                 ⚠️ **Orientações** ⚠️
 
                                 Prezado (a), caso tenha constatado algum erro na Nota de Empenho, tais como: 
+                                
                                 🛑 Valor incorreto;
+                                
                                 🛑 CNPJ incorreto;
+                                
                                 🛑 A descrição do empenho está inadequada, entre outros, clique em **Confirmar Devolução p/ Execução** 🔘👈.  
                                 
                                 Quaisquer dúvidas, entre em contrato com a Seção de Execução Financeira! Estamos a disposição para quaisquer dúvidas. ⚓🇧🇷🫡
+                                
                                 📞 8916-7349 (Retelma)
+                                
                                 📞 8916-7345 (Retelma)
+                                
                                 📞 8916-7361 (Retelma) 
                                 """)
 
