@@ -3373,40 +3373,41 @@ else:
             if df_empresas_geral.empty:
                 st.info("Não há dados financeiros vinculados às empresas no momento.")
             else:
-                # Extrai apenas as Top 10 empresas e descarta o resto para o gráfico
-                df_pizza_geral = df_empresas_geral.sort_values('v_liq', ascending=False).head(10)
+                # Aplica a tática de agrupar o "Top 10" e esconder as menores em "Outras"
+                df_pizza_geral = agrupar_top_n(df_empresas_geral, 'ose', 'v_liq', top_n=10)
 
-                # Gráfico com Legenda Normal
+                # Gráfico limpo e gigante (sem linhas, porcentagem dentro)
                 fig_empresas = px.pie(
                     df_pizza_geral, 
                     values='v_liq', 
                     names='ose', 
-                    hole=0.45,
-                    title="As 10 Maiores Empresas em Volume Financeiro",
+                    hole=0.45, # Furo maior, estilo Donut moderno
+                    title="As 10 Maiores Empresas em Volume Financeiro Total",
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
                 
                 fig_empresas.update_traces(
                     textposition='inside', 
                     textinfo='percent',
+                    insidetextorientation='horizontal', # Mantém o texto reto e legível
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
                 
                 fig_empresas.update_layout(
-                    showlegend=True, # Devolve a legenda normal
-                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0), # Legenda alinhada à direita
+                    showlegend=False, 
                     margin=dict(l=20, r=20, t=50, b=20)
                 )
                 
                 st.plotly_chart(fig_empresas, use_container_width=True)
 
+                # A tabela completa para auditoria
                 with st.expander("📋 Ver lista COMPLETA de valores por empresa"):
                     df_show_emp = df_empresas_geral.sort_values('v_liq', ascending=False).copy()
                     df_show_emp['v_liq'] = df_show_emp['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
                     df_show_emp.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Total'}, inplace=True)
                     st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
 
-            # =======================================================
+           
             # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
             # =======================================================
             st.divider()
@@ -3419,6 +3420,7 @@ else:
             if 'v_liq' not in df_sec5.columns:
                 df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
 
+            # Filtra apenas quem está no Status 6
             df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
 
             if df_status6.empty:
@@ -3459,49 +3461,51 @@ else:
                         empresa_antiga, nup_antigo = "N/A", "N/A"
                         
                 except Exception as e:
-                    st.toast(f"Aviso: Não foi possível calcular o tempo das NFs (Erro no histórico).")
+                    st.toast(f"Aviso: Não foi possível calcular o tempo das NFs.")
                     media_tempo, max_tempo, min_tempo = 0, 0, 0
                     empresa_antiga, nup_antigo = "N/A", "N/A"
 
+                # O cálculo volta a ser real (Total de tudo)
                 total_dinheiro_st6 = df_status6['v_liq'].sum()
 
-                # --- NOVO LAYOUT: MÉTRICAS VERTICAIS À ESQUERDA, GRÁFICO À DIREITA ---
-                col_esquerda, col_direita = st.columns([1, 2.5]) # A coluna direita é 2.5x maior para acomodar a pizza
+                # --- 1. LINHA DE MÉTRICAS (Lado a Lado, com folga) ---
+                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
                 
-                with col_esquerda:
-                    st.markdown("### Resumo Operacional")
+                with col_kpi1:
                     st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
-                    st.write("") # Espaçamento
+                with col_kpi2:
                     st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
-                    st.write("") 
+                with col_kpi3:
                     st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Crítico", delta_color="inverse")
-                    # Injeta a inteligência de quem é o culpado pelo atraso
+                    # Rótulo de Identificação do gargalo
                     if max_tempo > 0:
                         st.caption(f"**NUP:** {nup_antigo}")
-                        st.caption(f"**Empresa:** {empresa_antiga}")
-                    st.write("")
+                        st.caption(f"🏢 {empresa_antiga}")
+                with col_kpi4:
                     st.metric(label="Fatura Mais Recente", value=f"{min_tempo} dias")
 
-                with col_direita:
-                    df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
-                    df_pizza_st6 = df_emp_st6.sort_values('v_liq', ascending=False).head(10)
-                    
-                    fig_st6 = px.pie(
-                        df_pizza_st6, 
-                        values='v_liq', 
-                        names='ose', 
-                        hole=0.45,
-                        title="Top 10 Volume Aguardando NF por Empresa",
-                        color_discrete_sequence=px.colors.qualitative.Safe
-                    )
-                    
-                    fig_st6.update_traces(textposition='inside', textinfo='percent')
-                    fig_st6.update_layout(
-                        showlegend=True, 
-                        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0),
-                        margin=dict(l=20, r=20, t=50, b=20)
-                    )
-                    st.plotly_chart(fig_st6, use_container_width=True)
+                # --- 2. DIVISOR E GRÁFICO (Isolados na parte de baixo) ---
+                st.divider()
+                
+                # Agrupa e mostra TODAS as empresas, sem filtro, garantindo a matemática correta
+                df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
+                
+                fig_st6 = px.pie(
+                    df_emp_st6, 
+                    values='v_liq', 
+                    names='ose', 
+                    hole=0.45,
+                    title="Distribuição Financeira por Empresa (Aguardando NF)",
+                    color_discrete_sequence=px.colors.qualitative.Safe
+                )
+                
+                fig_st6.update_traces(textposition='inside', textinfo='percent')
+                fig_st6.update_layout(
+                    showlegend=True, 
+                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0),
+                    margin=dict(l=20, r=20, t=50, b=20)
+                )
+                st.plotly_chart(fig_st6, use_container_width=True)
 
                 with st.expander("📋 Ver lista COMPLETA das NFs pendentes por empresa"):
                     df_show_st6 = df_emp_st6.sort_values('v_liq', ascending=False).copy()
