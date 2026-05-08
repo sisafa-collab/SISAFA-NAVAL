@@ -3537,18 +3537,17 @@ else:
         
         
         # =================================================================
-        # 2. ABA: PRODUTIVIDADE E RASTREABILIDADE (Individual por Status)
+        # 2. ABA: PRODUTIVIDADE (Médias Reais, Ciclo Total e Extremos)
         # =================================================================
-
         with tab_prod:
-            st.subheader("⏱️ Tempo Médio por etapa")
+            st.subheader("⏱️ Análise Estatística de Permanência por Etapa")
             
             try:
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist_raw = pd.DataFrame(aba_h.get_all_records())
                 
                 if df_hist_raw.empty:
-                    st.info("Aguardando dados históricos.")
+                    st.info("Aguardando dados históricos para análise.")
                 else:
                     df_h = df_hist_raw.copy()
                     
@@ -3564,7 +3563,7 @@ else:
                     df_h['data_saida'] = df_h['data_saida'].fillna(pd.Timestamp.now())
                     df_h['tempo_na_etapa'] = (df_h['data_saida'] - df_h['timestamp']).dt.total_seconds() / 86400
                     
-                    # 3. Mapeamento
+                    # 3. Mapeamento das Etapas
                     mapa_status = {
                         "1": "1. SECOM", "2": "2. Auditagem", "3": "3. Auditada", 
                         "4": "4. Aguard. NE", "5": "5. Empenhada", "6": "6. Empresa (NF)",
@@ -3572,43 +3571,60 @@ else:
                     }
                     df_h['nome_etapa'] = df_h[col_dest].map(mapa_status)
 
-                    # --- A MÁGICA: FILTRO DE "EFETIVAMENTE CRUZADO" ---
-                    # Criamos uma tabela onde cada NUP é uma linha e cada Status é uma coluna
-                    # O segredo: pivot_table por padrão ignora o que não existe (não coloca zero automaticamente)
+                    # 4. Criação da Tabela de Tempos (Trata 'saltos' como NaN automaticamente)
                     tabela_tempos = df_h.pivot_table(
                         index='nup', 
                         columns='nome_etapa', 
                         values='tempo_na_etapa', 
-                        aggfunc='sum' # Se a fatura voltou para a etapa, somamos o tempo total nela
+                        aggfunc='sum' 
                     )
 
-                    # --- EXIBIÇÃO DAS MÉDIAS REAIS ---
-                    st.write("### 📈 Média de Dias (Desconsiderando quem pulou a etapa)")
+                    # --- 5. CÁLCULO DAS ESTATÍSTICAS POR ETAPA ---
+                    # Calculamos Média, Mínimo e Máximo ignorando quem pulou a etapa
+                    estatisticas_etapa = tabela_tempos.agg(['mean', 'min', 'max']).T.reset_index()
+                    estatisticas_etapa.columns = ['Etapa', 'Média', 'Mínimo', 'Máximo']
                     
-                    # O segredo está aqui: .mean() no pandas ignora células vazias (NaN) 
-                    # e não as conta no divisor da média!
-                    medias_reais = tabela_tempos.mean().reset_index()
-                    medias_reais.columns = ['Etapa', 'Média de Dias']
-                    
-                    # Ordenar conforme o fluxo naval
+                    # Ordenação conforme o fluxo lógico
                     ordem_fluxo = list(mapa_status.values())
-                    medias_reais['Etapa'] = pd.Categorical(medias_reais['Etapa'], categories=ordem_fluxo, ordered=True)
-                    medias_reais = medias_reais.sort_values('Etapa')
+                    estatisticas_etapa['Etapa'] = pd.Categorical(estatisticas_etapa['Etapa'], categories=ordem_fluxo, ordered=True)
+                    estatisticas_etapa = estatisticas_etapa.sort_values('Etapa')
 
+                    # --- 6. GRÁFICO DE BARRAS (MÉDIAS REAIS) ---
                     fig_real = px.bar(
-                        medias_reais, x='Etapa', y='Média de Dias',
-                        color='Média de Dias', color_continuous_scale='Reds',
-                        text_auto='.1f', title="Tempo Médio de Espera Real por Setor"
+                        estatisticas_etapa, x='Etapa', y='Média',
+                        color='Média', color_continuous_scale='Reds',
+                        text_auto='.1f', title="Tempo Médio de Espera Real (Dias)"
                     )
                     st.plotly_chart(fig_real, use_container_width=True)
 
-                    # --- LISTAGEM PARA AUDITORIA ---
-                    with st.expander("📋 Ver Tabela de Tempos por Processo (em dias)"):
-                        st.write("Células vazias indicam que o processo pulou aquela etapa.")
-                        st.dataframe(tabela_tempos.style.format("{:.1f}", na_rep="-"), use_container_width=True)
+                    # --- 7. MÉTRICAS CONSOLIDADAS ---
+                    st.divider()
+                    
+                    # Cálculo do Tempo Médio Total (Soma das médias de cada etapa)
+                    tempo_ciclo_total = estatisticas_etapa['Média'].sum()
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.metric("⏳ Tempo Médio Total do Ciclo", f"{tempo_ciclo_total:.1f} dias")
+                        st.caption("Soma das médias reais de todas as etapas do fluxo.")
+                    with c2:
+                        # Taxa de liquidação baseada na aba principal (df)
+                        total_nup = df['nup'].nunique()
+                        concluidos = df[df['status'].astype(str).str.contains('8', na=False)]['nup'].nunique()
+                        taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
+                        st.metric("✅ Taxa de Liquidação", f"{taxa:.1f}%")
+
+                    # --- 8. TABELA DE EXTREMOS (Mín/Máx por Etapa) ---
+                    st.write("### 🔍 Detalhamento de Performance por Etapa")
+                    # Formata a tabela para ficar apresentável
+                    df_formatado = estatisticas_etapa.copy()
+                    for col in ['Média', 'Mínimo', 'Máximo']:
+                        df_formatado[col] = df_formatado[col].apply(lambda x: f"{x:.2f} dias" if pd.notnull(x) else "-")
+                    
+                    st.table(df_formatado.set_index('Etapa'))
 
             except Exception as e:
-                st.error(f"Erro na análise de tempos: {e}")
+                st.error(f"Erro na análise estatística: {e}")
 
             # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
