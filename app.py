@@ -3373,120 +3373,141 @@ else:
             if df_empresas_geral.empty:
                 st.info("Não há dados financeiros vinculados às empresas no momento.")
             else:
-                # Aplica a tática de agrupar o "Top 10" e esconder as menores em "Outras"
-                df_pizza_geral = agrupar_top_n(df_empresas_geral, 'ose', 'v_liq', top_n=10)
+                # Extrai apenas as Top 10 empresas e descarta o resto para o gráfico
+                df_pizza_geral = df_empresas_geral.sort_values('v_liq', ascending=False).head(10)
 
-                # Gráfico limpo e gigante (sem linhas, porcentagem dentro)
+                # Gráfico com Legenda Normal
                 fig_empresas = px.pie(
                     df_pizza_geral, 
                     values='v_liq', 
                     names='ose', 
-                    hole=0.45, # Furo maior, estilo Donut moderno
-                    title="As 10 Maiores Empresas em Volume Financeiro Total",
+                    hole=0.45,
+                    title="As 10 Maiores Empresas em Volume Financeiro",
                     color_discrete_sequence=px.colors.qualitative.Prism
                 )
                 
                 fig_empresas.update_traces(
                     textposition='inside', 
                     textinfo='percent',
-                    insidetextorientation='horizontal', # Mantém o texto reto e legível
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
                 
                 fig_empresas.update_layout(
-                    showlegend=False, 
+                    showlegend=True, # Devolve a legenda normal
+                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0), # Legenda alinhada à direita
                     margin=dict(l=20, r=20, t=50, b=20)
                 )
                 
                 st.plotly_chart(fig_empresas, use_container_width=True)
 
-                # A tabela completa para auditoria
                 with st.expander("📋 Ver lista COMPLETA de valores por empresa"):
                     df_show_emp = df_empresas_geral.sort_values('v_liq', ascending=False).copy()
                     df_show_emp['v_liq'] = df_show_emp['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
                     df_show_emp.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Total'}, inplace=True)
                     st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
 
-           
             # =======================================================
-            # === SEÇÃO 5: SITUAÇÃO DAS N.E. AGUARDANDO N.F. ===
+            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
             # =======================================================
             st.divider()
             st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
 
-            # 1. Filtra quem está no Status 6 na aba Processos (df)
             df_sec5 = df.copy()
+            
             if 'status_num' not in df_sec5.columns:
                 df_sec5['status_num'] = pd.to_numeric(df_sec5['status'], errors='coerce').fillna(-1).astype(int)
-            
+            if 'v_liq' not in df_sec5.columns:
+                df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
+
             df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
 
             if df_status6.empty:
                 st.success("🎉 Excelente! Nenhuma fatura aguardando Nota Fiscal no momento.")
             else:
                 try:
-                    # 2. BUSCA A "CAIXA PRETA" (Histórico)
                     aba_h_sec5 = sh.worksheet("SISAFA-NAVAL-historico")
-                    df_hist_raw = pd.DataFrame(aba_h_sec5.get_all_records())
+                    df_hist_temp = pd.DataFrame(aba_h_sec5.get_all_records())
                     
-                    if not df_hist_raw.empty:
-                        # Limpa os dados do histórico para garantir o cruzamento
-                        df_hist_raw['status_dest_limpo'] = df_hist_raw['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
+                    if not df_hist_temp.empty and 'status_destino' in df_hist_temp.columns and 'timestamp' in df_hist_temp.columns:
+                        df_hist_temp['status_limpo'] = df_hist_temp['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
+                        df_hist_6 = df_hist_temp[df_hist_temp['status_limpo'] == '6'].copy()
                         
-                        # Filtra apenas as entradas no Status 6
-                        df_filt_6 = df_hist_raw[df_hist_raw['status_dest_limpo'] == '6'].copy()
-                        df_filt_6['data_entrada_real'] = pd.to_datetime(df_filt_6['timestamp'], errors='coerce')
-                        
-                        # Pega a data mais recente de entrada no 6 para cada NUP
-                        df_datas_6 = df_filt_6.groupby('nup')['data_entrada_real'].max().reset_index()
-                        
-                        # Cruza com a tabela de processos
-                        df_status6 = df_status6.merge(df_datas_6, on='nup', how='left')
+                        if not df_hist_6.empty:
+                            df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                            df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
+                            df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
                     
-                    # 3. BLINDAGEM: Se não houver histórico para o NUP, evita o erro de coluna inexistente
-                    if 'data_entrada_real' not in df_status6.columns:
-                        df_status6['data_entrada_real'] = pd.NaT
+                    if 'data_entrada' not in df_status6.columns:
+                        df_status6['data_entrada'] = pd.NaT
 
-                    # 4. CÁLCULO DOS DIAS
                     hoje = pd.Timestamp.today()
-                    df_status6['dias_parada'] = (hoje - df_status6['data_entrada_real']).dt.days
+                    df_status6['dias_parada'] = (hoje - df_status6['data_entrada']).dt.days
                     
-                    # Prepara as métricas
                     df_tempo = df_status6.dropna(subset=['dias_parada'])
-                    media_t = int(df_tempo['dias_parada'].mean()) if not df_tempo.empty else 0
-                    max_t = int(df_tempo['dias_parada'].max()) if not df_tempo.empty else 0
-                    min_t = int(df_tempo['dias_parada'].min()) if not df_tempo.empty else 0
                     
-                    # KPIs e Gráfico (TOP 10 para não poluir)
-                    total_rs_st6 = df_status6['valor_liquido'].apply(limpar_valor).sum()
+                    if not df_tempo.empty:
+                        media_tempo = int(df_tempo['dias_parada'].mean())
+                        max_tempo = int(df_tempo['dias_parada'].max())
+                        min_tempo = int(df_tempo['dias_parada'].min())
+                        
+                        # BUSCA A EMPRESA E O NUP DA FATURA MAIS ANTIGA
+                        idx_max = df_tempo['dias_parada'].idxmax()
+                        empresa_antiga = df_tempo.loc[idx_max, 'ose']
+                        nup_antigo = df_tempo.loc[idx_max, 'nup']
+                    else:
+                        media_tempo, max_tempo, min_tempo = 0, 0, 0
+                        empresa_antiga, nup_antigo = "N/A", "N/A"
+                        
+                except Exception as e:
+                    st.toast(f"Aviso: Não foi possível calcular o tempo das NFs (Erro no histórico).")
+                    media_tempo, max_tempo, min_tempo = 0, 0, 0
+                    empresa_antiga, nup_antigo = "N/A", "N/A"
 
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Volume em Aberto", f"R$ {total_rs_st6:,.2f}")
-                    c2.metric("Média de Espera", f"{media_t} dias", delta="Aguardando NF", delta_color="inverse")
-                    c3.metric("Fatura mais Antiga", f"{max_t} dias", delta="Atraso Crítico", delta_color="inverse")
-                    c4.metric("Fatura mais Recente", f"{min_t} dias")
+                total_dinheiro_st6 = df_status6['v_liq'].sum()
 
-                    # Gráfico Donut Top 10 (Sem legendas poluídas)
-                    df_pizza_st6 = df_status6.groupby('ose')['valor_liquido'].apply(lambda x: x.apply(limpar_valor).sum()).reset_index()
-                    df_pizza_st6.columns = ['ose', 'v_liq']
+                # --- NOVO LAYOUT: MÉTRICAS VERTICAIS À ESQUERDA, GRÁFICO À DIREITA ---
+                col_esquerda, col_direita = st.columns([1, 2.5]) # A coluna direita é 2.5x maior para acomodar a pizza
+                
+                with col_esquerda:
+                    st.markdown("### Resumo Operacional")
+                    st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
+                    st.write("") # Espaçamento
+                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                    st.write("") 
+                    st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Crítico", delta_color="inverse")
+                    # Injeta a inteligência de quem é o culpado pelo atraso
+                    if max_tempo > 0:
+                        st.caption(f"**NUP:** {nup_antigo}")
+                        st.caption(f"**Empresa:** {empresa_antiga}")
+                    st.write("")
+                    st.metric(label="Fatura Mais Recente", value=f"{min_tempo} dias")
+
+                with col_direita:
+                    df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
+                    df_pizza_st6 = df_emp_st6.sort_values('v_liq', ascending=False).head(10)
                     
-                    # Agrupa o que passar de 10 empresas para manter a pizza grande e limpa
-                    if len(df_pizza_st6) > 10:
-                        df_pizza_st6 = df_pizza_st6.sort_values('v_liq', ascending=False)
-                        top10 = df_pizza_st6.head(10).copy()
-                        outros = pd.DataFrame({'ose': ['OUTRAS EMPRESAS'], 'v_liq': [df_pizza_st6.iloc[10:]['v_liq'].sum()]})
-                        df_pizza_st6 = pd.concat([top10, outros], ignore_index=True)
-
-                    fig_st6 = px.pie(df_pizza_st6, values='v_liq', names='ose', hole=0.45, 
-                                     title="Distribuição Financeira (Status 6)",
-                                     color_discrete_sequence=px.colors.qualitative.Safe)
+                    fig_st6 = px.pie(
+                        df_pizza_st6, 
+                        values='v_liq', 
+                        names='ose', 
+                        hole=0.45,
+                        title="Top 10 Volume Aguardando NF por Empresa",
+                        color_discrete_sequence=px.colors.qualitative.Safe
+                    )
                     
-                    fig_st6.update_traces(textposition='inside', textinfo='percent', insidetextorientation='horizontal')
-                    fig_st6.update_layout(showlegend=False, margin=dict(l=20, r=20, t=50, b=20))
+                    fig_st6.update_traces(textposition='inside', textinfo='percent')
+                    fig_st6.update_layout(
+                        showlegend=True, 
+                        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0),
+                        margin=dict(l=20, r=20, t=50, b=20)
+                    )
                     st.plotly_chart(fig_st6, use_container_width=True)
 
-                except Exception as e:
-                    st.error(f"Erro no cruzamento de dados: {e}")
+                with st.expander("📋 Ver lista COMPLETA das NFs pendentes por empresa"):
+                    df_show_st6 = df_emp_st6.sort_values('v_liq', ascending=False).copy()
+                    df_show_st6['v_liq'] = df_show_st6['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
+                    df_show_st6.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Pendente'}, inplace=True)
+                    st.dataframe(df_show_st6, use_container_width=True, hide_index=True)
 
 
         # =================================================================
