@@ -3535,89 +3535,92 @@ else:
 
 
         
+        
         # =================================================================
-        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (CORRIGIDA)
+        # 2. ABA: PRODUTIVIDADE E RASTREABILIDADE (Individual por Status)
         # =================================================================
         with tab_prod:
-            st.subheader("⏱️ Tempo Médio de Permanência Real por Etapa")
+            st.subheader("⏱️ Histórico de Permanência por Fatura")
             
             try:
-                # 1. Carregamento dos Dados
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                df_hist_p = pd.DataFrame(aba_h.get_all_records())
+                df_hist_raw = pd.DataFrame(aba_h.get_all_records())
                 
-                if df_hist_p.empty:
-                    st.info("Aguardando dados históricos para calcular produtividade.")
+                if df_hist_raw.empty:
+                    st.info("Aguardando dados históricos para análise.")
                 else:
+                    # 1. Preparação dos Dados
+                    col_dest = 'status_destinou' if 'status_destinou' in df_hist_raw.columns else 'status_destino'
+                    df_h = df_hist_raw.copy()
+                    df_h['timestamp'] = pd.to_datetime(df_h['timestamp'], format='mixed', errors='coerce')
+                    df_h = df_h.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    
+                    # 2. CÁLCULO DE PERMANÊNCIA (LINHA POR LINHA)
+                    # O tempo em um status é: (Hora que saiu dele) - (Hora que entrou nele)
+                    df_h['data_saida'] = df_h.groupby('nup')['timestamp'].shift(-1)
+                    df_h['data_saida'] = df_h['data_saida'].fillna(pd.Timestamp.now()) # Se não saiu, conta até hoje
+                    
+                    df_h['tempo_na_etapa'] = (df_h['data_saida'] - df_h['timestamp']).dt.total_seconds() / 86400
+                    
+                    # Mapeamento de nomes para facilitar a leitura
                     mapa_status = {
-                        1: "1. 📥 Cadastrada",
-                        2: "2. 🩺 Em Auditagem",
-                        3: "3. ✅ Auditada",
-                        4: "4. 💰 Aguardando NE",
-                        5: "5. 🏦 Empenhada",
-                        6: "6. 📝 Aguardando NF",
-                        7: "7. ⏳ Em liquidação",
-                        8: "8. 🖥️ Liquidada"
+                        1: "1. SECOM (Cadastrada)", 2: "2. Auditoria (Em curso)", 
+                        3: "3. Auditoria (Concluída)", 4: "4. Finanças (Aguard. NE)",
+                        5: "5. Finanças (Empenhada)", 6: "6. Empresa (Aguard. NF)",
+                        7: "7. Finanças (Em Liq.)", 8: "8. Liquidada"
                     }
+                    df_h['nome_etapa'] = pd.to_numeric(df_h[col_dest], errors='coerce').map(mapa_status)
 
-                    # Identificação da coluna
-                    col_dest = 'status_destinou' if 'status_destinou' in df_hist_p.columns else 'status_destino'
-                    
-                    # Tratamento de Datas e Ordenação
-                    df_hist_p['timestamp'] = pd.to_datetime(df_hist_p['timestamp'], format='mixed', errors='coerce')
-                    df_hist_p = df_hist_p.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
-                    df_hist_p['st_num'] = pd.to_numeric(df_hist_p[col_dest], errors='coerce')
-                    
-                    # --- LÓGICA DE UNIFICAÇÃO (IGUAL À SEÇÃO 5) ---
-                    # Pegamos o ÚLTIMO registro de cada NUP para saber onde ele está parado AGORA
-                    hoje = pd.Timestamp.now()
-                    
-                    # Para calcular a média real de quem está no setor hoje:
-                    df_ultimo = df_hist_p.groupby('nup').tail(1).copy()
-                    df_ultimo['dias_estada'] = (hoje - df_ultimo['timestamp']).dt.total_seconds() / 86400
-                    
-                    # Mapeia a etapa
-                    df_ultimo['etapa'] = df_ultimo['st_num'].map(mapa_status)
-                    
-                    # Filtra apenas o fluxo ativo (Status 1 a 7)
-                    df_prod_final = df_ultimo[(df_ultimo['st_num'] > 0) & (df_ultimo['st_num'] < 8)].dropna(subset=['etapa'])
+                    # 3. FILTRO DE BUSCA POR NUP
+                    st.write("### 🔍 Consultar Fatura Específica")
+                    lista_nups = ["Todos"] + sorted(df_h['nup'].unique().tolist())
+                    nup_selecionado = st.selectbox("Selecione um NUP para ver a linha do tempo:", lista_nups)
 
-                    # Agrupamento das Médias
-                    resumo_etapa = df_prod_final.groupby(['st_num', 'etapa'])['dias_estada'].mean().reset_index()
-                    resumo_etapa = resumo_etapa.sort_values('st_num')
+                    if nup_selecionado != "Todos":
+                        detalhe_nup = df_h[df_h['nup'] == nup_selecionado][['timestamp', 'nome_etapa', 'data_saida', 'tempo_na_etapa']].copy()
+                        detalhe_nup.columns = ['Entrada na Etapa', 'Status/Setor', 'Saída da Etapa', 'Dias Decorridos']
+                        
+                        # Formatação para exibição
+                        st.dataframe(detalhe_nup.style.format({'Dias Decorridos': '{:.2f}'}), use_container_width=True)
+                        
+                        # Gráfico da vida desta fatura
+                        fig_nup = px.timeline(detalhe_nup, x_start="Entrada na Etapa", x_end="Saída da Etapa", y="Status/Setor", color="Status/Setor", title=f"Linha do Tempo: NUP {nup_selecionado}")
+                        fig_nup.update_yaxes(autorange="reversed")
+                        st.plotly_chart(fig_nup, use_container_width=True)
 
-                    # --- GRÁFICO REALISTA ---
-                    fig_prod = px.bar(
-                        resumo_etapa, 
-                        x='etapa', 
-                        y='dias_estada', 
-                        title="Gargalo Atual (Média de dias de quem está parado no setor hoje)",
-                        labels={'dias_estada': 'Média de Dias', 'etapa': 'Setor'},
-                        color='dias_estada',
-                        color_continuous_scale='Reds',
-                        text_auto='.1f'
+                    st.divider()
+
+                    # 4. TABELA GERAL DE MÉDIAS POR FATURA (RANKING DE ATRASO)
+                    st.write("### 📊 Tempo Acumulado por Processo")
+                    
+                    # Pivotamos para ver quanto tempo cada NUP ficou em cada status
+                    tabela_geral = df_h.pivot_table(
+                        index='nup', 
+                        columns='nome_etapa', 
+                        values='tempo_na_etapa', 
+                        aggfunc='sum'
+                    ).fillna(0)
+                    
+                    # Adiciona coluna de total
+                    tabela_geral['Tempo Total (Dias)'] = tabela_geral.sum(axis=1)
+                    tabela_geral = tabela_geral.sort_values('Tempo Total (Dias)', ascending=False)
+
+                    st.dataframe(tabela_geral.style.format("{:.1f}"), use_container_width=True)
+
+                    # 5. ANÁLISE DE GARGALO POR SETOR (MÉDIA REAL)
+                    st.write("### 📈 Média de Permanência por Setor (Histórico Completo)")
+                    media_setor = df_h.groupby('nome_etapa')['tempo_na_etapa'].mean().reset_index()
+                    
+                    fig_bar = px.bar(
+                        media_setor, x='nome_etapa', y='tempo_na_etapa',
+                        title="Em qual setor as faturas passam mais tempo?",
+                        labels={'tempo_na_etapa': 'Média de Dias', 'nome_etapa': 'Setor'},
+                        color='tempo_na_etapa', color_continuous_scale='Reds', text_auto='.1f'
                     )
-                    
-                    fig_prod.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig_prod, use_container_width=True)
-
-                    # --- MÉTRICAS GERAIS ---
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        # Taxa baseada na aba de processos atual
-                        total_nup = df['nup'].nunique()
-                        concluidos = df[df['status'].astype(str).str.contains('8', na=False)]['nup'].nunique()
-                        taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
-                        st.metric("Eficiência de Liquidação", f"{taxa:.1f}%")
-                    with c2:
-                        # Lead Time Médio de quem está em curso
-                        lead_time = df_prod_final['dias_estada'].mean()
-                        st.metric("Tempo Médio de Espera Atual", f"{lead_time:.1f} dias")
-
-                    st.info("💡 **Nota Técnica:** Este gráfico agora reflete o 'Estoque Atual'. Ele mostra quantos dias, em média, as faturas que estão **atualmente** em cada etapa estão esperando.")
+                    st.plotly_chart(fig_bar, use_container_width=True)
 
             except Exception as e:
-                st.error(f"Erro ao processar indicadores: {e}")
+                st.error(f"Erro na análise de tempos: {e}")
 
             # =================================================================
             # 2. ABA: PRODUTIVIDADE (PM4PY + FILTRO DE MÊS)
