@@ -72,35 +72,44 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. ALVO PRINCIPAL: Esconde o conjunto de botões da direita (Estrela, Lápis e GitHub) */
+        /* 1. O VERDE DO SISAFA: Estilização dos botões principais */
+        div.stButton > button {
+            background-color: #2e6b54 !important; 
+            color: white !important;
+            border-radius: 5px !important;
+            border: none !important;
+            font-weight: bold !important;
+            transition: 0.3s;
+        }
+
+        /* Efeito ao passar o mouse (hover) */
+        div.stButton > button:hover {
+            background-color: #1e4d3a !important; /* Verde um pouco mais escuro */
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 2. OPERAÇÃO SILENCIOSA: Sumir com o Gato, Estrela e Lápis */
         div[data-testid="stHeaderActionElements"] {
             display: none !important;
         }
 
-        /* 2. ALVO SECUNDÁRIO: Esconde o menu de opções (Hambúrguer) */
-        #MainMenu {
-            display: none !important;
-        }
+        /* 3. LIMPEZA DE CABEÇALHO: Esconde o menu de hambúrguer e rodapé */
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
 
-        /* 3. RODAPÉ: "Made with Streamlit" fora de combate */
-        footer {
-            display: none !important;
-        }
-
-        /* 4. PROTEÇÃO DE CABEÇALHO: Deixa o fundo transparente para não criar uma faixa vazia */
+        /* 4. MANUTENÇÃO DO LEME: Garante que a setinha da Sidebar funcione */
         header[data-testid="stHeader"] {
             background-color: rgba(0,0,0,0) !important;
         }
-
-        /* 5. SEGURANÇA DA NAVEGAÇÃO: Força o botão da Sidebar a ficar visível e clicável */
+        
         button[data-testid="stSidebarCollapseButton"] {
             visibility: visible !important;
-            color: inherit !important; /* Mantém a cor original do seu tema */
+            color: #2e6b54 !important; /* Setinha no verde do sistema */
         }
 
-        /* Ajuste fino no topo para o conteúdo não subir demais */
+        /* Ajuste de respiro no topo */
         .block-container {
-            padding-top: 1.5rem !important;
+            padding-top: 2rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
