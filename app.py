@@ -3258,7 +3258,7 @@ else:
                 5: "5. 🏦 Empenhada",
                 6: "6. 📝 Aguardando NF",
                 7: "7. ⏳ Em liquidação",
-                8: "8. 🖥️ Liquidada"
+                8: "8. 🖥️ Liquidada",
                 9: "9. 💸 Paga "
             }
 
