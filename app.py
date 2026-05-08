@@ -3536,20 +3536,19 @@ else:
 
         
         # =================================================================
-        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (Unificado)
+        # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (CORRIGIDA)
         # =================================================================
         with tab_prod:
-            st.subheader("⏱️ Tempo Médio de Permanência por Etapa")
+            st.subheader("⏱️ Tempo Médio de Permanência Real por Etapa")
             
             try:
                 # 1. Carregamento dos Dados
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
-                df_hist = pd.DataFrame(aba_h.get_all_records())
+                df_hist_p = pd.DataFrame(aba_h.get_all_records())
                 
-                if df_hist.empty:
+                if df_hist_p.empty:
                     st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
-                    # Mapeamento padrão dos setores
                     mapa_status = {
                         1: "1. 📥 Cadastrada",
                         2: "2. 🩺 Em Auditagem",
@@ -3561,46 +3560,40 @@ else:
                         8: "8. 🖥️ Liquidada"
                     }
 
-                    # Identificação dinâmica da coluna de destino (evita erro de digitação)
-                    col_dest = 'status_destinou' if 'status_destinou' in df_hist.columns else 'status_destino'
+                    # Identificação da coluna
+                    col_dest = 'status_destinou' if 'status_destinou' in df_hist_p.columns else 'status_destino'
                     
-                    # --- TRATAMENTO DE DATAS ---
-                    df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
-                    df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    # Tratamento de Datas e Ordenação
+                    df_hist_p['timestamp'] = pd.to_datetime(df_hist_p['timestamp'], format='mixed', errors='coerce')
+                    df_hist_p = df_hist_p.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
+                    df_hist_p['st_num'] = pd.to_numeric(df_hist_p[col_dest], errors='coerce')
                     
-                    # Conversão do status para numérico para evitar erro de string vs float
-                    df_hist['st_num'] = pd.to_numeric(df_hist[col_dest], errors='coerce')
-                    
-                    # --- LÓGICA DE CRONÔMETRO ATIVO ---
+                    # --- LÓGICA DE UNIFICAÇÃO (IGUAL À SEÇÃO 5) ---
+                    # Pegamos o ÚLTIMO registro de cada NUP para saber onde ele está parado AGORA
                     hoje = pd.Timestamp.now()
                     
-                    # O tempo de permanência é do registro atual até o próximo registro do mesmo NUP
-                    df_hist['proxima_data'] = df_hist.groupby('nup')['timestamp'].shift(-1)
+                    # Para calcular a média real de quem está no setor hoje:
+                    df_ultimo = df_hist_p.groupby('nup').tail(1).copy()
+                    df_ultimo['dias_estada'] = (hoje - df_ultimo['timestamp']).dt.total_seconds() / 86400
                     
-                    # Se não houve próxima data, significa que o processo AINDA ESTÁ nesse status
-                    df_hist['data_fim'] = df_hist['proxima_data'].fillna(hoje)
+                    # Mapeia a etapa
+                    df_ultimo['etapa'] = df_ultimo['st_num'].map(mapa_status)
                     
-                    # Cálculo em dias decimais
-                    df_hist['dias'] = (df_hist['data_fim'] - df_hist['timestamp']).dt.total_seconds() / 86400
-                    
-                    # Mapeia o nome da etapa baseada no status onde o processo ficou
-                    df_hist['etapa'] = df_hist['st_num'].map(mapa_status)
-                    
-                    # Filtra apenas registros válidos e com etapa definida
-                    df_permanencia = df_hist[(df_hist['dias'] >= 0) & (df_hist['etapa'].notna())].copy()
+                    # Filtra apenas o fluxo ativo (Status 1 a 7)
+                    df_prod_final = df_ultimo[(df_ultimo['st_num'] > 0) & (df_ultimo['st_num'] < 8)].dropna(subset=['etapa'])
 
-                    # --- AGRUPAMENTO ---
-                    resumo_etapa = df_permanencia.groupby(['st_num', 'etapa'])['dias'].mean().reset_index()
+                    # Agrupamento das Médias
+                    resumo_etapa = df_prod_final.groupby(['st_num', 'etapa'])['dias_estada'].mean().reset_index()
                     resumo_etapa = resumo_etapa.sort_values('st_num')
 
-                    # --- GRÁFICO DE BARRAS ---
+                    # --- GRÁFICO REALISTA ---
                     fig_prod = px.bar(
                         resumo_etapa, 
                         x='etapa', 
-                        y='dias', 
-                        title="Média de Dias Real (Tempo de Estadia por Setor)",
-                        labels={'dias': 'Média de Dias', 'etapa': 'Etapa'},
-                        color='dias',
+                        y='dias_estada', 
+                        title="Gargalo Atual (Média de dias de quem está parado no setor hoje)",
+                        labels={'dias_estada': 'Média de Dias', 'etapa': 'Setor'},
+                        color='dias_estada',
                         color_continuous_scale='Reds',
                         text_auto='.1f'
                     )
@@ -3608,20 +3601,20 @@ else:
                     fig_prod.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_prod, use_container_width=True)
 
-                    # --- MÉTRICAS DE CICLO (LEAD TIME) ---
+                    # --- MÉTRICAS GERAIS ---
                     c1, c2 = st.columns(2)
                     with c1:
+                        # Taxa baseada na aba de processos atual
                         total_nup = df['nup'].nunique()
-                        # Verifica status 8 de forma flexível (string ou num)
                         concluidos = df[df['status'].astype(str).str.contains('8', na=False)]['nup'].nunique()
                         taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
-                        st.metric("Taxa de Eficiência (Liquidadas)", f"{taxa:.1f}%")
+                        st.metric("Eficiência de Liquidação", f"{taxa:.1f}%")
                     with c2:
-                        # Soma o tempo total que cada NUP levou/está levando
-                        lead_time_medio = df_permanencia.groupby('nup')['dias'].sum().mean()
-                        st.metric("Ciclo Médio Total (Lead Time)", f"{lead_time_medio:.1f} dias")
+                        # Lead Time Médio de quem está em curso
+                        lead_time = df_prod_final['dias_estada'].mean()
+                        st.metric("Tempo Médio de Espera Atual", f"{lead_time:.1f} dias")
 
-                    st.divider()
+                    st.info("💡 **Nota Técnica:** Este gráfico agora reflete o 'Estoque Atual'. Ele mostra quantos dias, em média, as faturas que estão **atualmente** em cada etapa estão esperando.")
 
             except Exception as e:
                 st.error(f"Erro ao processar indicadores: {e}")
