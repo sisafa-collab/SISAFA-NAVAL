@@ -3344,10 +3344,10 @@ else:
                     
                     st.dataframe(df_resumo_pano_show, use_container_width=True, hide_index=True)
 
+            
             # =======================================================
             # === SEÇÃO 4: PANORAMA FINANCEIRO POR EMPRESA (GERAL) ===
             # =======================================================
-            
             st.divider()
             st.subheader("🏢 4. Panorama Financeiro por Empresa")
 
@@ -3361,39 +3361,32 @@ else:
             if df_empresas_geral.empty:
                 st.info("Não há dados financeiros vinculados às empresas no momento.")
             else:
-                # 1. A Pizza Gigante (Sem a legenda poluída)
+                # 1. Gráfico com "Linhas de Chamada" (Callouts) e sem a lista de legenda
                 fig_empresas = px.pie(
                     df_empresas_geral, 
                     values='v_liq', 
                     names='ose', 
-                    hole=0.3,
+                    hole=0.4,
                     title="Volume Financeiro Total por Empresa",
                     color_discrete_sequence=px.colors.qualitative.Bold
                 )
                 
+                # A Mágica das Linhas: textposition='outside' e textinfo='label+percent'
                 fig_empresas.update_traces(
-                    textposition='inside', 
-                    textinfo='percent',
+                    textposition='outside', 
+                    textinfo='label+percent',
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
                 
-                # Desliga a legenda para a pizza ocupar 100% do espaço
                 fig_empresas.update_layout(
-                    showlegend=False, 
-                    margin=dict(l=10, r=10, t=50, b=10)
+                    showlegend=False, # Remove o bloco da legenda
+                    margin=dict(l=50, r=50, t=50, b=50) # Margens maiores para as linhas caberem
                 )
                 
                 st.plotly_chart(fig_empresas, use_container_width=True)
 
-                # 2. A Tabela Auxiliar Oculta (Para o Diretor ler os nomes com calma)
-                with st.expander("📋 Ver lista detalhada de valores por empresa"):
-                    df_show_emp = df_empresas_geral.sort_values('v_liq', ascending=False).copy()
-                    df_show_emp['v_liq'] = df_show_emp['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
-                    df_show_emp.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Total'}, inplace=True)
-                    st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
-            
             # =======================================================
-            # === SEÇÃO 5: SITUAÇÃO DAS N.E. AGUARDANDO N.F. ===
+            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
             # =======================================================
             st.divider()
             st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
@@ -3405,7 +3398,7 @@ else:
             if 'v_liq' not in df_sec5.columns:
                 df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
 
-            # Filtra apenas quem está no Status 6
+            # Filtra apenas quem está no Status 6 na base principal
             df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
 
             if df_status6.empty:
@@ -3413,22 +3406,25 @@ else:
             else:
                 try:
                     # -------------------------------------------------------------
-                    # ⚙️ CONEXÃO COM A CAIXA PRETA (Exatamente como você fez)
+                    # ⚙️ CONEXÃO COM A CAIXA PRETA (Agora Blindada)
                     # -------------------------------------------------------------
                     aba_h_sec5 = sh.worksheet("SISAFA-NAVAL-historico")
-                    df_hist_6 = pd.DataFrame(aba_h_sec5.get_all_records())
+                    df_hist_temp = pd.DataFrame(aba_h_sec5.get_all_records())
                     
-                    # Filtra no histórico procurando os NUPs que foram PARA o status 6
-                    df_hist_6 = df_hist_6[df_hist_6['status_destino'].astype(str) == '6'].copy()
+                    # BLINDAGEM: Limpa o status (transforma 6.0 ou " 6 " em "6")
+                    df_hist_temp['status_limpo'] = df_hist_temp['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
                     
-                    # Converte a coluna timestamp
-                    df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                    # Filtra apenas quem foi para o 6
+                    df_hist_6 = df_hist_temp[df_hist_temp['status_limpo'] == '6'].copy()
                     
-                    # Pega a entrada MAIS RECENTE no status 6 para cada NUP
-                    df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
-                    
-                    # Cruza os dados
-                    df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
+                    # Verifica se encontrou alguma coisa no histórico
+                    if not df_hist_6.empty and 'timestamp' in df_hist_6.columns:
+                        df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                        df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
+                        df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
+                    else:
+                        # Se não achou nada (ou a planilha está nova), cria a coluna para não dar o erro
+                        df_status6['data_entrada'] = pd.NaT
                     
                     # Calcula o tempo
                     hoje = pd.Timestamp.today()
@@ -3444,8 +3440,12 @@ else:
                         media_tempo, max_tempo, min_tempo = 0, 0, 0
                         
                 except Exception as e:
-                    st.error(f"Erro ao cruzar com o histórico: {e}")
+                    st.error(f"Aviso - O tempo não pôde ser calculado (Verifique o histórico): {e}")
                     media_tempo, max_tempo, min_tempo = 0, 0, 0
+                    
+                    # Garante que a coluna exista para não quebrar o resto do código
+                    if 'data_entrada' not in df_status6.columns:
+                        df_status6['data_entrada'] = pd.NaT
 
                 total_dinheiro_st6 = df_status6['v_liq'].sum()
 
@@ -3461,7 +3461,7 @@ else:
                 with col_kpi4:
                     st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
 
-                # --- GRÁFICO DE PIZZA (STATUS 6 POR EMPRESA) ---
+                # --- GRÁFICO DE PIZZA (STATUS 6) COM LINHAS EXTERNAS ---
                 df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
                 
                 fig_st6 = px.pie(
@@ -3473,25 +3473,18 @@ else:
                     color_discrete_sequence=px.colors.qualitative.Pastel
                 )
                 
-                # Aumenta a pizza e oculta a legenda gigante (mesma tática da Seção 4)
                 fig_st6.update_traces(
-                    textposition='inside', 
-                    textinfo='percent',
+                    textposition='outside', 
+                    textinfo='label+percent',
                     hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                 )
+                
                 fig_st6.update_layout(
                     showlegend=False,
-                    margin=dict(l=10, r=10, t=50, b=10)
+                    margin=dict(l=50, r=50, t=50, b=50)
                 )
                 
                 st.plotly_chart(fig_st6, use_container_width=True)
-
-                # Tabela auxiliar para o Status 6
-                with st.expander("📋 Ver lista detalhada das NFs pendentes por empresa"):
-                    df_show_st6 = df_emp_st6.sort_values('v_liq', ascending=False).copy()
-                    df_show_st6['v_liq'] = df_show_st6['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
-                    df_show_st6.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Pendente'}, inplace=True)
-                    st.dataframe(df_show_st6, use_container_width=True, hide_index=True)
 
 
         # =================================================================
