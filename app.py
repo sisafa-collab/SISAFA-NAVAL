@@ -72,24 +72,26 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. Esconde o Gato, Menu e Rodapé (Limpeza do Cabeçalho) */
-        header[data-testid="stHeader"] { display: none !important; }
+        /* 1. DESTRÓI O BOTÃO DE FECHAR DA BARRA LATERAL (Trava o leme) */
+        [data-testid="stSidebarCollapseButton"] {
+            display: none !important;
+        }
+
+        /* 2. LIMPEZA TOTAL DO CABEÇALHO (Adeus Gato e botões da nuvem) */
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* 3. LIMPEZA DE MENU E RODAPÉ */
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
 
-        /* 2. Trava a Barra Lateral ABERTA (Remove a setinha) apenas em Telas Grandes */
-        @media (min-width: 992px) {
-            button[data-testid="stSidebarCollapseButton"] {
-                display: none !important;
-            }
-        }
-
-        /* 3. Ajuste do topo para o conteúdo não bater no teto */
+        /* 4. AJUSTE DO TETO DA PÁGINA */
         .block-container {
             padding-top: 2rem !important;
         }
 
-        /* 4. O Verde SISAFA nos botões */
+        /* 5. IDENTIDADE SISAFA (Verde Naval nos Botões) */
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
