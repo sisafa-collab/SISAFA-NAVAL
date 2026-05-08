@@ -2879,16 +2879,22 @@ else:
                         st.markdown("##### 📤 1. Informar Nota Fiscal")
                         nf_in = st.text_input("Número da NF recebida:", placeholder="Ex: 550/2026", key=f"nf_input_{ne_alvo}")
                         
-                        if st.button("💾 Registrar NF no SISAFA", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
+                        if st.button("💾 Registrar NF no SISAFA NAVAL", use_container_width=True, key=f"btn_nf_{ne_alvo}"):
                             if nf_in:
                                 with st.spinner("Gravando nota..."):
+                                    # --- CORREÇÃO AQUI: Definindo a aba de processos antes de usar ---
+                                    aba_p = sh.worksheet(ABA_PROCESSOS) 
+                                    
+                                    # O loop agora saberá quem é 'aba_p'
                                     for nup_item in df_ne_fisc['nup'].tolist():
                                         cell = aba_p.find(nup_item)
                                         if cell:
+                                            # Coluna 16 (ajuste se a coluna da NF for outra na sua planilha)
                                             aba_p.update_cell(cell.row, 16, nf_in) 
                                             registrar_acao(nup_item, "N/A", "NF_INFORMADA", f"NF: {nf_in}")
                                 
                                 st.success(f"✅ NF {nf_in} registrada com sucesso!")
+                                import time # Garante que o time está disponível para o sleep
                                 time.sleep(1)
                                 st.rerun()
                             else:
