@@ -72,34 +72,35 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. Esconde o menu de hambúrguer (três linhas) */
-        #MainMenu {visibility: hidden;}
-        
-        /* 2. Esconde o rodapé "Made with Streamlit" */
-        footer {visibility: hidden;}
-
-        /* 3. A "VACINA": Esconde especificamente o botão de Deploy/GitHub */
-        /* Isso remove o gato sem matar o header onde fica o botão da sidebar */
-        .stAppDeployButton {
-            display: none;
+        /* 1. ALVO PRINCIPAL: Esconde o conjunto de botões da direita (Estrela, Lápis e GitHub) */
+        div[data-testid="stHeaderActionElements"] {
+            display: none !important;
         }
 
-        /* 4. Garante que o cabeçalho fique transparente e não bloqueie cliques */
+        /* 2. ALVO SECUNDÁRIO: Esconde o menu de opções (Hambúrguer) */
+        #MainMenu {
+            display: none !important;
+        }
+
+        /* 3. RODAPÉ: "Made with Streamlit" fora de combate */
+        footer {
+            display: none !important;
+        }
+
+        /* 4. PROTEÇÃO DE CABEÇALHO: Deixa o fundo transparente para não criar uma faixa vazia */
         header[data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0);
-            color: rgba(0,0,0,0);
+            background-color: rgba(0,0,0,0) !important;
         }
 
-        /* 5. Mantém o botão da Sidebar (a setinha) SEMPRE visível e clicável */
+        /* 5. SEGURANÇA DA NAVEGAÇÃO: Força o botão da Sidebar a ficar visível e clicável */
         button[data-testid="stSidebarCollapseButton"] {
-            background-color: transparent !important;
-            color: inherit !important; /* Ou a cor do seu tema */
             visibility: visible !important;
+            color: inherit !important; /* Mantém a cor original do seu tema */
         }
-        
-        /* 6. Remove qualquer margem extra no topo que o header vazio deixaria */
+
+        /* Ajuste fino no topo para o conteúdo não subir demais */
         .block-container {
-            padding-top: 1rem;
+            padding-top: 1.5rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
