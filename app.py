@@ -3410,6 +3410,9 @@ else:
            
             # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
             # =======================================================
+            # =======================================================
+            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
+            # =======================================================
             st.divider()
             st.subheader("📝 5. Situação das Notas de Empenho aguardando Nota Fiscal")
 
@@ -3431,11 +3434,17 @@ else:
                     df_hist_temp = pd.DataFrame(aba_h_sec5.get_all_records())
                     
                     if not df_hist_temp.empty and 'status_destino' in df_hist_temp.columns and 'timestamp' in df_hist_temp.columns:
-                        df_hist_temp['status_limpo'] = df_hist_temp['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
+                        # Traz a lógica exata que calculou certo antes, com limpeza adicional
+                        df_hist_temp['status_limpo'] = df_hist_temp['status_destino'].astype(str).str.strip()
                         df_hist_6 = df_hist_temp[df_hist_temp['status_limpo'] == '6'].copy()
                         
                         if not df_hist_6.empty:
                             df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                            
+                            # Limpeza extrema: Remove espaços ocultos dos NUPs antes de cruzar
+                            df_hist_6['nup'] = df_hist_6['nup'].astype(str).str.strip()
+                            df_status6['nup'] = df_status6['nup'].astype(str).str.strip()
+                            
                             df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
                             df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
                     
@@ -3452,7 +3461,6 @@ else:
                         max_tempo = int(df_tempo['dias_parada'].max())
                         min_tempo = int(df_tempo['dias_parada'].min())
                         
-                        # BUSCA A EMPRESA E O NUP DA FATURA MAIS ANTIGA
                         idx_max = df_tempo['dias_parada'].idxmax()
                         empresa_antiga = df_tempo.loc[idx_max, 'ose']
                         nup_antigo = df_tempo.loc[idx_max, 'nup']
@@ -3465,29 +3473,27 @@ else:
                     media_tempo, max_tempo, min_tempo = 0, 0, 0
                     empresa_antiga, nup_antigo = "N/A", "N/A"
 
-                # O cálculo volta a ser real (Total de tudo)
                 total_dinheiro_st6 = df_status6['v_liq'].sum()
 
-                # --- 1. LINHA DE MÉTRICAS (Lado a Lado, com folga) ---
-                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                # --- NOVO LAYOUT DE MÉTRICAS: MATRIZ 2x2 (Evita esmagar números grandes) ---
+                col_kpi1, col_kpi2 = st.columns(2)
                 
                 with col_kpi1:
                     st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
-                with col_kpi2:
-                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
-                with col_kpi3:
+                    st.write("") # Dá um respiro
                     st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Crítico", delta_color="inverse")
-                    # Rótulo de Identificação do gargalo
                     if max_tempo > 0:
                         st.caption(f"**NUP:** {nup_antigo}")
                         st.caption(f"🏢 {empresa_antiga}")
-                with col_kpi4:
+                        
+                with col_kpi2:
+                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                    st.write("") # Alinha com o card da esquerda
                     st.metric(label="Fatura Mais Recente", value=f"{min_tempo} dias")
 
-                # --- 2. DIVISOR E GRÁFICO (Isolados na parte de baixo) ---
+                # --- DIVISOR E GRÁFICO GIGANTE (Sem Legenda) ---
                 st.divider()
                 
-                # Agrupa e mostra TODAS as empresas, sem filtro, garantindo a matemática correta
                 df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
                 
                 fig_st6 = px.pie(
@@ -3499,10 +3505,14 @@ else:
                     color_discrete_sequence=px.colors.qualitative.Safe
                 )
                 
-                fig_st6.update_traces(textposition='inside', textinfo='percent')
+                # Desligando a legenda para focar só na pizza e no Hover (Mouse)
+                fig_st6.update_traces(
+                    textposition='inside', 
+                    textinfo='percent',
+                    hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
+                )
                 fig_st6.update_layout(
-                    showlegend=True, 
-                    legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0),
+                    showlegend=False, 
                     margin=dict(l=20, r=20, t=50, b=20)
                 )
                 st.plotly_chart(fig_st6, use_container_width=True)
