@@ -3425,12 +3425,17 @@ else:
                 # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
                 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
                 
+                # --- EXIBIÇÃO DOS CARDS (MÉTRICAS) ---
+                col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+                
                 with col_kpi1:
-                    st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
+                    st.metric(label="Volume Aguardando NF 💰💰", value=f"R$ {total_dinheiro_st6:,.2f}")
                 with col_kpi2:
-                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                    st.metric(label="Média de Tempo ⏱️", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
                 with col_kpi3:
-                    st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="
+                    st.metric(label="Fatura Mais Antiga 💣", value=f"{max_tempo} dias", delta="Atraso Máximo", delta_color="inverse")
+                with col_kpi4:
+                    st.metric(label="Fatura Mais Recente 🤙", value=f"{min_tempo} dias")
 
 
 
