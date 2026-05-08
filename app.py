@@ -66,32 +66,29 @@ st.set_page_config(
     initial_sidebar_state="expanded" 
 )
 
-# --- ESTILIZAÇÃO CSS (CIRÚRGICA) ---
-# O comentário abaixo com '#' é Python e está tudo bem.
-# Mas o comentário com '/*' precisa estar DENTRO da string abaixo:
+# --- ESTILIZAÇÃO CSS  ---
 
 st.markdown("""
     <style>
-        /* 1. DESTRÓI O BOTÃO DE FECHAR DA BARRA LATERAL (Trava o leme) */
         [data-testid="stSidebarCollapseButton"] {
-            display: none !important;
+            display: flex !important;
+            visibility: visible !important;
+            color: #2e6b54 !important; /* Setinha verde */
+            z-index: 9999 !important;
         }
 
-        /* 2. LIMPEZA TOTAL DO CABEÇALHO (Adeus Gato e botões da nuvem) */
         header[data-testid="stHeader"] {
+            background-color: transparent !important;
+        }
+
+        header[data-testid="stHeader"] > div:nth-child(2), 
+        .stAppDeployButton {
             display: none !important;
         }
 
-        /* 3. LIMPEZA DE MENU E RODAPÉ */
         #MainMenu { visibility: hidden; }
         footer { visibility: hidden; }
 
-        /* 4. AJUSTE DO TETO DA PÁGINA */
-        .block-container {
-            padding-top: 2rem !important;
-        }
-
-        /* 5. IDENTIDADE SISAFA (Verde Naval nos Botões) */
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
