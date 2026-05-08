@@ -3541,7 +3541,6 @@ else:
             st.subheader("⏱️ Tempo Médio de Permanência por Etapa")
             
             try:
-                # 1. CARREGAMENTO E DICIONÁRIO
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
                 df_hist = pd.DataFrame(aba_h.get_all_records())
                 
@@ -3549,7 +3548,7 @@ else:
                     st.info("Aguardando dados históricos para calcular produtividade.")
                 else:
                     mapa_status = {
-                        1: "1. 📥 Cadastrada (SECOM)",
+                        1: "1. 📥 Cadastrada",
                         2: "2. 🩺 Em Auditagem",
                         3: "3. ✅ Auditada",
                         4: "4. 💰 Aguardando NE",
@@ -3559,39 +3558,43 @@ else:
                         8: "8. 🖥️ Liquidada"
                     }
 
-                    # --- TRATAMENTO DE DATAS ---
+                    # 1. Tratamento de Datas
                     df_hist['timestamp'] = pd.to_datetime(df_hist['timestamp'], format='mixed', errors='coerce')
                     df_hist = df_hist.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # --- LÓGICA DE TEMPO REAL (SEM PONTO CEGO) ---
-                    # Usamos 'hoje' como data de fim para processos que ainda não mudaram de status
+                    # 2. Limpeza de Status (Garantir que são números)
+                    df_hist['st_dest'] = pd.to_numeric(df_hist['status_destinou'], errors='coerce')
+                    
+                    # 3. Lógica de Permanência:
+                    # O tempo de uma etapa é o intervalo entre a entrada nela (status_destino) 
+                    # e a saída dela (próximo registro) ou ATÉ HOJE.
                     hoje = pd.Timestamp.now()
                     
-                    # Identificamos a data da próxima movimentação
-                    df_hist['proximo_timestamp'] = df_hist.groupby('nup')['timestamp'].shift(-1)
+                    # Calcula o tempo até a próxima ação para aquele NUP
+                    df_hist['proxima_movimentacao'] = df_hist.groupby('nup')['timestamp'].shift(-1)
+                    df_hist['data_fim'] = df_hist['proxima_movimentacao'].fillna(hoje)
                     
-                    # SE NÃO HOUVER PRÓXIMO REGISTRO, O CRONÔMETRO CONTA ATÉ HOJE!
-                    df_hist['data_fim'] = df_hist['proximo_timestamp'].fillna(hoje)
-                    
-                    # Cálculo real da permanência em dias
-                    df_hist['tempo_segundos'] = (df_hist['data_fim'] - df_hist['timestamp']).dt.total_seconds()
-                    df_hist['dias'] = df_hist['tempo_segundos'] / (24 * 3600)
-                    
-                    # Mapeamento e Limpeza
-                    df_hist['etapa'] = df_hist['status_origem'].map(mapa_status)
-                    df_permanencia = df_hist.dropna(subset=['etapa']).copy()
+                    # Diferença em dias
+                    df_hist['dias'] = (df_hist['data_fim'] - df_hist['timestamp']).dt.total_seconds() / 86400
 
-                    # --- AGRUPAMENTO DAS MÉDIAS ---
-                    resumo_etapa = df_permanencia.groupby(['status_origem', 'etapa'])['dias'].mean().reset_index()
-                    resumo_etapa = resumo_etapa.sort_values('status_origem')
+                    # 4. MAPEAMENTO PELO DESTINO (Onde a fatura REALMENTE ficou parada)
+                    # Se ela foi para o status 6, o tempo decorrido ali pertence à etapa 6.
+                    df_hist['etapa'] = df_hist['st_dest'].map(mapa_status)
+                    
+                    # Remove faturas sem etapa mapeada ou tempos negativos (erros de log)
+                    df_permanencia = df_hist[df_hist['dias'] >= 0].dropna(subset=['etapa']).copy()
 
-                    # --- GRÁFICO SINCERO ---
+                    # --- AGRUPAMENTO DAS MÉDIAS REAIS ---
+                    resumo_etapa = df_permanencia.groupby(['st_dest', 'etapa'])['dias'].mean().reset_index()
+                    resumo_etapa = resumo_etapa.sort_values('st_dest')
+
+                    # --- GRÁFICO ---
                     fig_prod = px.bar(
                         resumo_etapa, 
                         x='etapa', 
                         y='dias', 
-                        title="Média de dias em cada etapa",
-                        labels={'dias': 'Média de Dias', 'etapa': 'Setor / Etapa'},
+                        title="Tempo Médio Real (Incluindo faturas paradas hoje)",
+                        labels={'dias': 'Média de Dias', 'etapa': 'Etapa Atual do Processo'},
                         color='dias',
                         color_continuous_scale='Reds',
                         text_auto='.1f'
@@ -3600,15 +3603,15 @@ else:
                     fig_prod.update_layout(xaxis_tickangle=-45)
                     st.plotly_chart(fig_prod, use_container_width=True)
 
-                    # --- MÉTRICAS GERAIS ---
+                    # --- MÉTRICAS DE LEAD TIME ---
                     c1, c2 = st.columns(2)
                     with c1:
                         total_nup = df['nup'].nunique()
-                        concluidos = df[df['status'] == 8]['nup'].nunique()
+                        concluidos = df[df['status'].astype(str).str.contains('8')]['nup'].nunique()
                         taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
                         st.metric("Taxa de Liquidação Total", f"{taxa:.1f}%")
                     with c2:
-                        # Lead Time Médio Total considerando o tempo acumulado até hoje
+                        # Lead Time Médio Total (Soma de todas as estadias de cada NUP)
                         lead_time = df_permanencia.groupby('nup')['dias'].sum().mean()
                         st.metric("Ciclo Médio Total (Lead Time)", f"{lead_time:.1f} dias")
 
