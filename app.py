@@ -3249,7 +3249,7 @@ else:
             st.divider()
             st.subheader("📊 3. Panorama Geral das faturas 📑📑")
 
-            # 1. Dicionário tradutor de Status (Ajuste os nomes conforme sua realidade)
+            # 1. Dicionário tradutor de Status
             mapa_status_nomes = {                
                 1: "1. 📥 Cadastrada (SECOM)",
                 2: "2. 🩺 Em Auditagem",
@@ -3262,6 +3262,20 @@ else:
                 9: "9. 💸 Paga "
             }
 
+            # --- PALETA DE CORES TÁTICA E HARMONIOSA ---
+            # Cada fase ganha uma cor fixa. Tons que combinam, mas não se confundem.
+            cores_fases = {
+                "1. 📥 Cadastrada (SECOM)": "#3498db",  # Azul Claro
+                "2. 🩺 Em Auditagem": "#e67e22",      # Laranja
+                "3. ✅ Auditada": "#2ecc71",          # Verde Claro
+                "4. 💰 Aguardando NE": "#e74c3c",       # Vermelho
+                "5. 🏦 Empenhada": "#9b59b6",         # Roxo
+                "6. 📝 Aguardando NF": "#f1c40f",       # Amarelo/Dourado
+                "7. ⏳ Em liquidação": "#1abc9c",       # Turquesa
+                "8. 🖥️ Liquidada": "#34495e",         # Azul Marinho/Cinza
+                "9. 💸 Paga ": "#27ae60",             # Verde Escuro
+                "Outros / Desconhecido": "#95a5a6"      # Cinza Claro
+            }
 
             # 2. Preparação dos Dados
             df_pano = df.copy()
@@ -3271,12 +3285,12 @@ else:
 
             # 3. Agrupamento de Dados (Conta faturas e soma valores)
             df_resumo_pano = df_pano.groupby('Fase Atual').agg(
-                Qtd_Faturas=('nup', 'count'),  # Conta quantas linhas (faturas) existem
-                Volume_RS=('v_liq', 'sum')     # Soma o dinheiro
+                Qtd_Faturas=('nup', 'count'),  
+                Volume_RS=('v_liq', 'sum')     
             ).reset_index()
 
-            # Remove status que estão vazios para não poluir o gráfico
-            df_resumo_pano = df_resumo_pano[df_resumo_pano['Qtd_Faturas'] > 0]
+            # Remove status vazios e ORDENA o dataframe (Para a legenda ficar 1, 2, 3...)
+            df_resumo_pano = df_resumo_pano[df_resumo_pano['Qtd_Faturas'] > 0].sort_values('Fase Atual')
 
             if df_resumo_pano.empty:
                 st.info("Não há dados suficientes para gerar o panorama.")
@@ -3284,17 +3298,23 @@ else:
                 # 4. Construção dos Gráficos Lado a Lado
                 col_g1, col_g2 = st.columns(2)
 
+                # Ordem forçada para a legenda
+                ordem_legenda = sorted(df_resumo_pano['Fase Atual'].tolist())
+
                 with col_g1:
                     fig_qtd = px.pie(
                         df_resumo_pano, 
                         values='Qtd_Faturas', 
                         names='Fase Atual', 
-                        hole=0.4, # Transforma em Donut (mais elegante)
+                        hole=0.4, 
                         title="Distribuição por Quantidade (Nº de Faturas)",
-                        color_discrete_sequence=px.colors.sequential.Teal
+                        color='Fase Atual',           # Diz ao Plotly para colorir baseado no nome
+                        color_discrete_map=cores_fases, # Aplica o nosso dicionário de cores
+                        category_orders={"Fase Atual": ordem_legenda} # Força a ordem 1, 2, 3...
                     )
                     fig_qtd.update_traces(textposition='inside', textinfo='percent+value')
-                    fig_qtd.update_layout(showlegend=False) # Esconde legenda para ganhar espaço
+                    # Se quiser esconder a legenda do primeiro gráfico para poupar espaço:
+                    fig_qtd.update_layout(showlegend=False) 
                     st.plotly_chart(fig_qtd, use_container_width=True)
 
                 with col_g2:
@@ -3304,21 +3324,23 @@ else:
                         names='Fase Atual', 
                         hole=0.4,
                         title="Distribuição por Volume Financeiro (R$)",
-                        color_discrete_sequence=px.colors.sequential.Tealgrn
+                        color='Fase Atual',
+                        color_discrete_map=cores_fases,
+                        category_orders={"Fase Atual": ordem_legenda}
                     )
                     fig_vol.update_traces(
                         textposition='inside', 
                         textinfo='percent',
                         hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
                     )
+                    # Mantém a legenda apenas no segundo gráfico, já ordenada
                     st.plotly_chart(fig_vol, use_container_width=True)
 
                 # 5. Tabela Resumo Expandível
                 with st.expander("Ver dados detalhados do Panorama"):
-                    # Formata a tabela para ficar bonita
                     df_resumo_pano_show = df_resumo_pano.copy()
                     df_resumo_pano_show['Volume (R$)'] = df_resumo_pano_show['Volume_RS'].apply(lambda x: f"R$ {x:,.2f}")
-                    df_resumo_pano_show = df_resumo_pano_show.drop(columns=['Volume_RS']).sort_values('Fase Atual')
+                    df_resumo_pano_show = df_resumo_pano_show.drop(columns=['Volume_RS'])
                     
                     st.dataframe(df_resumo_pano_show, use_container_width=True, hide_index=True)
 
