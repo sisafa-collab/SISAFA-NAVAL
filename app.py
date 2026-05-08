@@ -1159,9 +1159,10 @@ else:
                         ⚠️ **Orientações**
 
                         Preencha os dados de **todos** os pacientes antes de clicar em **CONFIRMAR PACIENTES**. 
-                        O sistema é lento, porém, pouco didático. 
                         
-                        Não esmoreça! ⚓🇧🇷🫡
+                        O sistema é, de fato, lento; porém, pouco didático.  
+                        
+                        Contudo, não esmoreça! ⚓🇧🇷🫡
                     
                         *"Em todo trabalho há proveito; meras palavras, porém, levam à penúria." (Provérbios 14:23)*
                         
@@ -1186,7 +1187,7 @@ else:
                                 
                                 # 2. Adicionamos o Checkbox de Exclusão (Alinhado com a parte inferior)
                                 col_del.markdown("<br>", unsafe_allow_html=True) # Empurra o botão para alinhar
-                                temp_del = col_del.checkbox("🗑️ Excluir", key=f"del_gl_{idx}_{nup_audit}")
+                                temp_del = col_del.checkbox("🗑️ Excluir paciente", key=f"del_gl_{idx}_{nup_audit}")
                                 
                                 lista_opcoes_glosa = [""] + [f"{c} - {d}" for c, d in tabela_ref_glosa.items()]
                                 
@@ -3244,6 +3245,85 @@ else:
                                   color_discrete_sequence=px.colors.qualitative.Pastel, barmode='stack')
                 st.plotly_chart(fig_pend, use_container_width=True)
 
+            # === SEÇÃO 3: PANORAMA GERAL (PIZZA) ===
+            st.divider()
+            st.subheader("📊 3. Panorama Geral das faturas 📑📑")
+
+            # 1. Dicionário tradutor de Status (Ajuste os nomes conforme sua realidade)
+            mapa_status_nomes = {                
+                1: "1. 📥 Cadastrada (SECOM)",
+                2: "2. 🩺 Em Auditagem",
+                3: "3. ✅ Auditada",
+                4: "4. 💰 Aguardando NE",
+                5: "5. 🏦 Empenhada",
+                6: "6. 📝 Aguardando NF",
+                7: "7. ⏳ Em liquidação",
+                8: "8. 🖥️ Liquidada"
+                9: "9. 💸 Paga "
+            }
+
+
+            # 2. Preparação dos Dados
+            df_pano = df.copy()
+            df_pano['status_num'] = pd.to_numeric(df_pano['status'], errors='coerce').fillna(-1).astype(int)
+            df_pano['Fase Atual'] = df_pano['status_num'].map(mapa_status_nomes).fillna('Outros / Desconhecido')
+            df_pano['v_liq'] = df_pano['valor_liquido'].apply(limpar_valor)
+
+            # 3. Agrupamento de Dados (Conta faturas e soma valores)
+            df_resumo_pano = df_pano.groupby('Fase Atual').agg(
+                Qtd_Faturas=('nup', 'count'),  # Conta quantas linhas (faturas) existem
+                Volume_RS=('v_liq', 'sum')     # Soma o dinheiro
+            ).reset_index()
+
+            # Remove status que estão vazios para não poluir o gráfico
+            df_resumo_pano = df_resumo_pano[df_resumo_pano['Qtd_Faturas'] > 0]
+
+            if df_resumo_pano.empty:
+                st.info("Não há dados suficientes para gerar o panorama.")
+            else:
+                # 4. Construção dos Gráficos Lado a Lado
+                col_g1, col_g2 = st.columns(2)
+
+                with col_g1:
+                    fig_qtd = px.pie(
+                        df_resumo_pano, 
+                        values='Qtd_Faturas', 
+                        names='Fase Atual', 
+                        hole=0.4, # Transforma em Donut (mais elegante)
+                        title="Distribuição por Quantidade (Nº de Faturas)",
+                        color_discrete_sequence=px.colors.sequential.Teal
+                    )
+                    fig_qtd.update_traces(textposition='inside', textinfo='percent+value')
+                    fig_qtd.update_layout(showlegend=False) # Esconde legenda para ganhar espaço
+                    st.plotly_chart(fig_qtd, use_container_width=True)
+
+                with col_g2:
+                    fig_vol = px.pie(
+                        df_resumo_pano, 
+                        values='Volume_RS', 
+                        names='Fase Atual', 
+                        hole=0.4,
+                        title="Distribuição por Volume Financeiro (R$)",
+                        color_discrete_sequence=px.colors.sequential.Tealgrn
+                    )
+                    fig_vol.update_traces(
+                        textposition='inside', 
+                        textinfo='percent',
+                        hovertemplate="<b>%{label}</b><br>Volume: R$ %{value:,.2f}<br>Representação: %{percent}"
+                    )
+                    st.plotly_chart(fig_vol, use_container_width=True)
+
+                # 5. Tabela Resumo Expandível
+                with st.expander("Ver dados detalhados do Panorama"):
+                    # Formata a tabela para ficar bonita
+                    df_resumo_pano_show = df_resumo_pano.copy()
+                    df_resumo_pano_show['Volume (R$)'] = df_resumo_pano_show['Volume_RS'].apply(lambda x: f"R$ {x:,.2f}")
+                    df_resumo_pano_show = df_resumo_pano_show.drop(columns=['Volume_RS']).sort_values('Fase Atual')
+                    
+                    st.dataframe(df_resumo_pano_show, use_container_width=True, hide_index=True)
+
+
+
         # =================================================================
         # 2. ABA: PRODUTIVIDADE E DADOS ESTATÍSTICOS (Unificado)
         # =================================================================
@@ -3266,7 +3346,7 @@ else:
                         5: "5. 🏦 Empenhada",
                         6: "6. 📝 Aguardando NF",
                         7: "7. ⏳ Em liquidação",
-                        8: "8. 💵 Liquidada"
+                        8: "8. 🖥️ Liquidada"
                     }
 
                     # --- TRATAMENTO DE DATAS ---
