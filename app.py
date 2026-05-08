@@ -3408,8 +3408,6 @@ else:
                     st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
 
            
-            # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
-            # =======================================================
             # =======================================================
             # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
             # =======================================================
@@ -3418,80 +3416,93 @@ else:
 
             df_sec5 = df.copy()
             
-            if 'status_num' not in df_sec5.columns:
-                df_sec5['status_num'] = pd.to_numeric(df_sec5['status'], errors='coerce').fillna(-1).astype(int)
+            # Limpeza do status
+            df_sec5['status_limpo'] = df_sec5['status'].astype(str).str.replace('.0', '', regex=False).str.strip()
             if 'v_liq' not in df_sec5.columns:
                 df_sec5['v_liq'] = df_sec5['valor_liquido'].apply(limpar_valor)
 
             # Filtra apenas quem está no Status 6
-            df_status6 = df_sec5[df_sec5['status_num'] == 6].copy()
+            df_status6 = df_sec5[df_sec5['status_limpo'] == '6'].copy()
 
             if df_status6.empty:
                 st.success("🎉 Excelente! Nenhuma fatura aguardando Nota Fiscal no momento.")
             else:
+                df_status6['nup'] = df_status6['nup'].astype(str).str.strip()
+                
                 try:
                     aba_h_sec5 = sh.worksheet("SISAFA-NAVAL-historico")
                     df_hist_temp = pd.DataFrame(aba_h_sec5.get_all_records())
                     
-                    if not df_hist_temp.empty and 'status_destino' in df_hist_temp.columns and 'timestamp' in df_hist_temp.columns:
-                        # Traz a lógica exata que calculou certo antes, com limpeza adicional
-                        df_hist_temp['status_limpo'] = df_hist_temp['status_destino'].astype(str).str.strip()
-                        df_hist_6 = df_hist_temp[df_hist_temp['status_limpo'] == '6'].copy()
+                    if not df_hist_temp.empty:
+                        df_hist_temp['nup'] = df_hist_temp['nup'].astype(str).str.strip()
+                        df_hist_temp['status_destino'] = df_hist_temp['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
+                        
+                        df_hist_6 = df_hist_temp[df_hist_temp['status_destino'] == '6'].copy()
                         
                         if not df_hist_6.empty:
-                            df_hist_6['data_entrada'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
-                            
-                            # Limpeza extrema: Remove espaços ocultos dos NUPs antes de cruzar
-                            df_hist_6['nup'] = df_hist_6['nup'].astype(str).str.strip()
-                            df_status6['nup'] = df_status6['nup'].astype(str).str.strip()
-                            
-                            df_entrada_st6 = df_hist_6.groupby('nup')['data_entrada'].max().reset_index()
+                            df_hist_6['data_hist'] = pd.to_datetime(df_hist_6['timestamp'], errors='coerce')
+                            df_entrada_st6 = df_hist_6.groupby('nup')['data_hist'].max().reset_index()
                             df_status6 = df_status6.merge(df_entrada_st6, on='nup', how='left')
-                    
-                    if 'data_entrada' not in df_status6.columns:
-                        df_status6['data_entrada'] = pd.NaT
-
-                    hoje = pd.Timestamp.today()
-                    df_status6['dias_parada'] = (hoje - df_status6['data_entrada']).dt.days
-                    
-                    df_tempo = df_status6.dropna(subset=['dias_parada'])
-                    
-                    if not df_tempo.empty:
-                        media_tempo = int(df_tempo['dias_parada'].mean())
-                        max_tempo = int(df_tempo['dias_parada'].max())
-                        min_tempo = int(df_tempo['dias_parada'].min())
-                        
-                        idx_max = df_tempo['dias_parada'].idxmax()
-                        empresa_antiga = df_tempo.loc[idx_max, 'ose']
-                        nup_antigo = df_tempo.loc[idx_max, 'nup']
-                    else:
-                        media_tempo, max_tempo, min_tempo = 0, 0, 0
-                        empresa_antiga, nup_antigo = "N/A", "N/A"
-                        
                 except Exception as e:
-                    st.toast(f"Aviso: Não foi possível calcular o tempo das NFs.")
+                    st.toast("Aviso: Falha ao cruzar com o histórico.")
+
+                # Fallback de segurança para as datas
+                if 'data_hist' not in df_status6.columns:
+                    df_status6['data_hist'] = pd.NaT
+                
+                col_data_proc = 'timestamp' if 'timestamp' in df_status6.columns else 'data_atualizacao' if 'data_atualizacao' in df_status6.columns else None
+                
+                if col_data_proc:
+                    df_status6['data_proc'] = pd.to_datetime(df_status6[col_data_proc], errors='coerce')
+                    df_status6['data_final'] = df_status6['data_hist'].fillna(df_status6['data_proc'])
+                else:
+                    df_status6['data_final'] = df_status6['data_hist']
+
+                # Cálculo de dias
+                hoje = pd.Timestamp.today()
+                df_status6['dias_parada'] = (hoje - df_status6['data_final']).dt.days
+                df_tempo = df_status6.dropna(subset=['dias_parada'])
+                
+                if not df_tempo.empty:
+                    media_tempo = int(df_tempo['dias_parada'].mean())
+                    max_tempo = int(df_tempo['dias_parada'].max())
+                    min_tempo = int(df_tempo['dias_parada'].min())
+                    idx_max = df_tempo['dias_parada'].idxmax()
+                    empresa_antiga = df_tempo.loc[idx_max, 'ose']
+                    nup_antigo = df_tempo.loc[idx_max, 'nup']
+                else:
                     media_tempo, max_tempo, min_tempo = 0, 0, 0
                     empresa_antiga, nup_antigo = "N/A", "N/A"
 
                 total_dinheiro_st6 = df_status6['v_liq'].sum()
+                qtd_notas_st6 = len(df_status6) # Quantidade total de linhas no status 6
 
-                # --- NOVO LAYOUT DE MÉTRICAS: MATRIZ 2x2 (Evita esmagar números grandes) ---
-                col_kpi1, col_kpi2 = st.columns(2)
+                # =======================================================
+                # LAYOUT DE DESTAQUE (Financeiro + Quantidade)
+                # =======================================================
+                c_destaque1, c_destaque2 = st.columns(2)
+                with c_destaque1:
+                    st.markdown(f"### 💰 Volume Total: **R$ {total_dinheiro_st6:,.2f}**")
+                with c_destaque2:
+                    st.markdown(f"### 📑 Quantidade: **{qtd_notas_st6} Notas de Empenho**")
                 
-                with col_kpi1:
-                    st.metric(label="Volume Aguardando NF", value=f"R$ {total_dinheiro_st6:,.2f}")
-                    st.write("") # Dá um respiro
+                st.write("") # Espaço
+
+                # Linha de métricas de tempo
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                with c2:
                     st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Crítico", delta_color="inverse")
                     if max_tempo > 0:
                         st.caption(f"**NUP:** {nup_antigo}")
                         st.caption(f"🏢 {empresa_antiga}")
-                        
-                with col_kpi2:
-                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
-                    st.write("") # Alinha com o card da esquerda
+                with c3:
                     st.metric(label="Fatura Mais Recente", value=f"{min_tempo} dias")
 
-                # --- DIVISOR E GRÁFICO GIGANTE (Sem Legenda) ---
+                # =======================================================
+                # GRÁFICO GIGANTE (Sem legenda para maximizar tamanho)
+                # =======================================================
                 st.divider()
                 
                 df_emp_st6 = df_status6.groupby('ose')['v_liq'].sum().reset_index()
@@ -3501,11 +3512,10 @@ else:
                     values='v_liq', 
                     names='ose', 
                     hole=0.45,
-                    title="Distribuição Financeira por Empresa (Aguardando NF)",
+                    title="Distribuição Financeira (Passe o mouse para identificar a empresa)",
                     color_discrete_sequence=px.colors.qualitative.Safe
                 )
                 
-                # Desligando a legenda para focar só na pizza e no Hover (Mouse)
                 fig_st6.update_traces(
                     textposition='inside', 
                     textinfo='percent',
