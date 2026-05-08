@@ -2986,6 +2986,38 @@ else:
                                     else:
                                         st.error("❌ Falha técnica no envio. Verifique os logs no Manage App.")
 
+                            # --- BOTÃO DE DEVOLUÇÃO (Estorno de NE) ---
+                            st.divider()
+                            with st.expander("🚨 Detectou erro na NE? (Devolver p/ Execução)"):
+                                st.write("Esta ação limpará o número da NE e retornará os processos para a fila de empenho.")
+                                motivo_estorno = st.text_area("Motivo da devolução:", placeholder="Ex: Valor da NE não confere com o líquido da auditoria.", key=f"motivo_dev_{ne_alvo}")
+                                
+                                if st.button("↩️ Confirmar Devolução p/ Execução", type="primary", use_container_width=True, key=f"btn_dev_{ne_alvo}"):
+                                    if motivo_estorno:
+                                        with st.spinner("Estornando processos..."):
+                                            try:
+                                                aba_p = sh.worksheet("SISAFA-NAVAL-processos")
+                                                for nup_item in df_ne_fisc['nup'].tolist():
+                                                    cell = aba_p.find(str(nup_item))
+                                                    if cell:
+                                                        # 1. Limpa a NE (Coluna 15)
+                                                        aba_p.update_cell(cell.row, 15, "")
+                                                        
+                                                        # 2. Retorna para Status 4 (Aguardando Emissão de NE)
+                                                        # Nota: Se você preferir o status 5, altere o número abaixo
+                                                        aba_p.update_cell(cell.row, 11, 4) 
+                                                        
+                                                        # 3. Registra a ação com a justificativa
+                                                        fatura_n = df[df['nup'] == nup_item]['Numero_da_fatura'].values[0]
+                                                        registrar_acao(nup_item, fatura_n, "NE_DEVOLVIDA", f"Motivo: {motivo_estorno}")
+                                                
+                                                st.success(f"✅ NE {ne_alvo} estornada e devolvida com sucesso!")
+                                                time.sleep(1.5)
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Erro no estorno: {e}")
+                                    else:
+                                        st.error("⚠️ É obrigatório informar o motivo para a devolução.")    
 
 
         # --- 3. ABA: RELACIONAMENTO (Módulo Fiscalização) ---
