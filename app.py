@@ -72,12 +72,31 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. ALVO ÚNICO: Esconde apenas o botão de Deploy (o gato do GitHub) */
-        .stAppDeployButton {
+        /* O Streamlit divide o header em 2 blocos: o [1] é a setinha, o [2] é a barra do Cloud */
+        header[data-testid="stHeader"] > div:nth-child(2) {
             display: none !important;
         }
 
-        /* 2. IDENTIDADE VISUAL: Mantém seus botões no verde SISAFA */
+        /* Tática reserva caso o Cloud injete o botão fora do cabeçalho */
+        div[class^="viewerBadge"] {
+            display: none !important;
+        }
+
+        /* 2. PROTEÇÃO DO LEME (SIDEBAR) */
+        header[data-testid="stHeader"] {
+            background-color: transparent !important;
+        }
+        
+        button[data-testid="stSidebarCollapseButton"] {
+            visibility: visible !important;
+            color: #2e6b54 !important; /* Setinha no verde SISAFA */
+        }
+
+        /* 3. LIMPEZA DE MENU E RODAPÉ */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+
+        /* 4. IDENTIDADE VISUAL: Seus botões no verde padrão */
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
@@ -90,16 +109,10 @@ st.markdown("""
             background-color: #1e4536 !important;
         }
 
-        /* 3. MANUTENÇÃO DO LEME: Garante que a setinha da Sidebar continue viva */
-        button[data-testid="stSidebarCollapseButton"] {
-            visibility: visible !important;
-            color: #2e6b54 !important;
+        /* Ajuste do topo da página */
+        .block-container {
+            padding-top: 1.5rem !important;
         }
-
-        /* 4. RODAPÉ E MENU: Opcional (se quiser esconder o 'Made with Streamlit') */
-        footer {visibility: hidden;}
-        #MainMenu {visibility: hidden;}
-
     </style>
 """, unsafe_allow_html=True)
 
