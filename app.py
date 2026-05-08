@@ -70,34 +70,20 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. MANTÉM A SETINHA A SALVO E O CABEÇALHO TRANSPARENTE */
-        header[data-testid="stHeader"] {
-            background-color: transparent !important;
-        }
-        
-        button[data-testid="stSidebarCollapseButton"] {
-            color: #2e6b54 !important; /* Deixa a setinha no verde do HOSBRA */
-        }
-
-        /* 2. O TIRO DE SNIPER NO GATO E SEUS AMIGOS (Share, Estrela, Lápis) */
-        /* Varremos todas as classes conhecidas do Streamlit Cloud */
-        .viewerBadge_container,
-        .viewerBadge_link,
-        [class^="viewerBadge"],
-        [data-testid="stToolbar"],
-        [data-testid="stHeaderActionElements"],
-        .stAppDeployButton {
+        /* 1. O TIRO DE SNIPER NA SETINHA DA BARRA LATERAL (<<) */
+        [data-testid="stSidebarHeader"] button,
+        [data-testid="stSidebarCollapseButton"] {
             display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
             pointer-events: none !important;
         }
 
-        /* 3. LIMPEZA DO MENU HAMBÚRGUER E RODAPÉ */
+        /* --- MANTENHA O RESTO DO SEU CÓDIGO AQUI --- */
+        /* Exemplo do que já tínhamos: */
+        header[data-testid="stHeader"] { background-color: transparent !important; }
+        .viewerBadge_container, [class^="viewerBadge"], [data-testid="stToolbar"], .stAppDeployButton { display: none !important; }
         #MainMenu { display: none !important; }
         footer { display: none !important; }
-
-        /* 4. IDENTIDADE VISUAL: Seus botões no Verde SISAFA */
+        
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
@@ -105,14 +91,8 @@ st.markdown("""
             border: none !important;
             font-weight: bold !important;
         }
-        div.stButton > button:hover {
-            background-color: #1e4536 !important;
-        }
-        
-        /* Ajuste do topo para não colar muito em cima */
-        .block-container {
-            padding-top: 2rem !important;
-        }
+        div.stButton > button:hover { background-color: #1e4536 !important; }
+        .block-container { padding-top: 2rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
