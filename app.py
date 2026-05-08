@@ -72,45 +72,34 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* 1. O VERDE DO SISAFA: Estilização dos botões principais */
-        div.stButton > button {
-            background-color: #2e6b54 !important; 
-            color: white !important;
-            border-radius: 5px !important;
-            border: none !important;
-            font-weight: bold !important;
-            transition: 0.3s;
-        }
-
-        /* Efeito ao passar o mouse (hover) */
-        div.stButton > button:hover {
-            background-color: #1e4d3a !important; /* Verde um pouco mais escuro */
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
-        }
-
-        /* 2. OPERAÇÃO SILENCIOSA: Sumir com o Gato, Estrela e Lápis */
-        div[data-testid="stHeaderActionElements"] {
+        /* 1. ALVO ÚNICO: Esconde apenas o botão de Deploy (o gato do GitHub) */
+        .stAppDeployButton {
             display: none !important;
         }
 
-        /* 3. LIMPEZA DE CABEÇALHO: Esconde o menu de hambúrguer e rodapé */
-        #MainMenu { visibility: hidden; }
-        footer { visibility: hidden; }
-
-        /* 4. MANUTENÇÃO DO LEME: Garante que a setinha da Sidebar funcione */
-        header[data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0) !important;
+        /* 2. IDENTIDADE VISUAL: Mantém seus botões no verde SISAFA */
+        div.stButton > button {
+            background-color: #2e6b54 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            border: none !important;
+            font-weight: bold !important;
         }
         
-        button[data-testid="stSidebarCollapseButton"] {
-            visibility: visible !important;
-            color: #2e6b54 !important; /* Setinha no verde do sistema */
+        div.stButton > button:hover {
+            background-color: #1e4536 !important;
         }
 
-        /* Ajuste de respiro no topo */
-        .block-container {
-            padding-top: 2rem !important;
+        /* 3. MANUTENÇÃO DO LEME: Garante que a setinha da Sidebar continue viva */
+        button[data-testid="stSidebarCollapseButton"] {
+            visibility: visible !important;
+            color: #2e6b54 !important;
         }
+
+        /* 4. RODAPÉ E MENU: Opcional (se quiser esconder o 'Made with Streamlit') */
+        footer {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+
     </style>
 """, unsafe_allow_html=True)
 
