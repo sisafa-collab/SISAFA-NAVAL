@@ -3491,14 +3491,14 @@ else:
                 # Linha de métricas de tempo
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.metric(label="Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
+                    st.metric(label="⏳ Média de Tempo", value=f"{media_tempo} dias", delta="Gargalo Médio", delta_color="inverse")
                 with c2:
-                    st.metric(label="Fatura Mais Antiga", value=f"{max_tempo} dias", delta="Atraso Crítico", delta_color="inverse")
+                    st.metric(label="⚠️ Fatura Mais Antiga", value=f"{max_tempo} dias", delta="💣💣💣💣💣", delta_color="inverse")
                     if max_tempo > 0:
                         st.caption(f"**NUP:** {nup_antigo}")
                         st.caption(f"🏢 {empresa_antiga}")
                 with c3:
-                    st.metric(label="Fatura Mais Recente", value=f"{min_tempo} dias")
+                    st.metric(label="😶‍🌫️ Fatura Mais Recente", value=f"{min_tempo} dias")
 
                 # =======================================================
                 # GRÁFICO GIGANTE (Sem legenda para maximizar tamanho)
