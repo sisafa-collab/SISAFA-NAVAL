@@ -72,31 +72,24 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-        /* O Streamlit divide o header em 2 blocos: o [1] é a setinha, o [2] é a barra do Cloud */
-        header[data-testid="stHeader"] > div:nth-child(2) {
-            display: none !important;
+        /* 1. Esconde o Gato, Menu e Rodapé (Limpeza do Cabeçalho) */
+        header[data-testid="stHeader"] { display: none !important; }
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+
+        /* 2. Trava a Barra Lateral ABERTA (Remove a setinha) apenas em Telas Grandes */
+        @media (min-width: 992px) {
+            button[data-testid="stSidebarCollapseButton"] {
+                display: none !important;
+            }
         }
 
-        /* Tática reserva caso o Cloud injete o botão fora do cabeçalho */
-        div[class^="viewerBadge"] {
-            display: none !important;
+        /* 3. Ajuste do topo para o conteúdo não bater no teto */
+        .block-container {
+            padding-top: 2rem !important;
         }
 
-        /* 2. PROTEÇÃO DO LEME (SIDEBAR) */
-        header[data-testid="stHeader"] {
-            background-color: transparent !important;
-        }
-        
-        button[data-testid="stSidebarCollapseButton"] {
-            visibility: visible !important;
-            color: #2e6b54 !important; /* Setinha no verde SISAFA */
-        }
-
-        /* 3. LIMPEZA DE MENU E RODAPÉ */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-
-        /* 4. IDENTIDADE VISUAL: Seus botões no verde padrão */
+        /* 4. O Verde SISAFA nos botões */
         div.stButton > button {
             background-color: #2e6b54 !important;
             color: white !important;
@@ -104,14 +97,8 @@ st.markdown("""
             border: none !important;
             font-weight: bold !important;
         }
-        
         div.stButton > button:hover {
             background-color: #1e4536 !important;
-        }
-
-        /* Ajuste do topo da página */
-        .block-container {
-            padding-top: 1.5rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
