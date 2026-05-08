@@ -1192,6 +1192,7 @@ else:
                                                         
                                 valor_atual_glosa = f"{item.get('cod', '')} - {item.get('desc_glosa', '')}"
                                 index_glosa = 0
+                                
                                 if valor_atual_glosa in lista_opcoes_glosa and item.get('cod', '') != "":
                                 index_glosa = lista_opcoes_glosa.index(valor_atual_glosa)
 
