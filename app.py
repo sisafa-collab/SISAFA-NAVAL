@@ -3034,14 +3034,12 @@ else:
                                                 for nup_item in df_ne_fisc['nup'].tolist():
                                                     cell = aba_p.find(str(nup_item))
                                                     if cell:
-                                                        # 1. Limpa a NE (Coluna 15)
-                                                        aba_p.update_cell(cell.row, 15, "")
-                                                        
-                                                        # 2. Retorna para Status 4 (Aguardando Emissão de NE)
+                                                                                                       
+                                                        # 1. Retorna para Status 5
                                                         # Nota: Se você preferir o status 5, altere o número abaixo
-                                                        aba_p.update_cell(cell.row, 11, 4) 
+                                                        aba_p.update_cell(cell.row, 11, 5) 
                                                         
-                                                        # 3. Registra a ação com a justificativa
+                                                        # 2. Registra a ação com a justificativa
                                                         fatura_n = df[df['nup'] == nup_item]['Numero_da_fatura'].values[0]
                                                         registrar_acao(nup_item, fatura_n, "NE_DEVOLVIDA", f"Motivo: {motivo_estorno}")
                                                 
