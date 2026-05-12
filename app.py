@@ -3417,7 +3417,6 @@ else:
                 st.write("---")
                 st.subheader("📈 Evolução de Custos por Empresa")
 
-                # Identificação dinâmica da coluna
                 col_comp = None
                 for c in df_sec4.columns:
                     if "competencia" in c.lower().strip() or "comp" in c.lower().strip():
@@ -3425,71 +3424,59 @@ else:
                         break
 
                 if not col_comp:
-                    st.error("❌ Coluna de Competência não encontrada no SISAFA.")
+                    st.error("❌ Coluna de Competência não encontrada.")
                 else:
                     lista_empresas = sorted(df_empresas_geral['ose'].unique().tolist())
                     empresa_selecionada = st.selectbox(
                         "Selecione a Empresa para análise detalhada:", 
-                        lista_empresas,
-                        key="sel_evolucao_empresa"
+                        lista_empresas, key="sel_evolucao_empresa"
                     )
 
                     if empresa_selecionada:
                         df_evol = df_sec4[df_sec4['ose'] == empresa_selecionada].copy()
                         
-                        # --- SUPER-VACINA DE DATA ---
-                        # 1. Remove espaços e garante que é string
-                        df_evol[col_comp] = df_evol[col_comp].astype(str).str.strip()
+                        # --- TRATAMENTO ESPECIAL PARA NÚMEROS DE MÊS ISOLADOS ---
+                        def tratar_data_flexivel(v):
+                            v_str = str(v).strip().replace('.0', '')
+                            if not v_str or v_str == 'nan': return pd.NaT
+                            
+                            # Se for apenas o número do mês (ex: 1, 2, 12)
+                            if v_str.isdigit() and 1 <= int(v_str) <= 12:
+                                return pd.to_datetime(f"{v_str.zfill(2)}/2026", format='%m/%Y')
+                            
+                            # Tenta formatos padrão (01/2026, 2026-01-01, etc)
+                            return pd.to_datetime(v_str, errors='coerce', dayfirst=True)
+
+                        df_evol['dt_ordem'] = df_evol[col_comp].apply(tratar_data_flexivel)
                         
-                        # 2. Tenta converter sem formato fixo (mais flexível)
-                        # O dayfirst=True ajuda o Python a entender que o mês vem antes do ano em formatos curtos
-                        df_evol['dt_ordem'] = pd.to_datetime(df_evol[col_comp], errors='coerce', dayfirst=True)
-                        
-                        # 3. Se ainda houver falhas, tenta o formato específico MM/YYYY
+                        # Fallback final para o formato MM/YYYY se o de cima falhar
                         mascara_vazia = df_evol['dt_ordem'].isna()
                         if mascara_vazia.any():
                             df_evol.loc[mascara_vazia, 'dt_ordem'] = pd.to_datetime(
                                 df_evol.loc[mascara_vazia, col_comp], 
-                                format='%m/%Y', 
-                                errors='coerce'
+                                format='%m/%Y', errors='coerce'
                             )
 
-                        # Limpa o que não foi possível converter de jeito nenhum
                         df_evol = df_evol.dropna(subset=['dt_ordem'])
                         
                         if df_evol.empty:
-                            st.warning(f"⚠️ Não foi possível ler as datas da empresa '{empresa_selecionada}'.")
-                            # MOSTRA O QUE ESTÁ ESCRITO NA PLANILHA PARA VOCÊ CORRIGIR
-                            amostra = df_sec4[df_sec4['ose'] == empresa_selecionada][col_comp].unique()
-                            st.info(f"Valores encontrados na coluna '{col_comp}': {amostra}")
-                            st.caption("Dica: Use o formato padrão MM/AAAA (Ex: 05/2026) na planilha.")
+                            st.warning(f"⚠️ Formato de data inválido para '{empresa_selecionada}'.")
+                            st.info(f"Valores na planilha: {df_sec4[df_sec4['ose'] == empresa_selecionada][col_comp].unique()}")
                         else:
-                            # 4. Agrupamento e Ordenação
-                            df_evol_grafico = df_evol.groupby(['dt_ordem', col_comp])['v_liq'].sum().reset_index()
+                            # Criamos uma coluna de exibição bonita (Janeiro/26, etc) para o eixo X
+                            df_evol['mes_bonito'] = df_evol['dt_ordem'].dt.strftime('%m/%Y')
+                            
+                            df_evol_grafico = df_evol.groupby(['dt_ordem', 'mes_bonito'])['v_liq'].sum().reset_index()
                             df_evol_grafico = df_evol_grafico.sort_values('dt_ordem')
 
-                            # 5. Gráfico de Linha Profissional
                             fig_line = px.line(
-                                df_evol_grafico, 
-                                x=col_comp, 
-                                y='v_liq',
+                                df_evol_grafico, x='mes_bonito', y='v_liq',
                                 title=f"Histórico de Custos: {empresa_selecionada}",
-                                markers=True,
-                                template="plotly_white"
+                                markers=True, template="plotly_white"
                             )
 
-                            fig_line.update_traces(
-                                line_color='#1f77b4', 
-                                line_width=3,
-                                marker=dict(size=10, color='#1f77b4')
-                            )
-
-                            fig_line.update_layout(
-                                yaxis_tickprefix="R$ ",
-                                hovermode="x unified",
-                                margin=dict(l=20, r=20, t=60, b=20)
-                            )
-
+                            fig_line.update_traces(line_color='#1f77b4', line_width=3, marker=dict(size=10))
+                            fig_line.update_layout(yaxis_tickprefix="R$ ", hovermode="x unified")
                             st.plotly_chart(fig_line, use_container_width=True)
            
             # =======================================================
