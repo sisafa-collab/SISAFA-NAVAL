@@ -3416,22 +3416,17 @@ else:
                 # =======================================================
                 st.write("---")
                 st.subheader("📈 Evolução de Custos por Empresa")
-                
-                # --- MANOBRA DE RECONHECIMENTO (DEBUG) ---
-                # Vamos identificar como a coluna de competência se chama de verdade
-                colunas_disponiveis = df_sec4.columns.tolist()
-                
-                # Procuramos por variações comuns (competencia, Competência, Comp)
+
+                # Identificação dinâmica da coluna
                 col_comp = None
-                for c in colunas_disponiveis:
+                for c in df_sec4.columns:
                     if "competencia" in c.lower().strip() or "comp" in c.lower().strip():
                         col_comp = c
                         break
-                
+
                 if not col_comp:
-                    st.error(f"❌ Coluna de Competência não encontrada! Colunas disponíveis: {colunas_disponiveis}")
+                    st.error("❌ Coluna de Competência não encontrada no SISAFA.")
                 else:
-                    # 1. Seleção da Empresa
                     lista_empresas = sorted(df_empresas_geral['ose'].unique().tolist())
                     empresa_selecionada = st.selectbox(
                         "Selecione a Empresa para análise detalhada:", 
@@ -3442,34 +3437,60 @@ else:
                     if empresa_selecionada:
                         df_evol = df_sec4[df_sec4['ose'] == empresa_selecionada].copy()
                         
-                        # USAMOS O NOME DA COLUNA QUE O SISTEMA IDENTIFICOU (col_comp)
-                        df_evol['dt_ordem'] = pd.to_datetime(df_evol[col_comp], format='%m/%Y', errors='coerce')
+                        # --- SUPER-VACINA DE DATA ---
+                        # 1. Remove espaços e garante que é string
+                        df_evol[col_comp] = df_evol[col_comp].astype(str).str.strip()
                         
-                        # Remove datas que não foram convertidas (erros de digitação na planilha)
+                        # 2. Tenta converter sem formato fixo (mais flexível)
+                        # O dayfirst=True ajuda o Python a entender que o mês vem antes do ano em formatos curtos
+                        df_evol['dt_ordem'] = pd.to_datetime(df_evol[col_comp], errors='coerce', dayfirst=True)
+                        
+                        # 3. Se ainda houver falhas, tenta o formato específico MM/YYYY
+                        mascara_vazia = df_evol['dt_ordem'].isna()
+                        if mascara_vazia.any():
+                            df_evol.loc[mascara_vazia, 'dt_ordem'] = pd.to_datetime(
+                                df_evol.loc[mascara_vazia, col_comp], 
+                                format='%m/%Y', 
+                                errors='coerce'
+                            )
+
+                        # Limpa o que não foi possível converter de jeito nenhum
                         df_evol = df_evol.dropna(subset=['dt_ordem'])
                         
-                        # 3. Agrupamento por mês
-                        df_evol_grafico = df_evol.groupby(['dt_ordem', col_comp])['v_liq'].sum().reset_index()
-                        df_evol_grafico = df_evol_grafico.sort_values('dt_ordem')
-
-                        if df_evol_grafico.empty:
-                            st.warning(f"⚠️ Sem dados válidos na coluna '{col_comp}' para esta empresa.")
+                        if df_evol.empty:
+                            st.warning(f"⚠️ Não foi possível ler as datas da empresa '{empresa_selecionada}'.")
+                            # MOSTRA O QUE ESTÁ ESCRITO NA PLANILHA PARA VOCÊ CORRIGIR
+                            amostra = df_sec4[df_sec4['ose'] == empresa_selecionada][col_comp].unique()
+                            st.info(f"Valores encontrados na coluna '{col_comp}': {amostra}")
+                            st.caption("Dica: Use o formato padrão MM/AAAA (Ex: 05/2026) na planilha.")
                         else:
-                            # 4. Gráfico de Linha
+                            # 4. Agrupamento e Ordenação
+                            df_evol_grafico = df_evol.groupby(['dt_ordem', col_comp])['v_liq'].sum().reset_index()
+                            df_evol_grafico = df_evol_grafico.sort_values('dt_ordem')
+
+                            # 5. Gráfico de Linha Profissional
                             fig_line = px.line(
                                 df_evol_grafico, 
-                                x=col_comp, # Usa o nome dinâmico aqui também
+                                x=col_comp, 
                                 y='v_liq',
                                 title=f"Histórico de Custos: {empresa_selecionada}",
                                 markers=True,
                                 template="plotly_white"
                             )
 
-                            fig_line.update_traces(line_color='#1f77b4', line_width=3)
-                            fig_line.update_layout(yaxis_tickprefix="R$ ")
+                            fig_line.update_traces(
+                                line_color='#1f77b4', 
+                                line_width=3,
+                                marker=dict(size=10, color='#1f77b4')
+                            )
+
+                            fig_line.update_layout(
+                                yaxis_tickprefix="R$ ",
+                                hovermode="x unified",
+                                margin=dict(l=20, r=20, t=60, b=20)
+                            )
+
                             st.plotly_chart(fig_line, use_container_width=True)
-
-
            
             # =======================================================
             # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
