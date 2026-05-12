@@ -3411,6 +3411,63 @@ else:
                     df_show_emp.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Total'}, inplace=True)
                     st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
 
+                # =======================================================
+                # === BÔNUS: EVOLUÇÃO DE CUSTOS POR EMPRESA (LINHA) ===
+                # =======================================================
+                st.write("---")
+                st.subheader("📈 Evolução de Custos por Empresa")
+                st.markdown("Selecione uma empresa para analisar o histórico de faturamento por competência.")
+
+                # 1. Seleção da Empresa
+                lista_empresas = sorted(df_empresas_geral['ose'].unique().tolist())
+                empresa_selecionada = st.selectbox(
+                    "Selecione a Empresa para análise detalhada:", 
+                    lista_empresas,
+                    key="sel_evolucao_empresa"
+                )
+
+                if empresa_selecionada:
+                    # 2. Filtragem e Tratamento de Datas
+                    df_evol = df_sec4[df_sec4['ose'] == empresa_selecionada].copy()
+                    
+                    # Converte a competência (MM/YYYY) em data real para o Python ordenar corretamente
+                    # Caso sua coluna se chame 'competencia', o código abaixo a organiza:
+                    df_evol['dt_ordem'] = pd.to_datetime(df_evol['competencia'], format='%m/%Y', errors='coerce')
+                    
+                    # 3. Agrupamento por mês
+                    df_evol_grafico = df_evol.groupby(['dt_ordem', 'competencia'])['v_liq'].sum().reset_index()
+                    df_evol_grafico = df_evol_grafico.sort_values('dt_ordem')
+
+                    if df_evol_grafico.empty:
+                        st.warning("Não há dados de competência formatados para esta empresa.")
+                    else:
+                        # 4. Gráfico de Linha (Estilo "Radar Blue")
+                        fig_line = px.line(
+                            df_evol_grafico, 
+                            x='competencia', 
+                            y='v_liq',
+                            title=f"Histórico de Custos: {empresa_selecionada}",
+                            markers=True, # Adiciona os pontos na linha
+                            labels={'v_liq': 'Volume Financeiro (R$)', 'competencia': 'Mês de Competência'},
+                            template="plotly_white"
+                        )
+
+                        # Estilização para ficar idêntico ao gráfico azul enviado
+                        fig_line.update_traces(
+                            line_color='#1f77b4', # Azul Marinho/Teal
+                            line_width=3,
+                            marker=dict(size=8, color='#1f77b4', symbol="circle")
+                        )
+
+                        fig_line.update_layout(
+                            hovermode="x unified",
+                            yaxis_tickprefix="R$ ",
+                            margin=dict(l=20, r=20, t=60, b=20)
+                        )
+
+                        st.plotly_chart(fig_line, use_container_width=True)
+
+
            
             # =======================================================
             # === SEÇÃO 5: AGUARDANDO NOTA FISCAL (STATUS 6) ===
