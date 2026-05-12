@@ -2816,45 +2816,52 @@ else:
                         st.caption(f"🕒 Dados sincronizados em: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}")
 
                         # =================================================================
-                        # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR
+                        # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR 
                         # =================================================================
                         st.divider()
                         st.subheader("✉️ Comunicação com o Fornecedor")
                         
-                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True):
+                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True, key="btn_panorama_final"):
                             with st.spinner("Compilando dados financeiros..."):
-                                # 1. Identificação do Gestor (NIP de quem está logado)
-                                nome_gestor = st.session_state.get('usuario_nome', 'Gestor de Faturas - HOSBRA')
+                                # --- IDENTIFICAÇÃO DA COLUNA DE COMPETÊNCIA (Prevenção de NameError) ---
+                                col_comp_local = None
+                                for c in df_proc_fisc.columns:
+                                    if "competencia" in c.lower().strip() or "comp" in c.lower().strip():
+                                        col_comp_local = c
+                                        break
                                 
-                                # 2. Construção do Resumo Financeiro por Etapa
-                                resumo_corpo = ""
-                                
-                                # Ordenamos as etapas de 1 a 9 conforme o fluxo
-                                etapas_ativas = sorted(df_proc_fisc['status'].unique())
-                                
-                                for st_id in etapas_ativas:
-                                    if st_id == 9: continue # Geralmente não mandamos panorama de faturas já pagas
+                                if not col_comp_local:
+                                    st.error("❌ Coluna de competência não localizada nos dados da empresa.")
+                                else:
+                                    # 1. Identificação do Gestor
+                                    nome_gestor = st.session_state.get('usuario_nome', 'Gestor de Faturas - HOSBRA')
                                     
-                                    df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
+                                    # 2. Construção do Resumo Financeiro
+                                    resumo_corpo = ""
+                                    etapas_ativas = sorted(df_proc_fisc['status'].unique())
                                     
-                                    if not df_etapa.empty:
-                                        nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
-                                        total_etapa = df_etapa['v_liq'].sum()
+                                    for st_id in etapas_ativas:
+                                        if st_id == 9: continue # Pula faturas pagas
                                         
-                                        resumo_corpo += f"\n📍 **{nome_da_etapa}**\n"
-                                        resumo_corpo += f"Volume Total: R$ {total_etapa:,.2f}\n"
+                                        df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
                                         
-                                        # Agrupamento por Competência dentro da etapa
-                                        # (Usando col_comp identificada anteriormente no seu código)
-                                        for comp in sorted(df_etapa[col_comp].unique()):
-                                            df_comp = df_etapa[df_etapa[col_comp] == comp]
-                                            lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
-                                            subtotal_comp = df_comp['v_liq'].sum()
+                                        if not df_etapa.empty:
+                                            nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                            total_etapa = df_etapa['v_liq'].sum()
                                             
-                                            resumo_corpo += f"   - Competência {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
-                                
-                                # 3. Montagem do Template Final
-                                msg_final = f"""Prezado representante da empresa {ose_sel},
+                                            resumo_corpo += f"\n📍 **{nome_da_etapa}**\n"
+                                            resumo_corpo += f"Volume Total: R$ {total_etapa:,.2f}\n"
+                                            
+                                            # Agrupamento por Competência usando a coluna localizada localmente
+                                            for comp in sorted(df_etapa[col_comp_local].unique()):
+                                                df_comp = df_etapa[df_etapa[col_comp_local] == comp]
+                                                lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                                subtotal_comp = df_comp['v_liq'].sum()
+                                                
+                                                resumo_corpo += f"   - Competência {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                    
+                                    # 3. Montagem do Template Final
+                                    msg_final = f"""Prezado representante da empresa {ose_sel},
 
                 Cumprimentando-o cordialmente, seguem abaixo as seguintes orientações: 
 
@@ -2872,12 +2879,9 @@ else:
 
                 {nome_gestor}"""
 
-                                # 4. Exibição em uma área de texto para fácil cópia
-                                st.success("✅ Panorama gerado com sucesso!")
-                                st.text_area("Copie o texto abaixo para o e-mail:", value=msg_final, height=500)
-                                
-                                # Botão bônus para abrir o cliente de e-mail (opcional)
-                                st.caption("Dica: Clique no texto, use Ctrl+A e Ctrl+C para copiar.")
+                                    # 4. Exibição
+                                    st.success("✅ Panorama gerado com sucesso!")
+                                    st.text_area("Copie o texto abaixo para o e-mail:", value=msg_final, height=500)
 
 
 
