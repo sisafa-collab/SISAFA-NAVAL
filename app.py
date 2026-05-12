@@ -3412,7 +3412,7 @@ else:
                     st.dataframe(df_show_emp, use_container_width=True, hide_index=True)
 
                 # =======================================================
-                # === BÔNUS: EVOLUÇÃO DE CUSTOS POR EMPRESA (MODERNO) ===
+                # === BÔNUS: EVOLUÇÃO DE CUSTOS POR EMPRESA (FINAL) ===
                 # =======================================================
                 st.write("---")
                 st.subheader("📈 Evolução de Custos por Empresa")
@@ -3439,24 +3439,28 @@ else:
                         def tratar_data_flexivel(v):
                             v_str = str(v).strip().replace('.0', '')
                             if not v_str or v_str == 'nan': return pd.NaT
+                            # Se for só o número, assume 2026 (ajuste se necessário para 2025)
                             if v_str.isdigit() and 1 <= int(v_str) <= 12:
                                 return pd.to_datetime(f"{v_str.zfill(2)}/2026", format='%m/%Y')
                             return pd.to_datetime(v_str, errors='coerce', dayfirst=True)
 
                         df_evol['dt_ordem'] = df_evol[col_comp].apply(tratar_data_flexivel)
-                        df_evol = df_evol.dropna(subset=['dt_ordem'])
+                        
+                        # --- FILTRO 1: Remove o que não virou data e o que está no futuro (ex: Dez/26) ---
+                        hoje = pd.Timestamp.now()
+                        df_evol = df_evol[df_evol['dt_ordem'] <= hoje].dropna(subset=['dt_ordem'])
                         
                         if df_evol.empty:
-                            st.warning(f"⚠️ Sem dados cronológicos para '{empresa_selecionada}'.")
+                            st.warning(f"⚠️ Sem dados históricos processados para '{empresa_selecionada}'.")
                         else:
-                            # Renomeia para o nome solicitado pelo comando
+                            # Nome oficial solicitado pelo comando
                             df_evol['mes_competencia'] = df_evol['dt_ordem'].dt.strftime('%m/%Y')
                             
-                            # Agrupamento (Mostra apenas meses que REALMENTE existem nos dados)
+                            # Agrupamento real
                             df_evol_grafico = df_evol.groupby(['dt_ordem', 'mes_competencia'])['v_liq'].sum().reset_index()
                             df_evol_grafico = df_evol_grafico.sort_values('dt_ordem')
 
-                            # --- GRÁFICO DE ÁREA (DESIGN MODERNO) ---
+                            # --- GRÁFICO DE ÁREA MODERNO ---
                             fig_line = px.area(
                                 df_evol_grafico, 
                                 x='mes_competencia', 
@@ -3466,10 +3470,9 @@ else:
                                 template="plotly_white"
                             )
 
-                            # Estilização "Radar Blue"
                             fig_line.update_traces(
-                                line_color='#2c5d71', # Azul Petróleo/Naval
-                                fillcolor='rgba(44, 93, 113, 0.2)', # Preenchimento suave
+                                line_color='#2c5d71', 
+                                fillcolor='rgba(44, 93, 113, 0.2)',
                                 marker=dict(size=10, color='#2c5d71', symbol="circle", line=dict(width=2, color="white")),
                                 hovertemplate="<b>%{x}</b><br>Volume: R$ %{y:,.2f}<extra></extra>"
                             )
@@ -3479,15 +3482,14 @@ else:
                                 yaxis_title="Valor Líquido (R$)",
                                 hovermode="x unified",
                                 yaxis_tickprefix="R$ ",
-                                font=dict(family="Arial", size=12),
                                 margin=dict(l=20, r=20, t=60, b=20),
-                                plot_bgcolor='rgba(0,0,0,0)', # Fundo transparente
+                                plot_bgcolor='rgba(0,0,0,0)',
                                 paper_bgcolor='rgba(0,0,0,0)'
                             )
 
-                            # Linhas de grade sutis
+                            # --- FILTRO 2: Força o eixo X a ser categórico (Não inventa meses vazios) ---
+                            fig_line.update_xaxes(type='category', showgrid=False)
                             fig_line.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.05)')
-                            fig_line.update_xaxes(showgrid=False)
 
                             st.plotly_chart(fig_line, use_container_width=True)
                 
