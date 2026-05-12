@@ -3569,14 +3569,14 @@ else:
                     
                     # 3. Mapeamento das Etapas
                     mapa_status = {                
-                    1: "1. 📥 Cadastrada (SECOM)",
-                    2: "2. 🩺 Em Auditagem",
-                    3: "3. ✅ Auditada",
-                    4: "4. 💰 Aguardando NE",
-                    5: "5. 🏦 Empenhada",
-                    6: "6. 📝 Aguardando NF",
-                    7: "7. ⏳ Em liquidação",
-                    8: "8. 🖥️ Liquidada",
+                        "1": "1. 📥 Cadastrada (SECOM)",
+                        "2": "2. 🩺 Em Auditagem",
+                        "3": "3. ✅ Auditada",
+                        "4": "4. 💰 Aguardando NE",
+                        "5": "5. 🏦 Empenhada",
+                        "6": "6. 📝 Aguardando NF",
+                        "7": "7. ⏳ Em liquidação",
+                        "8": "8. 🖥️ Liquidada",
                     }
                     
                     df_h['nome_etapa'] = df_h[col_dest].map(mapa_status)
