@@ -2858,7 +2858,7 @@ else:
                                         3: "Auditoria técnica concluída com sucesso.",
                                         4: "Aguardando a reserva orçamentária, com vistas à emissão da Nota de Empenho.",
                                         5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados dos os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
-                                        6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão do documentos fiscal."
+                                        6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão do documentos fiscal.",
                                         7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo fiscal (titular ou substituto) e, posteriormente, encaminhada para a Seção de Execução Financeira.",
                                         8: "Liquidação da Nota Fiscal no Sistema Integrado de Administração Financeira do Governo Federal (SIAFI) 🖥️, conforme o estabelecido no artigo 63 da Lei 4.320/64.",
                                         9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários pertinentes."
