@@ -2996,10 +2996,42 @@ else:
                                     
                                     if sucesso:
                                         st.success(f"✅ E-mail enviado com sucesso para {email_destino_limpo}!")
-                                        # Registra a ação no sistema para auditoria (opcional)
-                                        # registrar_acao(ne_alvo, "N/A", "SOLICITACAO_NF_ENVIADA", f"Para: {email_destino_limpo}")
-                                    else:
-                                        st.error("❌ Falha técnica no envio. Verifique os logs no Manage App.")
+                                        with st.spinner("📑 Atualizando registros de auditoria..."):
+                                            # Percorre todos os processos (NUPs) vinculados a esta NE
+                                            for nup_item in df_ne_fisc['nup'].tolist():
+                                                try:
+                                                    # Recupera os dados do processo para o log
+                                                    dados_nup = df[df['nup'] == nup_item].iloc[0]
+                                                    fatura_n = dados_nup['Numero_da_fatura']
+                                                    # Garante que pegamos o valor líquido formatado
+                                                    valor_momento = dados_nup.get('v_liq', dados_nup.get('valor_liquido', 0))
+                                                    status_atual = str(dados_nup['status']).replace('.0', '')
+
+                                                    # 1. REGISTRA A AÇÃO (Log de Eventos)
+                                                    registrar_acao(
+                                                        nup_item, 
+                                                        fatura_n, 
+                                                        "SOLICITACAO_NF_ENVIADA", 
+                                                        f"E-mail enviado para: {email_destino_limpo}"
+                                                    )
+
+                                                    # 2. REGISTRA O HISTÓRICO (Cronômetro de Produtividade)
+                                                    # Mantemos o status de origem e destino iguais (ex: 6 -> 6) 
+                                                    # apenas para marcar que houve interação no processo hoje.
+                                                    registrar_historico(
+                                                        nup_item,
+                                                        fatura_n,
+                                                        status_atual,
+                                                        status_atual,
+                                                        valor_momento,
+                                                        f"Solicitação oficial de NF enviada para {email_destino_limpo}"
+                                                    )
+                                                except Exception as e:
+                                                    st.error(f"Erro ao registrar log para o NUP {nup_item}: {e}")
+                                        
+                                        st.info("💡 Registros de auditoria atualizados com sucesso.")
+                                        time.sleep(1.5)
+                                        st.rerun()
 
                             # --- BOTÃO DE DEVOLUÇÃO (Estorno de NE) ---
                             st.divider()
@@ -3010,6 +3042,8 @@ else:
                                 Prezado (a), caso tenha constatado algum erro na Nota de Empenho, tais como: 
                                 
                                 🛑 Valor incorreto;
+
+                                🛑 Não sou fiscal (titular ou substituto) da referida Nota de Empenho;
                                 
                                 🛑 CNPJ incorreto;
                                 
@@ -3031,21 +3065,45 @@ else:
                                         with st.spinner("Estornando processos..."):
                                             try:
                                                 aba_p = sh.worksheet("SISAFA-NAVAL-processos")
+                                                # Captura o NIP do usuário logado (assumindo que está no session_state)
+                                                usuario_atual = st.session_state.get('usuario_nip', 'N/A')
+                                                
                                                 for nup_item in df_ne_fisc['nup'].tolist():
-                                                    cell = aba_p.find(str(nup_item))
+                                                    nup_str = str(nup_item).strip()
+                                                    cell = aba_p.find(nup_str)
+                                                    
                                                     if cell:
-                                                                                                       
-                                                        # 1. Retorna para Status 5
-                                                        # Nota: Se você preferir o status 5, altere o número abaixo
+                                                        # --- CAPTURA DE DADOS PARA O HISTÓRICO ---
+                                                        # Lemos a linha inteira para pegar status antigo e valor
+                                                        dados_linha = aba_p.row_values(cell.row)
+                                                        
+                                                        # Ajuste os índices [X] abaixo de acordo com sua planilha real:
+                                                        fatura_n = dados_linha[4]  # Coluna E (Numero_da_fatura)
+                                                        status_atual = dados_linha[10] # Coluna K (status)
+                                                        valor_momento = dados_linha[7] # Coluna H (valor_no_momento/líquido)
+                                                        
+                                                        # 1. Atualiza na aba de PROCESSOS (Retorna para Status 5)
                                                         aba_p.update_cell(cell.row, 11, 5) 
                                                         
-                                                        # 2. Registra a ação com a justificativa
-                                                        fatura_n = df[df['nup'] == nup_item]['Numero_da_fatura'].values[0]
-                                                        registrar_acao(nup_item, fatura_n, "NE_DEVOLVIDA", f"Motivo: {motivo_estorno}")
+                                                        # 2. Registra na aba de AÇÕES (Log de auditoria)
+                                                        registrar_acao(nup_str, fatura_n, "NE_DEVOLVIDA", f"Motivo: {motivo_estorno}")
+                                                        
+                                                        # 3. REGISTRA NA ABA HISTÓRICO (O que você pediu)
+                                                        # A função registrar_historico deve seguir a ordem: 
+                                                        # nup, fatura, orig, dest, valor, obs
+                                                        registrar_historico(
+                                                            nup_str, 
+                                                            fatura_n, 
+                                                            status_atual, 
+                                                            "5", 
+                                                            valor_momento, 
+                                                            f"ESTORNO: {motivo_estorno}"
+                                                        )
                                                 
-                                                st.success(f"✅ NE {ne_alvo} estornada e devolvida com sucesso!")
+                                                st.success(f"✅ NE {ne_alvo} devolvida com sucesso!")
                                                 time.sleep(1.5)
                                                 st.rerun()
+                                                
                                             except Exception as e:
                                                 st.error(f"Erro no estorno: {e}")
                                     else:
