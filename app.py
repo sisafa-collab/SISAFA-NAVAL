@@ -2815,22 +2815,27 @@ else:
 
                         st.caption(f"🕒 Dados sincronizados em: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}")
 
+        
                         # =================================================================
-                        # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR 
+                        # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR (VERSÃO FINALÍSSIMA)
                         # =================================================================
                         st.divider()
                         st.subheader("✉️ Comunicação com o Fornecedor")
                         
-                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True, key="btn_panorama_v2"):
-                            with st.spinner("Refinando dados para o e-mail oficial..."):
-                                # 1. Identificação Dinâmica da Coluna
+                        # Fallback para o nome do Gestor
+                        nome_usuario_logado = st.session_state.get('usuario_nome', "")
+                        nome_gestor_input = st.text_input("Assinatura (Seu Nome/Posto):", value=nome_usuario_logado, placeholder="Ex: CT (IM) SILVA")
+
+                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True, key="btn_panorama_final"):
+                            with st.spinner("⚓ Compilando dados e formatando e-mail..."):
+                                # 1. Identificação da Coluna
                                 col_comp_local = None
                                 for c in df_proc_fisc.columns:
                                     if "competencia" in c.lower().strip() or "comp" in c.lower().strip():
                                         col_comp_local = c
                                         break
                                 
-                                # 2. Dicionário de Explicações Sucintas (Conforme sua ordem)
+                                # 2. Dicionário de Explicações
                                 explica_etapa = {
                                     1: "Registro e conferência inicial da documentação na Secretaria.",
                                     2: "Análise técnica detalhada dos serviços e materiais cobrados.",
@@ -2842,18 +2847,12 @@ else:
                                     8: "Processo autorizado para pagamento imediato pelo setor financeiro."
                                 }
 
-                                # 3. Identificação do Gestor (Pega o nome do Auditor logado ou pede para preencher)
-                                nome_gestor = st.session_state.get('usuario_nome')
-                                if not nome_gestor:
-                                    nome_gestor = "Gestor de Faturas - HOSBRA"
-
-                                # 4. Construção do Resumo Financeiro
+                                # 3. Construção do Resumo
                                 resumo_corpo = ""
                                 etapas_ativas = sorted(df_proc_fisc['status'].unique())
                                 
                                 for st_id in etapas_ativas:
-                                    if st_id >= 9: continue # Pula faturas já pagas
-                                    
+                                    if st_id >= 9: continue 
                                     df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
                                     
                                     if not df_etapa.empty:
@@ -2861,47 +2860,54 @@ else:
                                         total_etapa = df_etapa['v_liq'].sum()
                                         descricao = explica_etapa.get(st_id, "")
                                         
-                                        resumo_corpo += f"\n🔹 **{nome_da_etapa}**\n"
-                                        resumo_corpo += f"_{descricao}_\n"
-                                        resumo_corpo += f"💰 **Volume Total na Etapa: R$ {total_etapa:,.2f}**\n"
+                                        resumo_corpo += f"\n🔹 {nome_da_etapa.upper()}\n"
+                                        resumo_corpo += f"   - {descricao}\n"
+                                        resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
                                         
-                                        # Detalha por "Mês de Entrada" (Antiga Competência)
                                         for comp in sorted(df_etapa[col_comp_local].unique()):
                                             df_comp = df_etapa[df_etapa[col_comp_local] == comp]
                                             lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
                                             subtotal_comp = df_comp['v_liq'].sum()
-                                            
-                                            resumo_corpo += f"   ➔ Mês de entrada no HNBra {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
-                                        resumo_corpo += "───" * 10 + "\n"
+                                            resumo_corpo += f"     ➔ Mês de entrada no HNBra {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                        resumo_corpo += "───────────────────────────────────────\n"
 
-                                # 5. Template do E-mail (Estilizado)
+                                # 4. Template do E-mail
                                 msg_final = f"""Prezado representante da empresa {ose_sel},
 
                 Cumprimentando-o cordialmente, seguem abaixo as orientações e o panorama atualizado de seus processos no Hospital Naval de Brasília (HNBra):
 
-                📌 **(i) DO CRITÉRIO DE PAGAMENTO**
-                Este hospital realiza a emissão das Notas de Empenho em estrita **ordem cronológica**, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. 
+                📌 (i) DO CRITÉRIO DE PAGAMENTO
+                Este hospital realiza a emissão das Notas de Empenho em estrita ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. 
 
-                Conforme a **Lei 14.133/21 (Art. 141)**: "No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos..."
+                Conforme a Lei 14.133/21 (Art. 141): "No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos..."
 
-                📊 **(ii) COMPOSIÇÃO ATUAL DOS PROCESSOS**
+                📊 (ii) COMPOSIÇÃO ATUAL DOS PROCESSOS
                 {resumo_corpo}
-
-                🚀 **(iii) PRÓXIMOS PASSOS**
+                🚀 (iii) PRÓXIMOS PASSOS
                 As faturas supracitadas seguem em fluxo contínuo de processamento. Assim que concluídas as etapas de conferência e reserva orçamentária, serão encaminhadas para a respectiva emissão de Nota Fiscal e posterior liquidação.
 
-                Reiteramos nosso compromisso com a **transparência, eficiência e legalidade** em todos os atos administrativos. ⚓🇧🇷
+                Reiteramos nosso compromisso com a transparência, eficiência e legalidade em todos os atos administrativos. ⚓🇧🇷
 
                 Estamos à disposição para eventuais esclarecimentos.
 
                 Cordialmente,
 
-                **{nome_gestor}**
+                {nome_gestor_input if nome_gestor_input else "Gestor de Faturas - HOSBRA"}
                 Seção de Auditoria de Faturas
                 Hospital Naval de Brasília - Marinha do Brasil"""
 
-                                # 6. Exibição
-                                st.success("✅ Panorama Gerencial gerado com sucesso!")
+                                # SALVA NA MEMÓRIA DA SESSÃO (Para não sumir!)
+                                st.session_state['panorama_gerado'] = msg_final
+
+                        # 5. EXIBIÇÃO FORA DO BOTÃO (Sempre visível se já foi gerado)
+                        if 'panorama_gerado' in st.session_state:
+                            st.success("✅ Panorama Gerencial pronto para cópia!")
+                            # st.code é melhor pq tem o botão de copiar no cantinho!
+                            st.code(st.session_state['panorama_gerado'], language="text")
+                            
+                            if st.button("🗑️ Limpar Panorama", type="secondary"):
+                                del st.session_state['panorama_gerado']
+                                st.rerun()
 
 
 
