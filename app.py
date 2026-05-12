@@ -2737,26 +2737,74 @@ else:
 
                         st.divider() # Uma linha para separar
 
-                        # --- 2. DASHBOARD EMBAIXO ---
+                        # =================================================================
+                        # 📊 RESUMO ESTRATÉGICO (Visão Geral e Financeira)
+                        # =================================================================
                         st.subheader("📊 Resumo dos Processos")
                         
-                        col_metric, col_graph = st.columns([1, 2]) # Métrica na esquerda, gráfico na direita (dentro da linha de baixo)
+                        # 1. Tratamento de Dados e Mapeamento
+                        df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
                         
-                        with col_metric:
-                            df_proc_fisc['v_liq'] = df_proc_fisc['valor_liquido'].apply(limpar_valor)
+                        mapa_status_nomes = {                
+                            1: "1. 📥 Cadastrada", 2: "2. 🩺 Em Auditagem", 3: "3. ✅ Auditada",
+                            4: "4. 💰 Aguardando NE", 5: "5. 🏦 Empenhada", 6: "6. 📝 Aguardando NF",
+                            7: "7. ⏳ Em liquidação", 8: "8. 🖥️ Liquidada", 9: "9. 💸 Paga"
+                        }
+                        df_proc_fisc['etapa_nome'] = df_proc_fisc['status'].map(mapa_status_nomes)
+
+                        # --- LINHA 1: MÉTRICAS (Os Números do Front) ---
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
                             tramito = df_proc_fisc[df_proc_fisc['status'] < 9]['v_liq'].sum()
                             st.metric("Total em Trâmite", f"R$ {tramito:,.2f}")
+                        with c2:
+                            qtd_ativos = len(df_proc_fisc[df_proc_fisc['status'] < 9])
+                            st.metric("Processos Ativos", f"{qtd_ativos} un")
+                        with c3:
+                            ticket_medio = tramito / qtd_ativos if qtd_ativos > 0 else 0
+                            st.metric("Ticket Médio", f"R$ {ticket_medio:,.2f}")
+
+                        st.write("") # Espaço
+
+                        # --- LINHA 2: GRÁFICOS (Pizza + Volume Financeiro) ---
+                        col_pizza, col_bar = st.columns([1, 1.2]) 
                         
-                        with col_graph:
+                        with col_pizza:
+                            # A sua Pizza preferida (Quantidade por situação)
                             df_pizza = df_proc_fisc['situação_texto'].value_counts().reset_index()
-                            fig = px.pie(
+                            fig_p = px.pie(
                                 df_pizza, values='count', names='situação_texto', 
                                 hole=0.4, color='situação_texto', 
-                                color_discrete_map=cores_map
+                                color_discrete_map=cores_map,
+                                title="Distribuição (Qtd)"
                             )
-                            # Ajuste para o gráfico não ficar gigante embaixo
-                            fig.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0))
-                            st.plotly_chart(fig, use_container_width=True)
+                            fig_p.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False)
+                            fig_p.update_traces(textposition='inside', textinfo='percent+label')
+                            st.plotly_chart(fig_p, use_container_width=True)
+
+                        with col_bar:
+                            # Nova Barra: Volume Financeiro por Etapa
+                            df_financeiro = df_proc_fisc.groupby('etapa_nome')['v_liq'].sum().reset_index()
+                            df_financeiro = df_financeiro.sort_values('etapa_nome')
+                            
+                            fig_b = px.bar(
+                                df_financeiro, x='v_liq', y='etapa_nome',
+                                orientation='h', title="Volume Financeiro (R$)",
+                                text_auto='.2s', color='v_liq',
+                                color_continuous_scale='Blues'
+                            )
+                            fig_b.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0), showlegend=False, coloraxis_showscale=False)
+                            fig_b.update_xaxes(visible=False) # Limpa o eixo X para focar nas barras
+                            st.plotly_chart(fig_b, use_container_width=True)
+
+                        # --- LINHA 3: PRIORIDADES (Foco no Alvo) ---
+                        with st.expander("🚨 TOP 3 - Processos de Maior Impacto Financeiro"):
+                            top_3 = df_proc_fisc[df_proc_fisc['status'] < 8].sort_values('v_liq', ascending=False).head(3)
+                            if not top_3.empty:
+                                for _, row in top_3.iterrows():
+                                    st.warning(f"**NUP:** {row['nup']} | **Valor:** R$ {row['v_liq']:,.2f} | **Etapa:** {row['etapa_nome']}")
+                            else:
+                                st.success("Sem processos críticos em trâmite no momento.")
 
                     else:
                         st.info(f"Nenhum processo encontrado para {ose_sel}.")
