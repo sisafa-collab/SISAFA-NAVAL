@@ -2910,27 +2910,25 @@ else:
                                     # 6. Template do E-mail (Mantendo seu texto oficial)
                                     msg_final = f"""Prezado (a) representante da empresa {ose_sel},
 
-                        Cumprimentando-o (a) cordialmente, seguem abaixo algumas orientações, bem como um panorama atualizado de seus processos ora em trâmite no Hospital Naval de Brasília (HNBra):
+Cumprimentando-o (a) cordialmente, seguem abaixo algumas orientações, bem como um panorama atualizado de seus processos ora em trâmite no Hospital Naval de Brasília (HNBra):
 
-                        📌 **(i) DO CRITÉRIO DE PAGAMENTO**
-                        Este hospital realiza a emissão das Notas de Empenho em estrita ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. Nesse contexto, é útil uma análise literal da Lei 14.133/21 (Art. 141): 
+📌 (i) DO CRITÉRIO DE PAGAMENTO
+Este hospital realiza a emissão das Notas de Empenho em estrita ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. Nesse contexto, é útil uma análise literal da Lei 14.133/21 (Art. 141): 
                         
-                        "No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos [...]"
+"No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos [...]"
 
-                        📊 **(ii) COMPOSIÇÃO ATUAL DOS PROCESSOS**
-                        {resumo_corpo}
+📊 (ii) COMPOSIÇÃO ATUAL DOS PROCESSOS
+{resumo_corpo}
 
-                        🚀 **(iii) PRÓXIMOS PASSOS**
-                        As faturas supracitadas seguem em fluxo contínuo de processamento. Assim que concluídas as etapas de conferência e reserva orçamentária, as Notas de Empenho correspondentes a cada fatura serão encaminhadas para a respectiva emissão de Nota Fiscal e posterior liquidação.
+🚀 (iii) PRÓXIMOS PASSOS
+As faturas supracitadas seguem em fluxo contínuo de processamento. Assim que concluídas as etapas de conferência e reserva orçamentária, as Notas de Empenho correspondentes a cada fatura serão encaminhadas para a respectiva emissão de Nota Fiscal e posterior liquidação.
 
-                        Reitera-se nosso compromisso com a transparência e eficiência em nossos atos administrativos. 
+Reitera-se nosso compromisso com a transparência e eficiência em nossos atos administrativos. 
 
-                        Estamos à disposição para eventuais esclarecimentos. Gratos pela distinta parceria! 🤝⚓🇧🇷
+Estamos à disposição para eventuais esclarecimentos. Gratos pela distinta parceria! 🤝⚓🇧🇷 
 
-                        Cordialmente,
-
-                        **{nome_gestor_auto}**
-                        """
+Cordialmente,
+"""
                                     # Salva na sessão para persistência
                                     st.session_state['panorama_gerado'] = msg_final
 
