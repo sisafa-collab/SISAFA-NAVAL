@@ -2821,67 +2821,87 @@ else:
                         st.divider()
                         st.subheader("✉️ Comunicação com o Fornecedor")
                         
-                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True, key="btn_panorama_final"):
-                            with st.spinner("Compilando dados financeiros..."):
-                                # --- IDENTIFICAÇÃO DA COLUNA DE COMPETÊNCIA (Prevenção de NameError) ---
+                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True, key="btn_panorama_v2"):
+                            with st.spinner("Refinando dados para o e-mail oficial..."):
+                                # 1. Identificação Dinâmica da Coluna
                                 col_comp_local = None
                                 for c in df_proc_fisc.columns:
                                     if "competencia" in c.lower().strip() or "comp" in c.lower().strip():
                                         col_comp_local = c
                                         break
                                 
-                                if not col_comp_local:
-                                    st.error("❌ Coluna de competência não localizada nos dados da empresa.")
-                                else:
-                                    # 1. Identificação do Gestor
-                                    nome_gestor = st.session_state.get('usuario_nome', 'Gestor de Faturas - HOSBRA')
+                                # 2. Dicionário de Explicações Sucintas (Conforme sua ordem)
+                                explica_etapa = {
+                                    1: "Registro e conferência inicial da documentação na Secretaria.",
+                                    2: "Análise técnica detalhada dos serviços e materiais cobrados.",
+                                    3: "Auditoria técnica concluída com sucesso.",
+                                    4: "Aguardando a reserva do orçamento (Nota de Empenho) para garantir o pagamento.",
+                                    5: "Recurso financeiro já reservado especificamente para estas faturas.",
+                                    6: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital.",
+                                    7: "Conferência final da documentação para liberação do recurso financeiro.",
+                                    8: "Processo autorizado para pagamento imediato pelo setor financeiro."
+                                }
+
+                                # 3. Identificação do Gestor (Pega o nome do Auditor logado ou pede para preencher)
+                                nome_gestor = st.session_state.get('usuario_nome')
+                                if not nome_gestor:
+                                    nome_gestor = "Gestor de Faturas - HOSBRA"
+
+                                # 4. Construção do Resumo Financeiro
+                                resumo_corpo = ""
+                                etapas_ativas = sorted(df_proc_fisc['status'].unique())
+                                
+                                for st_id in etapas_ativas:
+                                    if st_id >= 9: continue # Pula faturas já pagas
                                     
-                                    # 2. Construção do Resumo Financeiro
-                                    resumo_corpo = ""
-                                    etapas_ativas = sorted(df_proc_fisc['status'].unique())
+                                    df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
                                     
-                                    for st_id in etapas_ativas:
-                                        if st_id == 9: continue # Pula faturas pagas
+                                    if not df_etapa.empty:
+                                        nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                        total_etapa = df_etapa['v_liq'].sum()
+                                        descricao = explica_etapa.get(st_id, "")
                                         
-                                        df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
+                                        resumo_corpo += f"\n🔹 **{nome_da_etapa}**\n"
+                                        resumo_corpo += f"_{descricao}_\n"
+                                        resumo_corpo += f"💰 **Volume Total na Etapa: R$ {total_etapa:,.2f}**\n"
                                         
-                                        if not df_etapa.empty:
-                                            nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
-                                            total_etapa = df_etapa['v_liq'].sum()
+                                        # Detalha por "Mês de Entrada" (Antiga Competência)
+                                        for comp in sorted(df_etapa[col_comp_local].unique()):
+                                            df_comp = df_etapa[df_etapa[col_comp_local] == comp]
+                                            lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                            subtotal_comp = df_comp['v_liq'].sum()
                                             
-                                            resumo_corpo += f"\n📍 **{nome_da_etapa}**\n"
-                                            resumo_corpo += f"Volume Total: R$ {total_etapa:,.2f}\n"
-                                            
-                                            # Agrupamento por Competência usando a coluna localizada localmente
-                                            for comp in sorted(df_etapa[col_comp_local].unique()):
-                                                df_comp = df_etapa[df_etapa[col_comp_local] == comp]
-                                                lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
-                                                subtotal_comp = df_comp['v_liq'].sum()
-                                                
-                                                resumo_corpo += f"   - Competência {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
-                                    
-                                    # 3. Montagem do Template Final
-                                    msg_final = f"""Prezado representante da empresa {ose_sel},
+                                            resumo_corpo += f"   ➔ Mês de entrada no HNBra {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                        resumo_corpo += "───" * 10 + "\n"
 
-                Cumprimentando-o cordialmente, seguem abaixo as seguintes orientações: 
+                                # 5. Template do E-mail (Estilizado)
+                                msg_final = f"""Prezado representante da empresa {ose_sel},
 
-                (i) Este hospital realiza a emissão das Notas de Empenho das empresas credenciadas em ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da (s) respectiva (s) fatura (s) na Secretaria deste nosocômio. Sobre esse tema, é útil o seguinte trecho da Lei 14.133/21:
-                "Art. 141. No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos, subdividida nas seguintes categorias de contratos."
+                Cumprimentando-o cordialmente, seguem abaixo as orientações e o panorama atualizado de seus processos no Hospital Naval de Brasília (HNBra):
 
-                (ii) Dessa forma, atualmente, os processos de sua referida empresa apresentam a seguinte composição:
+                📌 **(i) DO CRITÉRIO DE PAGAMENTO**
+                Este hospital realiza a emissão das Notas de Empenho em estrita **ordem cronológica**, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. 
+
+                Conforme a **Lei 14.133/21 (Art. 141)**: "No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos..."
+
+                📊 **(ii) COMPOSIÇÃO ATUAL DOS PROCESSOS**
                 {resumo_corpo}
-                (iii) Com relação às faturas supracitadas, quão logo possível, serão empenhadas e encaminhadas, com vistas à respectiva emissão de Nota Fiscal e o posterior pagamento. 
 
-                No mais, estamos à disposição para quaisquer esclarecimentos adicionais e reiteramos nosso compromisso com a transparência e eficiência nos processos. 
-                Agradecemos pela compreensão e colaboração.
+                🚀 **(iii) PRÓXIMOS PASSOS**
+                As faturas supracitadas seguem em fluxo contínuo de processamento. Assim que concluídas as etapas de conferência e reserva orçamentária, serão encaminhadas para a respectiva emissão de Nota Fiscal e posterior liquidação.
+
+                Reiteramos nosso compromisso com a **transparência, eficiência e legalidade** em todos os atos administrativos. ⚓🇧🇷
+
+                Estamos à disposição para eventuais esclarecimentos.
 
                 Cordialmente,
 
-                {nome_gestor}"""
+                **{nome_gestor}**
+                Seção de Auditoria de Faturas
+                Hospital Naval de Brasília - Marinha do Brasil"""
 
-                                    # 4. Exibição
-                                    st.success("✅ Panorama gerado com sucesso!")
-                                    st.text_area("Copie o texto abaixo para o e-mail:", value=msg_final, height=500)
+                                # 6. Exibição
+                                st.success("✅ Panorama Gerencial gerado com sucesso!")
 
 
 
