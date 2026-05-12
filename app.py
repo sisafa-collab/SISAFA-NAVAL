@@ -2738,7 +2738,7 @@ else:
                         st.divider() # Uma linha para separar
 
                         # =================================================================
-                        # 📊 RESUMO GERENCIAL (Layout Vertical - Versão SISAFA Green)
+                        # 📊 RESUMO GERENCIAL (Ordem Invertida: 1 no Topo)
                         # =================================================================
                         st.write("") 
                         st.header("📊 Resumo Gerencial da Fiscalização")
@@ -2764,39 +2764,26 @@ else:
 
                         st.divider()
 
-                        # --- SEÇÃO 2: EQUILÍBRIO DO FLUXO (PIZZA) - ORDEM PRIORITÁRIA ---
+                        # --- SEÇÃO 2: EQUILÍBRIO DO FLUXO (PIZZA) ---
                         st.markdown("#### ⚖️ Equilíbrio do Fluxo (Quantidade)")
                         df_pizza = df_proc_fisc['etapa_nome'].value_counts().reset_index()
                         
                         fig_pie = px.pie(
-                            df_pizza, 
-                            values='count', 
-                            names='etapa_nome',
+                            df_pizza, values='count', names='etapa_nome',
                             hole=0.5,
-                            color_discrete_sequence=px.colors.sequential.Mint_r # Cores verde-água/teal
+                            color_discrete_sequence=px.colors.sequential.Mint_r
                         )
-                        
-                        fig_pie.update_traces(
-                            textposition='outside', 
-                            textinfo='percent+label',
-                            marker=dict(line=dict(color='#FFFFFF', width=2))
-                        )
-                        
-                        fig_pie.update_layout(
-                            height=450,
-                            margin=dict(l=10, r=10, t=30, b=10),
-                            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-                        )
+                        fig_pie.update_traces(textposition='outside', textinfo='percent+label')
+                        fig_pie.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=30, b=10))
                         st.plotly_chart(fig_pie, use_container_width=True)
 
-                        st.write("") # Respiro entre gráficos
-
-                        # --- SEÇÃO 3: DISTRIBUIÇÃO FINANCEIRA (BARRAS VERDES) ---
+                        # --- SEÇÃO 3: DISTRIBUIÇÃO FINANCEIRA (BARRAS INVERTIDAS) ---
                         st.markdown("#### 💵 Distribuição Financeira por Setor")
                         
-                        # Agrupamento e Ordenação (Ascendente para o Plotly mostrar 1 embaixo e crescer para cima)
                         df_financeiro = df_proc_fisc.groupby('etapa_nome')['v_liq'].sum().reset_index()
-                        df_financeiro = df_financeiro.sort_values('etapa_nome', ascending=True)
+                        
+                        # --- AQUI ESTÁ A MUDANÇA: ascending=False para 1 ficar no TOPO ---
+                        df_financeiro = df_financeiro.sort_values('etapa_nome', ascending=False)
                         
                         fig_bar = px.bar(
                             df_financeiro, 
@@ -2804,13 +2791,11 @@ else:
                             y='etapa_nome',
                             orientation='h',
                             color='v_liq',
-                            # Escala de verdes compatível com o SISAFA (Emerald/Teal)
                             color_continuous_scale=['#D1F2EB', '#76D7C4', '#1ABC9C', '#148F77'],
                             template="plotly_white"
                         )
                         
                         fig_bar.update_traces(
-                            # Formatação para valor real (Ex: R$ 102.500,00)
                             texttemplate='R$ %{x:,.2f}',
                             textposition='outside',
                             marker_line_color='#0E6251',
@@ -2819,17 +2804,15 @@ else:
                         )
                         
                         fig_bar.update_layout(
-                            height=450,
-                            margin=dict(l=0, r=50, t=20, b=20), # Margem maior na direita para o texto não cortar
+                            height=500,
+                            margin=dict(l=0, r=100, t=20, b=20), # Margem direita extra para o valor real
                             xaxis_title="Volume Total (R$)",
                             yaxis_title="",
                             showlegend=False,
-                            coloraxis_showscale=False,
-                            xaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.05)')
+                            coloraxis_showscale=False
                         )
                         st.plotly_chart(fig_bar, use_container_width=True)
 
-                        # --- NOTA DE RODAPÉ ---
                         st.caption(f"🕒 Dados sincronizados em: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}")
 
                     else:
