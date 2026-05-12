@@ -2817,6 +2817,7 @@ else:
 
         
                         # =================================================================
+                        # =================================================================
                         # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR (VERSÃO FINALÍSSIMA)
                         # =================================================================
                         st.divider()
@@ -2835,63 +2836,78 @@ else:
                                         col_comp_local = c
                                         break
                                 
-                                # 3. Dicionário de Explicações Didáticas para o Fornecedor
-                                explica_etapa = {
-                                    1: "Registro e conferência inicial da documentação em nossa Secretaria.",
-                                    2: "Análise técnica detalhada dos serviços e materiais cobrados, emissão de glosas, entre outros serviços.",
-                                    3: "Auditoria técnica concluída com sucesso.",
-                                    4: "Aguardando a reserva do orçamento (Nota de Empenho) para garantir o pagamento.",
-                                    5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados dos os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
-                                    6: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital.",
-                                    7: "Conferência final da documentação para liberação do recurso financeiro.",
-                                    8: "Processo autorizado para pagamento imediato pelo setor financeiro."
-                                }
+                                if not col_comp_local:
+                                    st.error("❌ Coluna de competência não localizada.")
+                                else:
+                                    # --- CORREÇÃO DO ERRO (CRIAÇÃO DA COLUNA DT_ORDEM) ---
+                                    def tratar_data_panorama(v):
+                                        v_str = str(v).strip().replace('.0', '')
+                                        if not v_str or v_str == 'nan': return pd.NaT
+                                        # Se for apenas número (1 a 12), assume o ano atual
+                                        if v_str.isdigit() and 1 <= int(v_str) <= 12:
+                                            return pd.to_datetime(f"{v_str.zfill(2)}/2026", format='%m/%Y')
+                                        return pd.to_datetime(v_str, errors='coerce', dayfirst=True)
 
-                                # 4. Mapeamento de meses para siglas
-                                meses_map = {
-                                    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
-                                    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
-                                }
+                                    # Criamos a coluna necessária para a ordenação antes do loop
+                                    df_proc_fisc['dt_ordem'] = df_proc_fisc[col_comp_local].apply(tratar_data_panorama)
 
-                                # 5. Construção do Corpo do Resumo
-                                resumo_corpo = ""
-                                etapas_ativas = sorted(df_proc_fisc['status'].unique())
-                                
-                                for st_id in etapas_ativas:
-                                    if st_id >= 9: continue # Ignora processos já pagos
+                                    # 3. Dicionário de Explicações Didáticas para o Fornecedor (Mantido seu texto)
+                                    explica_etapa = {
+                                        1: "Registro e conferência inicial da documentação em nossa Secretaria.",
+                                        2: "Análise técnica detalhada dos serviços e materiais cobrados, emissão de glosas, entre outros serviços.",
+                                        3: "Auditoria técnica concluída com sucesso.",
+                                        4: "Aguardando a reserva do orçamento (Nota de Empenho) para garantir o pagamento.",
+                                        5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados dos os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
+                                        6: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital.",
+                                        7: "Conferência final da documentação para liberação do recurso financeiro.",
+                                        8: "Processo autorizado para pagamento imediato pelo setor financeiro."
+                                    }
+
+                                    # 4. Mapeamento de meses para siglas
+                                    meses_map = {
+                                        1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+                                        7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+                                    }
+
+                                    # 5. Construção do Corpo do Resumo
+                                    resumo_corpo = ""
+                                    etapas_ativas = sorted(df_proc_fisc['status'].unique())
                                     
-                                    df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
-                                    
-                                    if not df_etapa.empty:
-                                        nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
-                                        total_etapa = df_etapa['v_liq'].sum()
-                                        descricao = explica_etapa.get(st_id, "")
+                                    for st_id in etapas_ativas:
+                                        if st_id >= 9: continue # Ignora processos já pagos
                                         
-                                        resumo_corpo += f"\n🔹 **{nome_da_etapa.upper()}**\n"
-                                        resumo_corpo += f"   - {descricao}\n"
-                                        resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
+                                        df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
                                         
-                                        # Agrupamento e formatação por Mês de Entrada (Ex: JAN2026)
-                                        # Ordenamos pela data real para garantir a ordem cronológica no texto
-                                        competencias_ordenadas = sorted(df_etapa['dt_ordem'].unique())
-                                        
-                                        for dt in competencias_ordenadas:
-                                            df_comp = df_etapa[df_etapa['dt_ordem'] == dt]
+                                        if not df_etapa.empty:
+                                            nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                            total_etapa = df_etapa['v_liq'].sum()
+                                            descricao = explica_etapa.get(st_id, "")
                                             
-                                            # Converte data em JAN2026
-                                            mes_sigla = meses_map.get(dt.month, "INV")
-                                            ano_ref = dt.year
-                                            rotulo_entrada = f"{mes_sigla}{ano_ref}"
+                                            resumo_corpo += f"\n🔹 **{nome_da_etapa.upper()}**\n"
+                                            resumo_corpo += f"   - {descricao}\n"
+                                            resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
                                             
-                                            lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
-                                            subtotal_comp = df_comp['v_liq'].sum()
+                                            # Agrupamento e formatação por Mês de Entrada (Ex: JAN2026)
+                                            # Agora a dt_ordem existe e o sorted funcionará perfeitamente!
+                                            competencias_ordenadas = sorted(df_etapa['dt_ordem'].dropna().unique())
                                             
-                                            resumo_corpo += f"     ➔ Mês de entrada no HNBra: {rotulo_entrada}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
-                                        
-                                        resumo_corpo += "───────────────────────────────────────\n"
+                                            for dt in competencias_ordenadas:
+                                                df_comp = df_etapa[df_etapa['dt_ordem'] == dt]
+                                                
+                                                # Converte data em JAN2026
+                                                mes_sigla = meses_map.get(dt.month, "INV")
+                                                ano_ref = dt.year
+                                                rotulo_entrada = f"{mes_sigla}{ano_ref}"
+                                                
+                                                lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                                subtotal_comp = df_comp['v_liq'].sum()
+                                                
+                                                resumo_corpo += f"     ➔ Mês de entrada no HNBra: {rotulo_entrada}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                            
+                                            resumo_corpo += "───────────────────────────────────────\n"
 
-                                # 6. Template do E-mail (Estilizado e Oficial)
-                                msg_final = f"""Prezado representante da empresa {ose_sel},
+                                    # 6. Template do E-mail (Mantendo seu texto oficial)
+                                    msg_final = f"""Prezado representante da empresa {ose_sel},
 
                         Cumprimentando-o cordialmente, seguem abaixo as orientações e o panorama atualizado de seus processos no Hospital Naval de Brasília (HNBra):
 
@@ -2914,14 +2930,12 @@ else:
 
                         **{nome_gestor_auto}**
                         """
+                                    # Salva na sessão para persistência
+                                    st.session_state['panorama_gerado'] = msg_final
 
-                                # Salva na sessão para persistência
-                                st.session_state['panorama_gerado'] = msg_final
-
-                        # 7. Exibição do Resultado (Sempre pronto para cópia)
+                        # 7. Exibição do Resultado
                         if 'panorama_gerado' in st.session_state:
                             st.success("✅ Panorama Gerencial pronto para cópia!🫡🇧🇷")
-                            # O st.code fornece o botão "copiar" automaticamente no canto superior direito
                             st.code(st.session_state['panorama_gerado'], language="text")
 
 
