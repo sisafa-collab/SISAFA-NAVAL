@@ -2738,7 +2738,7 @@ else:
                         st.divider() # Uma linha para separar
 
                         # =================================================================
-                        # 📊 RESUMO GERENCIAL (Ordem Invertida: 1 no Topo)
+                        # 📊 RESUMO GERENCIAL 
                         # =================================================================
                         st.write("") 
                         st.header("📊 Resumo Gerencial da Fiscalização")
@@ -2765,7 +2765,7 @@ else:
                         st.divider()
 
                         # --- SEÇÃO 2: EQUILÍBRIO DO FLUXO (PIZZA) ---
-                        st.markdown("#### ⚖️ Equilíbrio do Fluxo (Quantidade)")
+                        st.markdown("#### 📚 Composição das faturas (por etapa)")
                         df_pizza = df_proc_fisc['etapa_nome'].value_counts().reset_index()
                         
                         fig_pie = px.pie(
@@ -2778,7 +2778,7 @@ else:
                         st.plotly_chart(fig_pie, use_container_width=True)
 
                         # --- SEÇÃO 3: DISTRIBUIÇÃO FINANCEIRA (BARRAS INVERTIDAS) ---
-                        st.markdown("#### 💵 Distribuição Financeira por Setor")
+                        st.markdown("#### 💵 Distribuição Financeira por etapa")
                         
                         df_financeiro = df_proc_fisc.groupby('etapa_nome')['v_liq'].sum().reset_index()
                         
@@ -2814,6 +2814,72 @@ else:
                         st.plotly_chart(fig_bar, use_container_width=True)
 
                         st.caption(f"🕒 Dados sincronizados em: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}")
+
+                        # =================================================================
+                        # 📧 SEÇÃO: GERADOR DE PANORAMA PARA FORNECEDOR
+                        # =================================================================
+                        st.divider()
+                        st.subheader("✉️ Comunicação com o Fornecedor")
+                        
+                        if st.button("📑 Gerar Panorama de Pagamento", use_container_width=True):
+                            with st.spinner("Compilando dados financeiros..."):
+                                # 1. Identificação do Gestor (NIP de quem está logado)
+                                nome_gestor = st.session_state.get('usuario_nome', 'Gestor de Faturas - HOSBRA')
+                                
+                                # 2. Construção do Resumo Financeiro por Etapa
+                                resumo_corpo = ""
+                                
+                                # Ordenamos as etapas de 1 a 9 conforme o fluxo
+                                etapas_ativas = sorted(df_proc_fisc['status'].unique())
+                                
+                                for st_id in etapas_ativas:
+                                    if st_id == 9: continue # Geralmente não mandamos panorama de faturas já pagas
+                                    
+                                    df_etapa = df_proc_fisc[df_proc_fisc['status'] == st_id].copy()
+                                    
+                                    if not df_etapa.empty:
+                                        nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                        total_etapa = df_etapa['v_liq'].sum()
+                                        
+                                        resumo_corpo += f"\n📍 **{nome_da_etapa}**\n"
+                                        resumo_corpo += f"Volume Total: R$ {total_etapa:,.2f}\n"
+                                        
+                                        # Agrupamento por Competência dentro da etapa
+                                        # (Usando col_comp identificada anteriormente no seu código)
+                                        for comp in sorted(df_etapa[col_comp].unique()):
+                                            df_comp = df_etapa[df_etapa[col_comp] == comp]
+                                            lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                            subtotal_comp = df_comp['v_liq'].sum()
+                                            
+                                            resumo_corpo += f"   - Competência {comp}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                
+                                # 3. Montagem do Template Final
+                                msg_final = f"""Prezado representante da empresa {ose_sel},
+
+                Cumprimentando-o cordialmente, seguem abaixo as seguintes orientações: 
+
+                (i) Este hospital realiza a emissão das Notas de Empenho das empresas credenciadas em ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da (s) respectiva (s) fatura (s) na Secretaria deste nosocômio. Sobre esse tema, é útil o seguinte trecho da Lei 14.133/21:
+                "Art. 141. No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos, subdividida nas seguintes categorias de contratos."
+
+                (ii) Dessa forma, atualmente, os processos de sua referida empresa apresentam a seguinte composição:
+                {resumo_corpo}
+                (iii) Com relação às faturas supracitadas, quão logo possível, serão empenhadas e encaminhadas, com vistas à respectiva emissão de Nota Fiscal e o posterior pagamento. 
+
+                No mais, estamos à disposição para quaisquer esclarecimentos adicionais e reiteramos nosso compromisso com a transparência e eficiência nos processos. 
+                Agradecemos pela compreensão e colaboração.
+
+                Cordialmente,
+
+                {nome_gestor}"""
+
+                                # 4. Exibição em uma área de texto para fácil cópia
+                                st.success("✅ Panorama gerado com sucesso!")
+                                st.text_area("Copie o texto abaixo para o e-mail:", value=msg_final, height=500)
+                                
+                                # Botão bônus para abrir o cliente de e-mail (opcional)
+                                st.caption("Dica: Clique no texto, use Ctrl+A e Ctrl+C para copiar.")
+
+
 
                     else:
                         st.info(f"Nenhum processo encontrado para {ose_sel}.")
