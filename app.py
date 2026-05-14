@@ -4046,118 +4046,120 @@ Cordialmente,
                     st.error(f"Erro no processamento PM4PY: {e}")
 
 
+            
             # =================================================================
             # 🕵️ ANÁLISE MICROPROCESSUAL: CICLO DE PAGAMENTO (OSE CIVIS)
             # =================================================================
             st.divider()
             st.subheader("🕵️ Análise Microprocessual")
-            st.subheader("⏱️ Análise do pagamento das OSE civis")
+            st.markdown("### ⏱️ Monitoramento de Fluxo: OSE Civis")
 
             try:
-                # 1. CARGA E IDENTIFICAÇÃO DE OSEs CIVIS
+                # 1. CARGA E MAPEAMENTO (BLINDAGEM)
                 aba_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
                 df_tabela_a = pd.DataFrame(aba_a.get_all_records())
-                
-                # Lista de nomes de empresas que são CIVIS
                 nomes_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
 
-                # 2. MAPEAMENTO DE NUPs (Buscamos no df principal quais NUPs são dessas empresas)
-                # Nota: 'df' é o seu dataframe principal carregado no início do app
                 df_mapeamento = df[df['ose'].isin(nomes_civis)][['nup', 'ose']].copy()
                 nups_civis = df_mapeamento['nup'].astype(str).unique().tolist()
 
-                # 3. FILTRO DO HISTÓRICO
                 df_civis = df_hist_raw.copy()
                 df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
-                
-                # Filtramos o histórico apenas para os NUPs que mapeamos como CIVIS
                 df_civis = df_civis[df_civis['nup'].isin(nups_civis)]
-
-                # 4. TRATAMENTO DE DATAS E MÊS
                 df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
-                
+
+                # --- 2. FILTRO DE EVOLUÇÃO (TODOS + MESES) ---
                 df_civis['mes_ano'] = df_civis['timestamp'].dt.strftime('%m/%Y')
-                if mes_sel != "Todos os Meses":
-                    df_civis = df_civis[df_civis['mes_ano'] == mes_sel]
+                opcoes_meses = ["Todos"] + sorted(df_civis['mes_ano'].unique().tolist(), 
+                                                 key=lambda x: pd.to_datetime(x, format='%m/%Y'), 
+                                                 reverse=True)
+                
+                sel_mes_micro = st.selectbox("📅 Selecione o Período para Evolução:", opcoes_meses, key="filt_micro_evol")
+
+                if sel_mes_micro != "Todos":
+                    df_civis = df_civis[df_civis['mes_ano'] == sel_mes_micro]
 
                 if df_civis.empty:
-                    st.warning("Sem registros históricos de OSE Civis para o período selecionado.")
+                    st.warning(f"Sem registros históricos de OSE Civis para o período {sel_mes_micro}.")
                 else:
-                    # 5. CÁLCULO DE PERMANÊNCIA
+                    # 3. CÁLCULO DE PERMANÊNCIA
                     df_civis = df_civis.sort_values(['nup', 'timestamp'])
                     df_civis['status_destino'] = df_civis['status_destino'].astype(str).str.replace('.0', '', regex=False)
-                    
                     df_civis['data_saida'] = df_civis.groupby('nup')['timestamp'].shift(-1)
                     df_civis['data_saida'] = df_civis['data_saida'].fillna(pd.Timestamp.now())
                     df_civis['dias'] = (df_civis['data_saida'] - df_civis['timestamp']).dt.total_seconds() / 86400
 
-                    # 6. UNIR COM O NOME DA EMPRESA (Para saber de quem é o tempo)
                     df_civis = df_civis.merge(df_mapeamento, on='nup', how='left')
-
-                    # Pivotar
                     df_pivot = df_civis.pivot_table(index=['nup', 'ose'], columns='status_destino', values='dias', aggfunc='sum').reset_index()
                     
                     for s in ['6', '7', '8']:
                         if s not in df_pivot.columns: df_pivot[s] = 0
 
-                    # --- ANÁLISE 1: LIQUIDAÇÃO (6+7) ---
+                    # --- 4. VISUALIZAÇÃO 1: LIQUIDAÇÃO (6 e 7) ---
                     df_pivot['tempo_liquidacao'] = df_pivot['6'].fillna(0) + df_pivot['7'].fillna(0)
-                    df_liq_validos = df_pivot[df_pivot['tempo_liquidacao'] > 0]
+                    df_liq = df_pivot[df_pivot['tempo_liquidacao'] > 0]
 
-                    st.markdown("#### 1️⃣ Eficiência na Liquidação (Fases 6 e 7)")
-                    if not df_liq_validos.empty:
-                        m_liq = df_liq_validos['tempo_liquidacao'].mean()
-                        min_liq = df_liq_validos.loc[df_liq_validos['tempo_liquidacao'].idxmin()]
-                        max_liq = df_liq_validos.loc[df_liq_validos['tempo_liquidacao'].idxmax()]
+                    st.markdown("#### 1️⃣ Eficiência na Liquidação (da entrega da NE aos fiscais de contrato à efetiva liquidação ⏳)")
+                    if not df_liq.empty:
+                        m_liq = df_liq['tempo_liquidacao'].mean()
+                        min_liq = df_liq.loc[df_liq['tempo_liquidacao'].idxmin()]
+                        max_liq = df_liq.loc[df_liq['tempo_liquidacao'].idxmax()]
+                        qtd_liq = len(df_liq) # Quantidade total analisada
 
-                        col1, col2, col3 = st.columns(3)
-                        col1.metric("Média p/ Liquidar", f"{m_liq:.1f} dias")
-                        col2.metric("Melhor Tempo", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"Empresa: {min_liq['ose']}")
-                        col3.metric("Maior Tempo", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"Empresa: {max_liq['ose']}")
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Média Global", f"{m_liq:.1f} dias")
+                        c2.metric("Recorde (Menor)", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
+                        c3.metric("Gargalo (Maior)", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
+                        c4.metric("Qtd Processos", f"{qtd_liq} faturas")
 
-                        # Classificação
-                        ideal = len(df_liq_validos[df_liq_validos['tempo_liquidacao'] <= 30])
-                        atencao = len(df_liq_validos[(df_liq_validos['tempo_liquidacao'] > 30) & (df_liq_validos['tempo_liquidacao'] <= 60)])
-                        critico = len(df_liq_validos[df_liq_validos['tempo_liquidacao'] > 60])
+                        # Donut Chart Moderno
+                        ideal = len(df_liq[df_liq['tempo_liquidacao'] <= 30])
+                        atencao = len(df_liq[(df_liq['tempo_liquidacao'] > 30) & (df_liq['tempo_liquidacao'] <= 60)])
+                        critico = len(df_liq[df_liq['tempo_liquidacao'] > 60])
 
-                        fig_dist_liq = px.pie(
-                            values=[ideal, atencao, critico], 
+                        fig_liq = px.pie(
+                            values=[ideal, atencao, critico],
                             names=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
-                            color=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
-                            color_discrete_map={'Ideal (≤30d)': '#2ecc71', 'Atenção (31-60d)': '#f1c40f', 'Crítico (>60d)': '#e74c3c'},
-                            title="Distribuição do Prazo de Liquidação", hole=0.4
+                            hole=0.6,
+                            color_discrete_sequence=['#16A085', '#F39C12', '#C0392B']
                         )
-                        st.plotly_chart(fig_dist_liq, use_container_width=True)
+                        fig_liq.update_traces(textposition='outside', textinfo='percent+label', pull=[0.05, 0, 0.1])
+                        fig_liq.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=350, showlegend=False)
+                        st.plotly_chart(fig_liq, use_container_width=True)
 
                     st.divider()
 
-                    # --- ANÁLISE 2: PAGAMENTO (8) ---
-                    df_pag_validos = df_pivot[df_pivot['8'] > 0]
+                    # --- 5. VISUALIZAÇÃO 2: PAGAMENTO (8) ---
+                    df_pag = df_pivot[df_pivot['8'] > 0]
+                    st.markdown("#### 2️⃣ Eficiência no Pagamento (da liquidação ao efetivo pagamento ⏳)")
+                    
+                    if not df_pag.empty:
+                        m_pag = df_pag['8'].mean()
+                        min_pag = df_pag.loc[df_pag['8'].idxmin()]
+                        max_pag = df_pag.loc[df_pag['8'].idxmax()]
+                        qtd_pag = len(df_pag) # Quantidade total analisada
 
-                    st.markdown("#### 2️⃣ Eficiência no Pagamento (Fase 8)")
-                    if not df_pag_validos.empty:
-                        m_pag = df_pag_validos['8'].mean()
-                        min_pag = df_pag_validos.loc[df_pag_validos['8'].idxmin()]
-                        max_pag = df_pag_validos.loc[df_pag_validos['8'].idxmax()]
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("Média Global", f"{m_pag:.1f} dias")
+                        c2.metric("Recorde (Menor)", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
+                        c3.metric("Gargalo (Maior)", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
+                        c4.metric("Qtd Processos", f"{qtd_pag} faturas")
 
-                        col1, col2, col3 = st.columns(3)
-                        col1.metric("Média p/ Pagar", f"{m_pag:.1f} dias")
-                        col2.metric("Melhor Tempo", f"{min_pag['8']:.1f} d", help=f"Empresa: {min_pag['ose']}")
-                        col3.metric("Maior Tempo", f"{max_pag['8']:.1f} d", help=f"Empresa: {max_pag['ose']}")
+                        # Donut Chart Moderno
+                        ideal_p = len(df_pag[df_pag['8'] <= 3])
+                        atencao_p = len(df_pag[(df_pag['8'] > 3) & (df_pag['8'] <= 10)])
+                        critico_p = len(df_pag[df_pag['8'] > 10])
 
-                        ideal_p = len(df_pag_validos[df_pag_validos['8'] <= 3])
-                        atencao_p = len(df_pag_validos[(df_pag_validos['8'] > 3) & (df_pag_validos['8'] <= 10)])
-                        critico_p = len(df_pag_validos[df_pag_validos['8'] > 10])
-
-                        fig_dist_pag = px.pie(
-                            values=[ideal_p, atencao_p, critico_p], 
-                            names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
-                            color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
-                            color_discrete_map={'Ideal (≤3d)': '#27ae60', 'Atenção (4-10d)': '#f39c12', 'Crítico (>10d)': '#c0392b'},
-                            title="Distribuição do Prazo de Pagamento", hole=0.4
+                        fig_pag = px.pie(
+                            values=[ideal_p, atencao_p, critico_p],
+                            names=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
+                            hole=0.6,
+                            color_discrete_sequence=['#27AE60', '#E67E22', '#922B21']
                         )
-                        st.plotly_chart(fig_dist_pag, use_container_width=True)
+                        fig_pag.update_traces(textposition='outside', textinfo='percent+label', pull=[0.05, 0, 0.1])
+                        fig_pag.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=350, showlegend=False)
+                        st.plotly_chart(fig_pag, use_container_width=True)
 
             except Exception as e:
                 st.error(f"Erro na análise microprocessual: {e}")
