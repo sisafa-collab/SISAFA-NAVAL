@@ -4116,7 +4116,7 @@ Cordialmente,
                     max_liq = df_pivot.loc[df_pivot['tempo_liquidacao'].idxmax()]
                     qtd_total = len(df_pivot)
 
-                    st.markdown("#### 1️⃣ Eficiência na Liquidação (Fases 6 e 7)")
+                    st.markdown("#### 1️⃣ Eficiência na Liquidação (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳)")
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Média Global", f"{m_liq:.1f} dias")
                     c2.metric("Recorde (Menor)", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
@@ -4142,7 +4142,7 @@ Cordialmente,
                     st.divider()
 
                     # --- 2️⃣ PAGAMENTO (Fase 8) ---
-                    st.markdown("#### 2️⃣ Eficiência no Pagamento (Fase 8)")
+                    st.markdown("#### 2️⃣ Eficiência no Pagamento (do momento da liquidação no SIAFI ao efetivo pagamento⏳)")
                     m_pag = df_pivot['8'].mean()
                     min_pag = df_pivot.loc[df_pivot['8'].idxmin()]
                     max_pag = df_pivot.loc[df_pivot['8'].idxmax()]
