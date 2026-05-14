@@ -4051,28 +4051,32 @@ Cordialmente,
             # =================================================================
             st.divider()
             st.subheader("🕵️ Análise Microprocessual")
-            st.subheader("⏱️ Análise do pagamento das OSE civis (Fases 6 a 9)")
+            st.subheader("⏱️ Análise do pagamento das OSE civis")
 
             try:
-                # 1. CARGA DAS TABELAS NECESSÁRIAS
+                # 1. CARGA E IDENTIFICAÇÃO DE OSEs CIVIS
                 aba_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
                 df_tabela_a = pd.DataFrame(aba_a.get_all_records())
                 
-                # Filtramos apenas as OSE Civis
-                ose_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
+                # Lista de nomes de empresas que são CIVIS
+                nomes_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
 
-                # Carga do Histórico (usando o df_hist_raw carregado no início da tab_prod)
+                # 2. MAPEAMENTO DE NUPs (Buscamos no df principal quais NUPs são dessas empresas)
+                # Nota: 'df' é o seu dataframe principal carregado no início do app
+                df_mapeamento = df[df['ose'].isin(nomes_civis)][['nup', 'ose']].copy()
+                nups_civis = df_mapeamento['nup'].astype(str).unique().tolist()
+
+                # 3. FILTRO DO HISTÓRICO
                 df_civis = df_hist_raw.copy()
+                df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
                 
-                # 2. LIMPEZA E FILTRO INICIAL
+                # Filtramos o histórico apenas para os NUPs que mapeamos como CIVIS
+                df_civis = df_civis[df_civis['nup'].isin(nups_civis)]
+
+                # 4. TRATAMENTO DE DATAS E MÊS
                 df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
                 
-                # Cruzamento para manter apenas processos de OSE Civis
-                # Nota: Assume-se que no histórico a coluna com o nome da empresa seja 'ose' ou vinculamos via NUP do df principal
-                df_civis = df_civis[df_civis['ose'].isin(ose_civis)]
-
-                # 3. FILTRO POR MÊS (Sincronizado com o seletor anterior)
                 df_civis['mes_ano'] = df_civis['timestamp'].dt.strftime('%m/%Y')
                 if mes_sel != "Todos os Meses":
                     df_civis = df_civis[df_civis['mes_ano'] == mes_sel]
@@ -4080,26 +4084,25 @@ Cordialmente,
                 if df_civis.empty:
                     st.warning("Sem registros históricos de OSE Civis para o período selecionado.")
                 else:
-                    # 4. CÁLCULO DE PERMANÊNCIA POR ETAPA (NUP a NUP)
+                    # 5. CÁLCULO DE PERMANÊNCIA
                     df_civis = df_civis.sort_values(['nup', 'timestamp'])
                     df_civis['status_destino'] = df_civis['status_destino'].astype(str).str.replace('.0', '', regex=False)
                     
-                    # Calcula o tempo que o processo ficou no status (tempo até o próximo registro)
                     df_civis['data_saida'] = df_civis.groupby('nup')['timestamp'].shift(-1)
                     df_civis['data_saida'] = df_civis['data_saida'].fillna(pd.Timestamp.now())
                     df_civis['dias'] = (df_civis['data_saida'] - df_civis['timestamp']).dt.total_seconds() / 86400
 
-                    # Pivotar para ter uma linha por NUP e colunas com o tempo em cada status
+                    # 6. UNIR COM O NOME DA EMPRESA (Para saber de quem é o tempo)
+                    df_civis = df_civis.merge(df_mapeamento, on='nup', how='left')
+
+                    # Pivotar
                     df_pivot = df_civis.pivot_table(index=['nup', 'ose'], columns='status_destino', values='dias', aggfunc='sum').reset_index()
                     
-                    # Garantir que as colunas 6, 7 e 8 existam (mesmo que vazias)
                     for s in ['6', '7', '8']:
                         if s not in df_pivot.columns: df_pivot[s] = 0
 
-                    # --- ANÁLISE 1: TEMPO PARA LIQUIDAR (STATUS 6 + 7) ---
+                    # --- ANÁLISE 1: LIQUIDAÇÃO (6+7) ---
                     df_pivot['tempo_liquidacao'] = df_pivot['6'].fillna(0) + df_pivot['7'].fillna(0)
-                    
-                    # Filtrar apenas quem passou por essas fases (tempo > 0)
                     df_liq_validos = df_pivot[df_pivot['tempo_liquidacao'] > 0]
 
                     st.markdown("#### 1️⃣ Eficiência na Liquidação (Fases 6 e 7)")
@@ -4118,21 +4121,18 @@ Cordialmente,
                         atencao = len(df_liq_validos[(df_liq_validos['tempo_liquidacao'] > 30) & (df_liq_validos['tempo_liquidacao'] <= 60)])
                         critico = len(df_liq_validos[df_liq_validos['tempo_liquidacao'] > 60])
 
-                        # Gráfico de Distribuição Liquidação
                         fig_dist_liq = px.pie(
                             values=[ideal, atencao, critico], 
                             names=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
                             color=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
-                            color_discrete_map={'Ideal (≤30d)': 'green', 'Atenção (31-60d)': 'orange', 'Crítico (>60d)': 'red'},
+                            color_discrete_map={'Ideal (≤30d)': '#2ecc71', 'Atenção (31-60d)': '#f1c40f', 'Crítico (>60d)': '#e74c3c'},
                             title="Distribuição do Prazo de Liquidação", hole=0.4
                         )
                         st.plotly_chart(fig_dist_liq, use_container_width=True)
-                    else:
-                        st.info("Aguardando faturas completarem as fases 6 e 7.")
 
                     st.divider()
 
-                    # --- ANÁLISE 2: TEMPO PARA PAGAR (STATUS 8) ---
+                    # --- ANÁLISE 2: PAGAMENTO (8) ---
                     df_pag_validos = df_pivot[df_pivot['8'] > 0]
 
                     st.markdown("#### 2️⃣ Eficiência no Pagamento (Fase 8)")
@@ -4146,22 +4146,18 @@ Cordialmente,
                         col2.metric("Melhor Tempo", f"{min_pag['8']:.1f} d", help=f"Empresa: {min_pag['ose']}")
                         col3.metric("Maior Tempo", f"{max_pag['8']:.1f} d", help=f"Empresa: {max_pag['ose']}")
 
-                        # Classificação Pagamento
                         ideal_p = len(df_pag_validos[df_pag_validos['8'] <= 3])
                         atencao_p = len(df_pag_validos[(df_pag_validos['8'] > 3) & (df_pag_validos['8'] <= 10)])
                         critico_p = len(df_pag_validos[df_pag_validos['8'] > 10])
 
-                        # Gráfico de Distribuição Pagamento
                         fig_dist_pag = px.pie(
                             values=[ideal_p, atencao_p, critico_p], 
                             names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
                             color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
-                            color_discrete_map={'Ideal (≤3d)': 'green', 'Atenção (4-10d)': 'orange', 'Crítico (>10d)': 'red'},
+                            color_discrete_map={'Ideal (≤3d)': '#27ae60', 'Atenção (4-10d)': '#f39c12', 'Crítico (>10d)': '#c0392b'},
                             title="Distribuição do Prazo de Pagamento", hole=0.4
                         )
                         st.plotly_chart(fig_dist_pag, use_container_width=True)
-                    else:
-                        st.info("Aguardando faturas completarem a fase 8.")
 
             except Exception as e:
                 st.error(f"Erro na análise microprocessual: {e}")
