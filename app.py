@@ -4046,8 +4046,7 @@ Cordialmente,
                     st.error(f"Erro no processamento PM4PY: {e}")
 
 
-            
-            
+
             # =================================================================
             # 🕵️ ANÁLISE MICROPROCESSUAL: CICLO DE PAGAMENTO (APENAS STATUS 9)
             # =================================================================
@@ -4065,14 +4064,13 @@ Cordialmente,
                 nups_civis = df_mapeamento['nup'].astype(str).unique().tolist()
 
                 # 2. FILTRO DE CONCLUSÃO (STATUS 9)
-                # Identificamos no histórico quais NUPs atingiram o status 9 em algum momento
                 df_hist_raw['status_destino'] = df_hist_raw['status_destino'].astype(str).str.replace('.0', '', regex=False).str.strip()
                 nups_com_pagamento = df_hist_raw[df_hist_raw['status_destino'] == '9']['nup'].astype(str).unique().tolist()
 
-                # Intersecção: NUPs que são CIVIS E que chegaram ao STATUS 9
+                # Intersecção: Apenas NUPs CIVIS que já foram PAGOS (Status 9)
                 nups_analise_final = list(set(nups_civis) & set(nups_com_pagamento))
 
-                # 3. FILTRO DO HISTÓRICO PARA ANÁLISE
+                # 3. FILTRO DO HISTÓRICO
                 df_civis = df_hist_raw.copy()
                 df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
                 df_civis = df_civis[df_civis['nup'].isin(nups_analise_final)]
@@ -4080,7 +4078,7 @@ Cordialmente,
                 df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
 
-                # --- FILTRO DE EVOLUÇÃO (TODOS + MESES) ---
+                # Filtro de Mês/Evolução
                 df_civis['mes_ano'] = df_civis['timestamp'].dt.strftime('%m/%Y')
                 opcoes_meses = ["Todos"] + sorted(df_civis['mes_ano'].unique().tolist(), 
                                                  key=lambda x: pd.to_datetime(x, format='%m/%Y'), 
@@ -4092,7 +4090,7 @@ Cordialmente,
                     df_civis = df_civis[df_civis['mes_ano'] == sel_mes_micro]
 
                 if df_civis.empty:
-                    st.warning(f"Sem processos concluídos (Status 9) para o período {sel_mes_micro}.")
+                    st.warning(f"Sem faturas concluídas para o período {sel_mes_micro}.")
                 else:
                     # 4. CÁLCULO DE PERMANÊNCIA
                     df_civis = df_civis.sort_values(['nup', 'timestamp'])
@@ -4103,39 +4101,47 @@ Cordialmente,
                     df_civis = df_civis.merge(df_mapeamento, on='nup', how='left')
                     df_pivot = df_civis.pivot_table(index=['nup', 'ose'], columns='status_destino', values='dias', aggfunc='sum').reset_index()
                     
-                    # Garantir colunas de análise
                     for s in ['6', '7', '8']:
                         if s not in df_pivot.columns: df_pivot[s] = 0
 
-                    # --- VISUALIZAÇÃO 1: LIQUIDAÇÃO (Fases 6 e 7) ---
+                    # --- DEFINIÇÃO DE CORES SISAFA ---
+                    cor_ideal = '#16A085'   # Verde SISAFA
+                    cor_atencao = '#F39C12' # Amarelo/Laranja SISAFA
+                    cor_critico = '#C0392B' # Vermelho SISAFA
+
+                    # --- 1️⃣ LIQUIDAÇÃO (Fases 6 e 7) ---
                     df_pivot['tempo_liquidacao'] = df_pivot['6'].fillna(0) + df_pivot['7'].fillna(0)
-                    
-                    st.markdown("#### 1️⃣ Eficiência na Liquidação (Fases 6 e 7)")
                     m_liq = df_pivot['tempo_liquidacao'].mean()
                     min_liq = df_pivot.loc[df_pivot['tempo_liquidacao'].idxmin()]
                     max_liq = df_pivot.loc[df_pivot['tempo_liquidacao'].idxmax()]
-                    qtd_total = len(df_pivot) # Mesma quantidade para ambos agora
+                    qtd_total = len(df_pivot)
 
+                    st.markdown("#### 1️⃣ Eficiência na Liquidação (Fases 6 e 7)")
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Média Global", f"{m_liq:.1f} dias")
                     c2.metric("Recorde (Menor)", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
                     c3.metric("Gargalo (Maior)", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
                     c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
-                    # Donut Chart Liquidação
-                    ideal = len(df_pivot[df_pivot['tempo_liquidacao'] <= 30])
-                    atencao = len(df_pivot[(df_pivot['tempo_liquidacao'] > 30) & (df_pivot['tempo_liquidacao'] <= 60)])
-                    critico = len(df_pivot[df_pivot['tempo_liquidacao'] > 60])
+                    ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 30])
+                    atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 30) & (df_pivot['tempo_liquidacao'] <= 60)])
+                    critico_l = len(df_pivot[df_pivot['tempo_liquidacao'] > 60])
 
-                    fig_liq = px.pie(values=[ideal, atencao, critico], names=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
-                                    hole=0.6, color_discrete_sequence=['#16A085', '#F39C12', '#C0392B'])
-                    fig_liq.update_traces(textposition='outside', textinfo='percent+label', pull=[0.05, 0, 0.1])
-                    fig_liq.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=350, showlegend=False)
+                    fig_liq = px.pie(
+                        values=[ideal_l, atencao_l, critico_l],
+                        names=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
+                        hole=0.6,
+                        color=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
+                        color_discrete_map={'Ideal (≤30d)': cor_ideal, 'Atenção (31-60d)': cor_atencao, 'Crítico (>60d)': cor_critico}
+                    )
+                    fig_liq.update_traces(textposition='inside', textinfo='percent')
+                    fig_liq.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
+                                          legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05))
                     st.plotly_chart(fig_liq, use_container_width=True)
 
                     st.divider()
 
-                    # --- VISUALIZAÇÃO 2: PAGAMENTO (Fase 8) ---
+                    # --- 2️⃣ PAGAMENTO (Fase 8) ---
                     st.markdown("#### 2️⃣ Eficiência no Pagamento (Fase 8)")
                     m_pag = df_pivot['8'].mean()
                     min_pag = df_pivot.loc[df_pivot['8'].idxmin()]
@@ -4145,17 +4151,22 @@ Cordialmente,
                     c1.metric("Média Global", f"{m_pag:.1f} dias")
                     c2.metric("Recorde (Menor)", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
                     c3.metric("Gargalo (Maior)", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} faturas") # Consistente com o de cima
+                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
-                    # Donut Chart Pagamento
                     ideal_p = len(df_pivot[df_pivot['8'] <= 3])
                     atencao_p = len(df_pivot[(df_pivot['8'] > 3) & (df_pivot['8'] <= 10)])
                     critico_p = len(df_pivot[df_pivot['8'] > 10])
 
-                    fig_pag = px.pie(values=[ideal_p, atencao_p, critico_p], names=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
-                                    hole=0.6, color_discrete_sequence=['#27AE60', '#E67E22', '#922B21'])
-                    fig_pag.update_traces(textposition='outside', textinfo='percent+label', pull=[0.05, 0, 0.1])
-                    fig_pag.update_layout(margin=dict(t=30, b=0, l=0, r=0), height=350, showlegend=False)
+                    fig_pag = px.pie(
+                        values=[ideal_p, atencao_p, critico_p],
+                        names=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
+                        hole=0.6,
+                        color=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
+                        color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Alerta (4-10d)': cor_atencao, 'Atraso (>10d)': cor_critico}
+                    )
+                    fig_pag.update_traces(textposition='inside', textinfo='percent')
+                    fig_pag.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
+                                          legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05))
                     st.plotly_chart(fig_pag, use_container_width=True)
 
             except Exception as e:
