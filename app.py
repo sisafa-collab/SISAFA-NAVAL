@@ -17,6 +17,7 @@ from pm4py.objects.log.util import dataframe_utils
 from pm4py.objects.conversion.log import converter as log_converter
 from fpdf import FPDF
 import io
+import json
 
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
@@ -51,6 +52,7 @@ ABA_MENSAGENS = "SISAFA-NAVAL-mensagens"
 ABA_AUDITORIA = "SISAFA-NAVAL-Auditoria"
 ABA_AUDITORIA_GLOSA = "SISAFA-NAVAL-Auditoria-glosa"
 ABA_TABELA_GLOSA = "SISAFA-NAVAL-Tabela-de-referencia-de-glosa"
+ABA_RASCUNHO = "SISAFA-NAVAL-Rascunhos"
 
 # Localiza a pasta do projeto
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
@@ -132,7 +134,7 @@ def abrir_planilha_mestre():
     return None
 
 # Variável global: O aplicativo inteiro vai usar essa única conexão a partir de agora
-sh = abrir_planilha_mestre()
+sh = obter_sh()
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
@@ -455,23 +457,33 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     # --- 4. DADOS DO PROCESSO ---
     pdf.ln(3)
     pdf.set_font("Arial", 'B', 8)
-    pdf.cell(80, 5, "NUP", 1, 0, 'L', True)
-    pdf.cell(50, 5, limpar("Nº Relatório"), 1, 0, 'L', True)
-    pdf.cell(60, 5, limpar("Nº Fatura/Remessa"), 1, 0, 'L', True)
-    pdf.cell(87, 5, limpar("Valor a Pagar (Líquido)"), 1, 1, 'L', True)
-
-    total_glosa = sum(float(g['valor']) for g in lista_glosas)
-    v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
-    valor_liquido = v_apres_limpo - total_glosa
+    pdf.cell(60, 5, "NUP", 1, 0, 'L', True)
+    pdf.cell(35, 5, limpar("Nº Relatório"), 1, 0, 'L', True)
+    pdf.cell(45, 5, limpar("Nº Fatura/Remessa"), 1, 0, 'L', True)
     
+    # Novos Campos Financeiros
+    pdf.cell(45, 5, limpar("Valor Apresentado"), 1, 0, 'L', True)
+    pdf.cell(45, 5, limpar("Glosa Total"), 1, 0, 'L', True)
+    pdf.cell(47, 5, limpar("Valor Líquido"), 1, 1, 'L', True)
+
+    # Cálculos
+    v_apres_limpo = limpar_valor(dados_nup['valor_apresentado'])
+    total_glosa = sum(float(g['valor']) for g in lista_glosas)
+    valor_liquido = v_apres_limpo - total_glosa
     ano_atual = datetime.datetime.now().strftime('%y')
 
-    pdf.set_font("Arial", '', 9)
-    pdf.cell(80, 7, limpar(dados_nup['nup']), 1)
-    pdf.cell(50, 7, f"{num_relatorio}/{ano_atual}", 1)
-    pdf.cell(60, 7, limpar(dados_nup['Numero_da_fatura']), 1)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(87, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(60, 7, limpar(dados_nup['nup']), 1)
+    pdf.cell(35, 7, f"{num_relatorio}/{ano_atual}", 1)
+    pdf.cell(45, 7, limpar(dados_nup['Numero_da_fatura']), 1)
+    
+    # Valores preenchidos
+    pdf.cell(45, 7, f"R$ {v_apres_limpo:,.2f}", 1)
+    pdf.set_text_color(200, 0, 0) # Vermelho para a glosa
+    pdf.cell(45, 7, f"R$ {total_glosa:,.2f}", 1)
+    pdf.set_text_color(0, 0, 0) # Volta para preto
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(47, 7, f"R$ {valor_liquido:,.2f}", 1, 1)
 
     # --- 5. TABELA DE PACIENTES E GLOSAS ---
     pdf.ln(3)
@@ -596,6 +608,48 @@ def obter_proximo_numero_glosa():
                 # Mostra outros erros (como aba com nome errado)
                 raise e
 
+
+def salvar_rascunho(nup, dados_glosa, valores_detalhados, justificativa):
+    """Grava o estado atual da auditagem na planilha para evitar perdas"""
+    try:
+        sh_obj = obter_sh()
+        aba_rasc = sh_obj.worksheet(ABA_RASCUNHO)
+        
+        # Criamos um "container" com tudo que a auditora preencheu
+        pacote_dados = {
+            "glosas": dados_glosa,
+            "centro_custo": valores_detalhados,
+            "justificativa": justificativa
+        }
+        
+        json_string = json.dumps(pacote_dados)
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        
+        celula = aba_rasc.find(str(nup))
+        if celula:
+            # Atualiza rascunho existente
+            aba_rasc.update_cell(celula.row, 2, json_string)
+            aba_rasc.update_cell(celula.row, 3, agora)
+        else:
+            # Cria novo rascunho
+            aba_rasc.append_row([str(nup), json_string, agora])
+        return True
+    except:
+        return False
+
+def carregar_rascunho(nup):
+    """Busca se existe trabalho salvo para este NUP"""
+    try:
+        sh_obj = obter_sh()
+        aba_rasc = sh_obj.worksheet(ABA_RASCUNHO)
+        celula = aba_rasc.find(str(nup))
+        if celula:
+            json_string = aba_rasc.cell(celula.row, 2).value
+            return json.loads(json_string)
+    except:
+        return None
+
+
 @st.cache_data(ttl=3600)
 def obter_tabela_referencia_glosa():
     """Lê a tabela de referência do Google apenas 1 vez por hora."""
@@ -654,21 +708,20 @@ def carregar_dados_cache(nome_aba):
 # ==========================================
 
 # --- 2. CONEXÃO GLOBAL BLINDADA ---
-try:
-    # AQUI ESTÁ A CORREÇÃO: Puxamos a planilha direto do cofre (cache)!
-    sh = abrir_planilha_mestre() 
-    
-    # Se a conexão deu certo, carrega os dados
-    if sh:
-        df = carregar_dados_cache(ABA_PROCESSOS)
-    else:
-        # Força o erro para cair no modo de emergência abaixo
-        raise ValueError("Planilha não conectada.")
+# --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
+def obter_sh():
+    """Garante que a conexão com o Google seja reestabelecida se cair"""
+    if 'spreadsheet_objeto' not in st.session_state:
+        try:
+            client = obter_cliente_google() # Sua função original com cache
+            st.session_state.spreadsheet_objeto = client.open_by_key(ID_PLANILHA)
+        except Exception as e:
+            st.error(f"Erro crítico de conexão com o Banco de Dados: {e}")
+            return None
+    return st.session_state.spreadsheet_objeto
 
-except Exception as e:
-    st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
-    sh = None
-    df = pd.DataFrame(columns=COLUNAS_MESTRE)
+# Variável Global Dinâmica
+sh = obter_sh()
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
@@ -1094,6 +1147,18 @@ else:
                         st.error(f"Erro ao acessar a Tabela A: {e}")
                         lista_tabela_a = []
 
+                    # --- CARREGAMENTO AUTOMÁTICO DE RASCUNHO ---
+                    key_glosas = f"relatorio_glosa_{nup_audit}"
+                    
+                    if key_glosas not in st.session_state:
+                        dados_salvos = carregar_rascunho(nup_audit)
+                        if dados_salvos:
+                            st.session_state[key_glosas] = dados_salvos['glosas']
+                            # Aqui carregamos a justificativa e os valores (se houver lógica para keys dinâmicas)
+                            st.success(f"🔄 Rascunho recuperado! Última alteração: {nup_audit}")
+                        else:
+                            # Se for a primeira vez abrindo o NUP, inicia vazio
+                            st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
 
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
                     
@@ -1126,6 +1191,18 @@ else:
                                         st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro na correção: {e}")
+
+                        # --- BOTÃO DE EMERGÊNCIA (SALVAR RASCUNHO) ---
+                        # Coloque este botão em destaque para as auditoras
+                        st.sidebar.markdown("---")
+                        if st.sidebar.button("💾 SALVAR RASCUNHO AGORA", use_container_width=True):
+                            with st.spinner("Protegendo dados..."):
+                                sucesso = salvar_rascunho(nup_audit, st.session_state[key_glosas], valores_detalhados, just_glosa)
+                                if sucesso:
+                                    st.sidebar.success("Trabalho protegido na planilha!")
+                                else:
+                                    st.sidebar.error("Erro ao salvar rascunho.")
+                        
 
                     # Sem esse bloco aqui, o Selectbox lá embaixo não sabe o que é 'tabela_ref_glosa'
                     try:
@@ -1429,7 +1506,7 @@ else:
                     with col_pdf:
                         st.download_button("📄 CAPA DA AUDITORIA", data=pdf_capa_bytes, file_name=f"CAPA_{num_fat}.pdf", mime="application/pdf", use_container_width=True)
                         if total_glosa_geral > 0:
-                            st.download_button("📋 RELATÓRIO DE GLOSA", data=pdf_glosa_bytes, file_name=f"GLOSA_{num_relatorio}_26.pdf", mime="application/pdf", use_container_width=True)
+                            st.download_button("📋 RELATÓRIO DE GLOSA", data=pdf_glosa_bytes, file_name=f"GLOSA_{num_relatorio}_{auditor_atual}_{num_fat}_26.pdf", mime="application/pdf", use_container_width=True)
                     
                     # --- 3. BOTÃO FINALIZAR ---
                     if col_fin.button("✅ FINALIZAR AUDITORIA", use_container_width=True, disabled=trava_cc or not trava_confirmacao):
