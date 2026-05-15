@@ -4308,92 +4308,103 @@ Cordialmente,
             # --- 3️⃣ RANKING DE GESTORES (Fase 6 - Liquidação) ---
             # =================================================================
             st.divider()
-            st.markdown("#### 3️⃣ Análise temporal por Gestor")
-            st.info("💡 Exibe o tempo médio (em dias) que as faturas permanecem aguardando a Nota Fiscal sob a responsabilidade de cada Gestor Titular! 🐆")
+            st.markdown("#### 3️⃣ Ranking de Tempo Médio na Fase 6 por Fiscal Titular")
+            st.info("💡 Exibe o tempo médio (em dias) que as faturas permanecem aguardando a Nota Fiscal sob a responsabilidade de cada Gestor Titular. Foco na celeridade! 🐆")
 
-            try:
-                col_titular = 'Gestor Titular'
+            col_titular = 'Gestor Titular'
 
-                if col_titular not in df_tabela_a.columns:
-                    st.warning("⚠️ Coluna 'Gestor Titular' não encontrada na Tabela A para gerar o ranking.")
+            if col_titular not in df_tabela_a.columns:
+                st.warning("⚠️ Coluna 'Gestor Titular' não encontrada na Tabela A para gerar o ranking.")
+            else:
+                # 1. Criar um dataframe de mapeamento OSE -> Gestor Titular
+                df_map_gestores = df_tabela_a[['Razão Social', col_titular]].rename(columns={'Razão Social': 'ose', col_titular: 'Gestor'})
+                df_map_gestores = df_map_gestores.dropna(subset=['Gestor'])
+                df_map_gestores['Gestor'] = df_map_gestores['Gestor'].astype(str).str.strip()
+                df_map_gestores = df_map_gestores[df_map_gestores['Gestor'] != '']
+
+                # 2. Fazer o cruzamento (merge) com a df_pivot (que já tem os tempos calculados)
+                df_ranking_base = df_pivot.merge(df_map_gestores, on='ose', how='left')
+                df_ranking_base['Gestor'] = df_ranking_base['Gestor'].fillna('Sem Gestor Mapeado')
+
+                # =================================================================
+                # 🔒 O FILTRO DE OURO: Apenas Ciclo 6 Completo (Saída garantida pro 7)
+                # =================================================================
+                # Identifica quais faturas efetivamente deram entrada no Status 7
+                nups_que_chegaram_no_7 = df_civis[df_civis['status_destino'] == '7']['nup'].unique()
+
+                # A fatura entra no cálculo SE: 
+                # (i) Teve tempo rodando no status 6
+                # (ii) O NUP está na lista dos que já alcançaram o status 7
+                df_fase6 = df_ranking_base[
+                    (df_ranking_base['6'] > 0) & 
+                    (df_ranking_base['nup'].isin(nups_que_chegaram_no_7))
+                ].copy()
+
+                if df_fase6.empty:
+                    st.info("Nenhum ciclo completo da Fase 6 (5 ➔ 6 ➔ 7) computado para o período.")
                 else:
-                    # 1. Criar um dataframe de mapeamento OSE -> Gestor Titular
-                    df_map_gestores = df_tabela_a[['Razão Social', col_titular]].rename(columns={'Razão Social': 'ose', col_titular: 'Gestor'})
-                    df_map_gestores = df_map_gestores.dropna(subset=['Gestor'])
-                    df_map_gestores['Gestor'] = df_map_gestores['Gestor'].astype(str).str.strip()
-                    df_map_gestores = df_map_gestores[df_map_gestores['Gestor'] != '']
-        
-                    # 2. Fazer o cruzamento (merge) com a df_pivot (que já tem os tempos calculados)
-                    df_ranking_base = df_pivot.merge(df_map_gestores, on='ose', how='left')
-                    df_ranking_base['Gestor'] = df_ranking_base['Gestor'].fillna('Sem Gestor Mapeado')
+                    # 4. Agrupar, calcular as médias e métricas extremas
+                    df_ranking = df_fase6.groupby('Gestor').agg(
+                        Tempo_Medio=('6', 'mean'),
+                        Menor_Tempo=('6', 'min'),
+                        Maior_Tempo=('6', 'max'),
+                        Qtd_Faturas=('6', 'count')
+                    ).reset_index()
 
-                    # 3. Filtrar apenas o que efetivamente teve tempo na Fase 6
-                    df_fase6 = df_ranking_base[df_ranking_base['6'] > 0].copy()
+                    # Ordenar do Pior (Maior tempo) para o Melhor (Menor tempo)
+                    df_ranking = df_ranking.sort_values(by='Tempo_Medio', ascending=False)
 
-                    if df_fase6.empty:
-                        st.info("Nenhum tempo computado na Fase 6 para o período filtrado.")
-                    else:
-                        # 4. Agrupar, calcular as médias e métricas extremas
-                        df_ranking = df_fase6.groupby('Gestor').agg(
-                            Tempo_Medio=('6', 'mean'),
-                            Menor_Tempo=('6', 'min'),
-                            Maior_Tempo=('6', 'max'),
-                            Qtd_Faturas=('6', 'count')
-                        ).reset_index()
+                    # Arredondar para 1 casa decimal
+                    df_ranking['Tempo_Medio'] = df_ranking['Tempo_Medio'].round(1)
+                    df_ranking['Menor_Tempo'] = df_ranking['Menor_Tempo'].round(1)
+                    df_ranking['Maior_Tempo'] = df_ranking['Maior_Tempo'].round(1)
 
-                        # Ordenar do Pior (Maior tempo) para o Melhor (Menor tempo)
-                        df_ranking = df_ranking.sort_values(by='Tempo_Medio', ascending=False)
+                    # --- 1. RENDERIZAÇÃO DO GRÁFICO (Tela Cheia) ---
+                    fig_fiscais = px.bar(
+                        df_ranking, 
+                        x='Tempo_Medio', 
+                        y='Gestor', 
+                        orientation='h',
+                        text='Tempo_Medio',
+                        color='Tempo_Medio',
+                        color_continuous_scale=[cor_ideal, cor_atencao, cor_critico], # Usa as cores do SISAFA
+                        title="Gargalos por Fiscal (Dias no Status 6)"
+                    )
+                    
+                    # CÁLCULO DE ALTURA DINÂMICA: 25 pixels de altura para cada Gestor na lista (mínimo de 400px)
+                    altura_dinamica = max(400, len(df_ranking) * 25)
 
-                        # Arredondar para 1 casa decimal
-                        df_ranking['Tempo_Medio'] = df_ranking['Tempo_Medio'].round(1)
-                        df_ranking['Menor_Tempo'] = df_ranking['Menor_Tempo'].round(1)
-                        df_ranking['Maior_Tempo'] = df_ranking['Maior_Tempo'].round(1)
+                    fig_fiscais.update_layout(
+                        yaxis={'categoryorder':'total ascending'}, 
+                        margin=dict(l=0, r=20, t=40, b=0),
+                        coloraxis_showscale=False, # Esconde a legenda lateral
+                        height=altura_dinamica # Aplica a altura calculada para não achatar
+                    )
+                    fig_fiscais.update_traces(textposition='outside')
+                    
+                    # Plota o gráfico ocupando 100% da largura
+                    st.plotly_chart(fig_fiscais, use_container_width=True)
 
-                        c_grafico, c_tabela = st.columns([3, 2])
-
-                        with c_grafico:
-                            # Gráfico de Barras Horizontais
-                            fig_fiscais = px.bar(
-                                df_ranking, 
-                                x='Tempo_Medio', 
-                                y='Gestor', 
-                                orientation='h',
-                                text='Tempo_Medio',
-                                color='Tempo_Medio',
-                                color_continuous_scale=[cor_ideal, cor_atencao, cor_critico], # Usa as cores do SISAFA
-                                title="Gargalos por Fiscal (Dias no Status 6)"
-                            )
-                            # A mágica da ordenação: 'total ascending' coloca os maiores valores no TOPO visual
-                            fig_fiscais.update_layout(
-                                yaxis={'categoryorder':'total ascending'}, 
-                                margin=dict(l=0, r=20, t=40, b=0),
-                                coloraxis_showscale=False # Esconde a legenda lateral de cores para limpar o visual
-                            )
-                            fig_fiscais.update_traces(textposition='outside')
-                            st.plotly_chart(fig_fiscais, use_container_width=True)
-
-                        with c_tabela:
-                            st.markdown("<br>**📊 Panorama Comparativo**", unsafe_allow_html=True)
-                            df_display = df_ranking.rename(columns={
-                                'Tempo_Medio': 'Média (dias)',
-                                'Maior_Tempo': 'Max (dias)',
-                                'Menor_Tempo': 'Min (dias)',
-                                'Qtd_Faturas': 'Faturas'
-                            })
-                            # Tabela de suporte com os recordes e gargalos
-                            st.dataframe(
-                                df_display, 
-                                use_container_width=True, 
-                                hide_index=True,
-                                column_config={
-                                    "Média (dias)": st.column_config.NumberColumn(format="%.1f ⏱️"),
-                                    "Max (dias)": st.column_config.NumberColumn(format="%.1f 🔴"),
-                                    "Min (dias)": st.column_config.NumberColumn(format="%.1f 🟢")
-                                }
-                            )
-
-            except Exception as e:
-                st.error(f"Erro ao gerar o ranking de gestores: {e}")
+                    # --- 2. RENDERIZAÇÃO DA TABELA (Embaixo do Gráfico) ---
+                    st.markdown("<br>**📊 Panorama Comparativo Detalhado**", unsafe_allow_html=True)
+                    df_display = df_ranking.rename(columns={
+                        'Tempo_Medio': 'Média (dias)',
+                        'Maior_Tempo': 'Max (dias)',
+                        'Menor_Tempo': 'Min (dias)',
+                        'Qtd_Faturas': 'Faturas'
+                    })
+                    
+                    # Tabela de suporte ocupando 100% da largura
+                    st.dataframe(
+                        df_display, 
+                        use_container_width=True, 
+                        hide_index=True,
+                        column_config={
+                            "Média (dias)": st.column_config.NumberColumn(format="%.1f ⏱️"),
+                            "Max (dias)": st.column_config.NumberColumn(format="%.1f 🔴"),
+                            "Min (dias)": st.column_config.NumberColumn(format="%.1f 🟢")
+                        }
+                    )
 
                     
             
