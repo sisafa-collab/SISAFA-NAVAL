@@ -3052,7 +3052,9 @@ Cordialmente,
                         # 7. Exibição do Resultado
                         if 'panorama_gerado' in st.session_state:
                             st.success("""✅ **Panorama Gerencial pronto para cópia!** 🫡🇧🇷
+
 💭💭💭💭💭💭💭💭💭💭💭
+
 *No apoio administrativo,* 
 
 *No esclarecimento de informações,* 
