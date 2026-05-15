@@ -4308,8 +4308,8 @@ Cordialmente,
             # --- 3️⃣ RANKING DE GESTORES (Fase 6 - Liquidação) ---
             # =================================================================
             st.divider()
-            st.markdown("#### 3️⃣ Ranking de Tempo Médio na Fase 6 por Fiscal Titular")
-            st.info("💡 Exibe o tempo médio (em dias) que as faturas permanecem aguardando a Nota Fiscal sob a responsabilidade de cada Gestor Titular. Foco na celeridade! 🐆")
+            st.markdown("#### 3️⃣ Análise de Tempo Médio por Fiscal")
+            st.info("💡 Exibe o tempo médio (em dias) que as faturas permanecem aguardando a Nota Fiscal sob a responsabilidade de cada Gestor Titular. 🐆")
 
             col_titular = 'Gestor Titular'
 
@@ -4368,7 +4368,7 @@ Cordialmente,
                         text='Tempo_Medio',
                         color='Tempo_Medio',
                         color_continuous_scale=[cor_ideal, cor_atencao, cor_critico], # Usa as cores do SISAFA
-                        title="Gargalos por Fiscal (Dias no Status 6)"
+                        title="Tempo médio por Gestor (da entrega da NE ao (à) gestor (a) à entrega da NF para a Execução Financeira)"
                     )
                     
                     # CÁLCULO DE ALTURA DINÂMICA: 25 pixels de altura para cada Gestor na lista (mínimo de 400px)
