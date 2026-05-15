@@ -4250,8 +4250,8 @@ Cordialmente,
                     st.markdown("#### 1️⃣ Eficiência na Liquidação (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳)")
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Média Global", f"{m_liq:.1f} dias")
-                    c2.metric("Recorde (Menor)", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
-                    c3.metric("Gargalo (Maior)", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
+                    c2.metric("Menor tempo 😎", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
+                    c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
                     c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
                     ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 30])
@@ -4280,8 +4280,8 @@ Cordialmente,
 
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("Média Global", f"{m_pag:.1f} dias")
-                    c2.metric("Recorde (Menor)", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
-                    c3.metric("Gargalo (Maior)", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
+                    c2.metric("Menor tempo 😎", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
+                    c3.metric("Maior tempo 🤯", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
                     c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
                     ideal_p = len(df_pivot[df_pivot['8'] <= 3])
@@ -4302,6 +4302,86 @@ Cordialmente,
 
             except Exception as e:
                 st.error(f"Erro na análise microprocessual: {e}")
+
+            #
+            # =================================================================
+            # 🕵️ VISÃO INDIVIDUAL DO GESTOR/FISCAL
+            # =================================================================
+            st.divider()
+            st.subheader("👤 Painel de análise individual (por gestor)")
+
+            try:
+                # 1. Identificar as colunas de Gestão na Tabela A
+                col_titular = next((c for c in df_tabela_a.columns if c.strip().upper() in ['FISCAL', 'GESTOR', 'TITULAR']), None)
+                col_substituto = next((c for c in df_tabela_a.columns if c.strip().upper() in ['SUBSTITUTO', 'GESTOR_SUB']), None)
+
+                if not col_titular:
+                    st.error("❌ Não foi possível localizar a coluna de 'Fiscal/Titular' na Tabela A.")
+                else:
+                    # 2. Criar lista única de todos os militares envolvidos na gestão
+                    lista_gestores = sorted(list(set(
+                        df_tabela_a[col_titular].dropna().unique().tolist() + 
+                        (df_tabela_a[col_substituto].dropna().unique().tolist() if col_substituto else [])
+                    )))
+
+                    sel_gestor = st.selectbox("Selecione o Fiscal:", [""] + lista_gestores, key="sel_gestor_individual")
+
+                    if sel_gestor:
+                        # --- FILTRAGEM DE CONTRATOS ---
+                        contratos_titular = df_tabela_a[df_tabela_a[col_titular] == sel_gestor]
+                        contratos_substituto = df_tabela_a[df_tabela_a[col_substituto] == sel_gestor] if col_substituto else pd.DataFrame()
+
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.markdown(f"🏆 **Titularidade ({len(contratos_titular)})**")
+                            if not contratos_titular.empty:
+                                st.dataframe(contratos_titular[['Razão Social', 'Objeto']], use_container_width=True, hide_index=True)
+                            else:
+                                st.info("Nenhum contrato como titular.")
+
+                        with c2:
+                            st.markdown(f"🛡️ **Substituição ({len(contratos_substituto)})**")
+                            if not contratos_substituto.empty:
+                                st.dataframe(contratos_substituto[['Razão Social', 'Objeto']], use_container_width=True, hide_index=True)
+                            else:
+                                st.info("Nenhum contrato como substituto.")
+
+                        # --- CÁLCULO FINANCEIRO (STATUS 6) ---
+                        st.markdown(f"### 💰 Volume financeiro sob responsabilidade do (a) gestor (a)")
+                        
+                        # Pegamos as empresas que ele é Titular
+                        empresas_gestor = contratos_titular['Razão Social'].unique().tolist()
+                        
+                        # Filtramos os processos globais (df) que estão no Status 6 para essas empresas
+                        df_status_6 = df[(df['status'] == 6) & (df['ose'].isin(empresas_gestor))].copy()
+                        
+                        if df_status_6.empty:
+                            st.success(f"✅ Nada pendente no Status 6 para o Fiscal {sel_gestor.split()[0]}!")
+                        else:
+                            df_status_6['valor_num'] = df_status_6['valor_apresentado'].apply(limpar_valor)
+                            
+                            # Agrupamos por OSE para mostrar o montante por empresa
+                            resumo_financeiro = df_status_6.groupby('ose').agg(
+                                Qtd_Faturas=('nup', 'count'),
+                                Total_Rascunho=('valor_num', 'sum')
+                            ).reset_index()
+
+                            # Exibição em cards ou tabela
+                            tot_gestor_s6 = resumo_financeiro['Total_Rascunho'].sum()
+                            st.metric(f"Total em Aberto (NF pendentes)", f"R$ {tot_gestor_s6:,.2f}")
+                            
+                            st.write("**Detalhamento por OSE:**")
+                            st.dataframe(
+                                resumo_financeiro.rename(columns={'ose': 'Empresa', 'Qtd_Faturas': 'Faturas', 'Total_Rascunho': 'Valor Total (R$)'}),
+                                use_container_width=True,
+                                hide_index=True,
+                                column_config={
+                                    "Valor Total (R$)": st.column_config.NumberColumn(format="R$ %.2f")
+                                }
+                            )
+
+            except Exception as e:
+                st.error(f"Erro ao carregar visão do gestor: {e}")
 
 
 
