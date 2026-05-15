@@ -1207,12 +1207,17 @@ else:
                         # Coloque este botão em destaque para as auditoras
                         st.sidebar.markdown("---")
                         if st.sidebar.button("💾 SALVAR RASCUNHO", use_container_width=True):
-                            with st.spinner("Protegendo dados..."):
-                                sucesso = salvar_rascunho(nup_audit, st.session_state[key_glosas], valores_detalhados, just_glosa)
-                                if sucesso:
-                                    st.sidebar.success("Trabalho protegido na planilha!")
-                                else:
-                                    st.sidebar.error("Erro ao salvar rascunho.")
+                        # Pega os valores atuais (você precisará mapear os inputs de centro de custo para uma lista)
+                        sucesso = salvar_rascunho_auditoria(
+                            nup_audit, 
+                            st.session_state[key_glosas], 
+                            valores_detalhados, 
+                            just_glosa
+                        )
+                        if sucesso:
+                            st.success("✅ Rascunho salvo!")
+                        else:
+                            st.error("❌ Falha ao salvar rascunho. Verifique a conexão.")
                         
 
                     # Sem esse bloco aqui, o Selectbox lá embaixo não sabe o que é 'tabela_ref_glosa'
@@ -1622,6 +1627,26 @@ else:
                         if disparar_email_glosa(email_dest, num_fat, glosa_input, just_glosa, nome_ose, email_aud):
                             registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_dest}")
                             st.toast("E-mail enviado!", icon="✅")
+
+                    # =======================================================
+                    # 💾 BOTÃO DE RASCUNHO (POSIÇÃO CORRETA)
+                    # =======================================================
+                    st.divider()
+                    if st.button("💾 SALVAR RASCUNHO DA AUDITORIA (Evitar perda de dados)", type="secondary", use_container_width=True):
+                        with st.spinner("Protegendo dados na nuvem..."):
+                            sucesso = salvar_rascunho_auditoria(
+                                nup_audit, 
+                                st.session_state[key_glosas], 
+                                valores_detalhados, 
+                                just_glosa
+                            )
+                            if sucesso:
+                                st.success("✅ Rascunho salvo com sucesso! O trabalho está protegido. ⚓")
+                            else:
+                                st.error("❌ Falha ao salvar rascunho. Verifique a conexão com o Google.")
+
+                    # --- ÁREA DE AÇÕES FINAIS ---
+                    col_fin, col_mail, col_pdf = st.columns(3)
 
 
         # 3. ABA: FATURAS AUDITADAS
