@@ -3061,7 +3061,9 @@ Cordialmente,
 
 *Nas horas mais difíceis e nas fainas em geral...* 
 
-*É CADA UM COM SEUS PROBLEMAS!! SISAFA NAVAL!* ⚓🐆
+
+
+*...É CADA UM COM SEUS PROBLEMAS!! SISAFA NAVAL!* ⚓🐆
 """)
                             
                             st.code(st.session_state['panorama_gerado'], language="text")
