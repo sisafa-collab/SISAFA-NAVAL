@@ -4305,74 +4305,80 @@ Cordialmente,
 
             #
             # =================================================================
+            # =================================================================
             # 🕵️ VISÃO INDIVIDUAL DO GESTOR/FISCAL
             # =================================================================
             st.divider()
-            st.subheader("👤 Painel de análise individual (por gestor)")
+            st.subheader("👤 Painel Individual do Gestor")
 
             try:
-                # 1. Identificar as colunas de Gestão na Tabela A
-                col_titular = next((c for c in df_tabela_a.columns if c.strip().upper() in ['FISCAL', 'GESTOR', 'TITULAR']), None)
-                col_substituto = next((c for c in df_tabela_a.columns if c.strip().upper() in ['SUBSTITUTO', 'GESTOR_SUB']), None)
+                # 1. Nomes EXATOS das colunas conforme a sua SISAFA-NAVAL-Tabela-A
+                col_titular = 'Gestor Titular'
+                col_substituto = 'Gestor Substituto'
 
-                if not col_titular:
-                    st.error("❌ Não foi possível localizar a coluna de 'Fiscal/Titular' na Tabela A.")
+                if col_titular not in df_tabela_a.columns:
+                    st.error(f"❌ A coluna '{col_titular}' não foi encontrada na Tabela A. Verifique se não há espaços acidentais no cabeçalho.")
                 else:
-                    # 2. Criar lista única de todos os militares envolvidos na gestão
+                    # 2. Criar lista única e limpa de todos os militares envolvidos na gestão
                     lista_gestores = sorted(list(set(
-                        df_tabela_a[col_titular].dropna().unique().tolist() + 
-                        (df_tabela_a[col_substituto].dropna().unique().tolist() if col_substituto else [])
+                        df_tabela_a[col_titular].dropna().astype(str).unique().tolist() + 
+                        (df_tabela_a[col_substituto].dropna().astype(str).unique().tolist() if col_substituto in df_tabela_a.columns else [])
                     )))
+                            
+                    # Remove sujeiras como campos vazios, 'nan' ou 'None'
+                    lista_gestores = [g for g in lista_gestores if g.strip() and g.upper() not in ['NAN', 'NONE', '']]
 
-                    sel_gestor = st.selectbox("Selecione o Fiscal:", [""] + lista_gestores, key="sel_gestor_individual")
+                    sel_gestor = st.selectbox("Selecione o Fiscal para Raio-X:", [""] + lista_gestores, key="sel_gestor_individual")
 
                     if sel_gestor:
                         # --- FILTRAGEM DE CONTRATOS ---
                         contratos_titular = df_tabela_a[df_tabela_a[col_titular] == sel_gestor]
-                        contratos_substituto = df_tabela_a[df_tabela_a[col_substituto] == sel_gestor] if col_substituto else pd.DataFrame()
+                        contratos_substituto = df_tabela_a[df_tabela_a[col_substituto] == sel_gestor] if col_substituto in df_tabela_a.columns else pd.DataFrame()
 
                         c1, c2 = st.columns(2)
                         with c1:
                             st.markdown(f"🏆 **Titularidade ({len(contratos_titular)})**")
                             if not contratos_titular.empty:
-                                st.dataframe(contratos_titular[['Razão Social', 'Objeto']], use_container_width=True, hide_index=True)
+                                st.dataframe(contratos_titular[['Razão Social', 'Tipo', 'Termo de credenciamento']], use_container_width=True, hide_index=True)
                             else:
                                 st.info("Nenhum contrato como titular.")
 
                         with c2:
                             st.markdown(f"🛡️ **Substituição ({len(contratos_substituto)})**")
                             if not contratos_substituto.empty:
-                                st.dataframe(contratos_substituto[['Razão Social', 'Objeto']], use_container_width=True, hide_index=True)
+                                st.dataframe(contratos_substituto[['Razão Social', 'Tipo', 'Termo de credenciamento']], use_container_width=True, hide_index=True)
                             else:
                                 st.info("Nenhum contrato como substituto.")
 
                         # --- CÁLCULO FINANCEIRO (STATUS 6) ---
-                        st.markdown(f"### 💰 Volume financeiro sob responsabilidade do (a) gestor (a)")
-                        
+                        st.markdown(f"### 💰 Volume sob Responsabilidade (Status 6)")
+                                
                         # Pegamos as empresas que ele é Titular
                         empresas_gestor = contratos_titular['Razão Social'].unique().tolist()
-                        
+                                
                         # Filtramos os processos globais (df) que estão no Status 6 para essas empresas
                         df_status_6 = df[(df['status'] == 6) & (df['ose'].isin(empresas_gestor))].copy()
-                        
+                                
                         if df_status_6.empty:
-                            st.success(f"✅ Nada pendente no Status 6 para o Fiscal {sel_gestor.split()[0]}!")
+                            # Pega só o último nome para ficar amigável
+                            nome_curto = sel_gestor.split()[-1] if sel_gestor else "Fiscal"
+                            st.success(f"✅ Nada pendente no Status 6 para a carteira do(a) {nome_curto}! 🫡")
                         else:
                             df_status_6['valor_num'] = df_status_6['valor_apresentado'].apply(limpar_valor)
-                            
+                                    
                             # Agrupamos por OSE para mostrar o montante por empresa
                             resumo_financeiro = df_status_6.groupby('ose').agg(
                                 Qtd_Faturas=('nup', 'count'),
-                                Total_Rascunho=('valor_num', 'sum')
+                                Total_Aberto=('valor_num', 'sum')
                             ).reset_index()
 
-                            # Exibição em cards ou tabela
-                            tot_gestor_s6 = resumo_financeiro['Total_Rascunho'].sum()
+                            # Exibição
+                            tot_gestor_s6 = resumo_financeiro['Total_Aberto'].sum()
                             st.metric(f"Total em Aberto (NF pendentes)", f"R$ {tot_gestor_s6:,.2f}")
-                            
+                                    
                             st.write("**Detalhamento por OSE:**")
                             st.dataframe(
-                                resumo_financeiro.rename(columns={'ose': 'Empresa', 'Qtd_Faturas': 'Faturas', 'Total_Rascunho': 'Valor Total (R$)'}),
+                                resumo_financeiro.rename(columns={'ose': 'Empresa', 'Qtd_Faturas': 'Faturas', 'Total_Aberto': 'Valor Total (R$)'}),
                                 use_container_width=True,
                                 hide_index=True,
                                 column_config={
