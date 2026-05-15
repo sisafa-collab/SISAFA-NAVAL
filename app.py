@@ -2971,14 +2971,14 @@ else:
                                     # 3. Dicionário de Explicações Didáticas para o Fornecedor (Mantido seu texto)
                                     explica_etapa = {
                                         1: "Registro e conferência inicial da documentação em nossa Secretaria.",
-                                        2: "Análise técnica detalhada dos serviços e materiais cobrados, emissão de glosas, entre outros serviços.",
-                                        3: "Auditoria técnica concluída com sucesso.",
+                                        2: "Divisão de Auditoria recebeu as faturas e iniciou a análise técnica detalhada dos serviços e materiais cobrados, com vistas à emissão de glosas, controle de custos, entre outros serviços.",
+                                        3: "Auditoria técnica concluída com sucesso e aguardando o envio para o setor financeiro.",
                                         4: "Aguardando a reserva orçamentária, com vistas à emissão da Nota de Empenho.",
-                                        5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados dos os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
-                                        6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão do documentos fiscal.",
-                                        7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo fiscal (titular ou substituto) e, posteriormente, encaminhada para a Seção de Execução Financeira.",
+                                        5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
+                                        6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão do documentos fiscais pertinentes.",
+                                        7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo gestor (titular ou substituto) e, posteriormente, encaminhada para a Seção de Execução Financeira.",
                                         8: "Liquidação da Nota Fiscal no Sistema Integrado de Administração Financeira do Governo Federal (SIAFI) 🖥️, conforme o estabelecido no artigo 63 da Lei 4.320/64.",
-                                        9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários pertinentes."
+                                        9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil após a aprovação para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários devidos."
                                     }
 
                                     # 4. Mapeamento de meses para siglas
