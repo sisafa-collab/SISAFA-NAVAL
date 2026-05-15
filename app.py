@@ -1206,7 +1206,7 @@ else:
                         # --- BOTÃO DE EMERGÊNCIA (SALVAR RASCUNHO) ---
                         # Coloque este botão em destaque para as auditoras
                         st.sidebar.markdown("---")
-                        if st.sidebar.button("💾 SALVAR RASCUNHO AGORA", use_container_width=True):
+                        if st.sidebar.button("💾 SALVAR RASCUNHO", use_container_width=True):
                             with st.spinner("Protegendo dados..."):
                                 sucesso = salvar_rascunho(nup_audit, st.session_state[key_glosas], valores_detalhados, just_glosa)
                                 if sucesso:
