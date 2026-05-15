@@ -619,32 +619,51 @@ def obter_sh():
     return st.session_state.spreadsheet_objeto
 
 
-def salvar_rascunho(nup, dados_glosa, valores_detalhados, justificativa):
-    """Grava o estado atual da auditagem na planilha para evitar perdas"""
+def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa):
+    """Grava o estado atual da auditagem com logs de depuração"""
     try:
+        # 1. Tenta obter o objeto da planilha
         sh_obj = obter_sh()
-        aba_rasc = sh_obj.worksheet(ABA_RASCUNHO)
-        
-        # Criamos um "container" com tudo que a auditora preencheu
-        pacote_dados = {
+        if sh_obj is None:
+            st.error("❌ Erro de Conexão: O objeto 'sh' está vazio.")
+            return False
+            
+        # 2. Verifica se a aba existe (Certifique-se que ABA_RASCUNHO = "SISAFA-NAVAL-Rascunhos")
+        try:
+            aba_rascunho = sh_obj.worksheet(ABA_RASCUNHO)
+        except Exception as e:
+            st.error(f"❌ Aba '{ABA_RASCUNHO}' não encontrada na planilha!")
+            return False
+
+        # 3. Prepara o pacote de dados (Certifique-se de importar o json no topo do arquivo)
+        import json
+        pacote = {
             "glosas": dados_glosa,
-            "centro_custo": valores_detalhados,
+            "centro_custo": valores_cc,
             "justificativa": justificativa
         }
+        json_dados = json.dumps(pacote)
+        agora = datetime.now().strftime("%d/%m/%Y %H:%M")
         
-        json_string = json.dumps(pacote_dados)
-        agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        
-        celula = aba_rasc.find(str(nup))
-        if celula:
-            # Atualiza rascunho existente
-            aba_rasc.update_cell(celula.row, 2, json_string)
-            aba_rasc.update_cell(celula.row, 3, agora)
-        else:
-            # Cria novo rascunho
-            aba_rasc.append_row([str(nup), json_string, agora])
-        return True
-    except:
+        # 4. Procura o NUP para decidir se ATUALIZA ou CRIA NOVO
+        try:
+            celula = aba_rascunho.find(str(nup))
+            if celula:
+                # Atualiza as colunas 2 (JASON_DADOS) e 3 (ULTIMA_ATUALIZACAO)
+                aba_rascunho.update_cell(celula.row, 2, json_dados)
+                aba_rascunho.update_cell(celula.row, 3, agora)
+                st.toast(f"✅ Rascunho do NUP {nup} atualizado!", icon="🔄")
+            else:
+                # Se não achou, anexa uma nova linha
+                aba_rascunho.append_row([str(nup), json_dados, agora])
+                st.toast(f"✅ Novo rascunho criado para o NUP {nup}!", icon="💾")
+            return True
+        except Exception as e:
+            st.error(f"❌ Erro ao escrever na aba: {e}")
+            return False
+
+    except Exception as e:
+        st.error(f"❌ Erro geral na função de rascunho: {e}")
         return False
 
 def carregar_rascunho(nup):
@@ -1617,7 +1636,7 @@ else:
                     # =======================================================
                     st.sidebar.markdown("---")
                     # O botão aparece na barra lateral, mas o cérebro dele processa aqui embaixo!
-                    if st.sidebar.button("💾 SALVAR RASCUNHO (Evitar perda de dados)", type="primary", use_container_width=True):
+                    if st.sidebar.button("💾 SALVAR RASCUNHO", type="primary", use_container_width=True):
                         with st.spinner("Protegendo dados na nuvem..."):
                             sucesso = salvar_rascunho_auditoria(
                                 nup_audit, 
