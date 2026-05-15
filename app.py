@@ -133,8 +133,6 @@ def abrir_planilha_mestre():
         return client.open_by_key(ID_PLANILHA) 
     return None
 
-# Variável global: O aplicativo inteiro vai usar essa única conexão a partir de agora
-sh = obter_sh()
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
@@ -608,6 +606,18 @@ def obter_proximo_numero_glosa():
                 # Mostra outros erros (como aba com nome errado)
                 raise e
 
+# --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
+def obter_sh():
+    """Garante que a conexão com o Google seja reestabelecida se cair"""
+    if 'spreadsheet_objeto' not in st.session_state:
+        try:
+            client = obter_cliente_google()
+            st.session_state.spreadsheet_objeto = client.open_by_key(ID_PLANILHA)
+        except Exception as e:
+            st.error(f"Erro crítico de conexão com o Banco de Dados: {e}")
+            return None
+    return st.session_state.spreadsheet_objeto
+
 
 def salvar_rascunho(nup, dados_glosa, valores_detalhados, justificativa):
     """Grava o estado atual da auditagem na planilha para evitar perdas"""
@@ -707,35 +717,36 @@ def carregar_dados_cache(nome_aba):
     return pd.DataFrame(columns=COLUNAS_MESTRE)
 # ==========================================
 
-# --- 2. CONEXÃO GLOBAL BLINDADA ---
-# --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
-def obter_sh():
-    """Garante que a conexão com o Google seja reestabelecida se cair"""
-    if 'spreadsheet_objeto' not in st.session_state:
-        try:
-            client = obter_cliente_google() # Sua função original com cache
-            st.session_state.spreadsheet_objeto = client.open_by_key(ID_PLANILHA)
-        except Exception as e:
-            st.error(f"Erro crítico de conexão com o Banco de Dados: {e}")
-            return None
-    return st.session_state.spreadsheet_objeto
+# --- CONEXÃO GLOBAL BLINDADA E CARREGAMENTO ---
+try:
+    sh = obter_sh() 
+    
+    if sh:
+        # Puxa a tabela de processos (certifique-se que 'carregar_dados_cache' já foi definida)
+        df = carregar_dados_cache(ABA_PROCESSOS)
+    else:
+        raise ValueError("Planilha não conectada.")
 
-# Variável Global Dinâmica
-sh = obter_sh()
+except Exception as e:
+    st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
+    sh = None
+    # Caso caia, cria um dataframe vazio para a tela não dar "crash" fatal
+    # Certifique-se de que a lista COLUNAS_MESTRE está definida lá em cima!
+    df = pd.DataFrame(columns=COLUNAS_MESTRE) 
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
 if 'modulo_ativo' not in st.session_state: 
     st.session_state.modulo_ativo = None
-# Variáveis de Confirmação (Cura para o AttributeError)
 if 'confirmar_secom' not in st.session_state: 
     st.session_state.confirmar_secom = False
 if 'confirmar_recebimento' not in st.session_state: 
     st.session_state.confirmar_recebimento = False
 if 'confirmar_finalizacao' not in st.session_state: 
     st.session_state.confirmar_finalizacao = False
-if 'nups_para_receber' not in st.session_state: st.session_state.nups_para_receber = []
+if 'nups_para_receber' not in st.session_state: 
+    st.session_state.nups_para_receber = []
 
 
 # --- 1. TELA DE LOGIN ---
