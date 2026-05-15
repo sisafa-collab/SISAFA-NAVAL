@@ -4432,7 +4432,7 @@ Cordialmente,
                     # Remove sujeiras como campos vazios, 'nan' ou 'None'
                     lista_gestores = [g for g in lista_gestores if g.strip() and g.upper() not in ['NAN', 'NONE', '']]
 
-                    sel_gestor = st.selectbox("Selecione o Fiscal para Raio-X:", [""] + lista_gestores, key="sel_gestor_individual")
+                    sel_gestor = st.selectbox("Selecione o Fiscal:", [""] + lista_gestores, key="sel_gestor_individual")
 
                     if sel_gestor:
                         # --- FILTRAGEM DE CONTRATOS ---
@@ -4455,7 +4455,7 @@ Cordialmente,
                                 st.info("Nenhum contrato como substituto.")
 
                         # --- CÁLCULO FINANCEIRO (STATUS 6) ---
-                        st.markdown(f"### 💰 Volume sob Responsabilidade (Status 6)")
+                        st.markdown(f"### 💰 Volume sob Responsabilidade do (a) gestor (a)")
                                 
                         # Pegamos as empresas que ele é Titular
                         empresas_gestor = contratos_titular['Razão Social'].unique().tolist()
