@@ -3051,7 +3051,17 @@ Cordialmente,
 
                         # 7. Exibição do Resultado
                         if 'panorama_gerado' in st.session_state:
-                            st.success("✅ Panorama Gerencial pronto para cópia!🫡🇧🇷")
+                            st.success("""✅ **Panorama Gerencial pronto para cópia!** 🫡🇧🇷
+💭💭💭💭💭💭💭💭💭💭💭
+*No apoio administrativo,* 
+
+*No esclarecimento de informações,* 
+
+*Nas horas mais difíceis e nas fainas em geral...* 
+
+*É CADA UM COM SEUS PROBLEMAS!! SISAFA NAVAL!* ⚓🐆
+""")
+                            
                             st.code(st.session_state['panorama_gerado'], language="text")
 
 
