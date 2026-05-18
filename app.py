@@ -4097,7 +4097,7 @@ Cordialmente,
                         # --- 8. TABELA DE EXTREMOS (Mín/Máx por Etapa) ---
                         st.write("### 🔍 Detalhamento de Performance por Etapa (Civil)")
                         df_formatado = estatisticas_etapa.copy()
-                        for col in ['Média', 'Mínimo 😎', 'Máximo 🤯']:
+                        for col in ['Média', 'Mínimo', 'Máximo']:
                             df_formatado[col] = df_formatado[col].apply(lambda x: f"{x:.2f} dias" if pd.notnull(x) else "-")
                         
                         st.table(df_formatado.set_index('Etapa'))
