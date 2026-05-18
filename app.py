@@ -104,30 +104,32 @@ st.markdown("""
 # =================================================================
 
 def conectar_google_com_insistencia(tentativas=4, atraso=2):
-    """Tenta conectar ao Google várias vezes e expõe o erro real se falhar."""
+    """Tenta conectar ao Google e verifica se as chaves secretas existem."""
+    
+    # 1. TESTE DO COFRE (SECRETS)
+    if "gcp_service_account" not in st.secrets:
+        st.sidebar.error("🚨 ALERTA VERMELHO: As chaves do Google (gcp_service_account) não foram encontradas no st.secrets!")
+        return None
+
+    # 2. TENTATIVAS DE CONEXÃO
     for tentativa in range(tentativas):
         try:
             scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            if "gcp_service_account" in st.secrets:
-                creds_info = st.secrets["gcp_service_account"]
-                
-                if isinstance(creds_info, str):
-                    creds_info = json.loads(creds_info.strip())
-                
-                # Garante que a chave privada seja lida corretamente
-                if "private_key" in creds_info:
-                    creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
-                
-                creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
-                client = gspread.authorize(creds)
-                
-                # Teste rápido: garante que a conexão é real antes de liberar o cliente
-                client.open_by_key(ID_PLANILHA) 
-                
-                return client # Se chegou aqui, a conexão foi um sucesso!
-                
+            creds_info = st.secrets["gcp_service_account"]
+            
+            if isinstance(creds_info, str):
+                creds_info = json.loads(creds_info.strip())
+            
+            if "private_key" in creds_info:
+                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+            
+            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
+            client = gspread.authorize(creds)
+            client.open_by_key(ID_PLANILHA) 
+            
+            return client 
+            
         except Exception as e:
-            # AQUI ESTÁ A MÁGICA: Vamos ver o que o Python/Google estão reclamando!
             st.sidebar.warning(f"⚠️ Falha na tentativa {tentativa + 1}: {e}")
             if tentativa < tentativas - 1:
                 time.sleep(atraso) 
@@ -3084,20 +3086,7 @@ Cordialmente,
 
                         # 7. Exibição do Resultado
                         if 'panorama_gerado' in st.session_state:
-                            st.success("""✅ **Panorama Gerencial pronto para cópia!** 🫡🇧🇷
-
-💭💭💭💭💭💭💭💭💭💭💭
-
-*No apoio administrativo,* 
-
-*No esclarecimento de informações,* 
-
-*Nas horas mais difíceis e nas fainas em geral...* 
-
-
-
-*...É CADA UM COM SEUS PROBLEMAS!! SISAFA NAVAL!* ⚓🐆
-""")
+                            st.success("""✅ **Panorama Gerencial pronto para cópia!** 🫡🇧🇷""")
                             
                             st.code(st.session_state['panorama_gerado'], language="text")
 
