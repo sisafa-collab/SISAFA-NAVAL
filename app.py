@@ -3996,7 +3996,6 @@ Cordialmente,
         # 2. ABA: PRODUTIVIDADE (Médias Reais, Ciclo Total e Extremos)
         # =================================================================
         with tab_prod:
-        with tab_prod:
             st.subheader("🧑‍💻 Análise macroprocessual")
             st.subheader("⏱️ Análise Estatística de Permanência por Etapa (restrita às OSE civis)")
             
