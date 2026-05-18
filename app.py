@@ -631,16 +631,22 @@ def obter_proximo_numero_glosa():
 
 # --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
 def obter_sh():
-    """Garante que a conexão com o Google seja reestabelecida se cair"""
-    if 'spreadsheet_objeto' not in st.session_state:
+    """Garante a ligação ao Google Sheets com verificação de segurança contra quebras"""
+    if 'spreadsheet_objeto' not in st.session_state or st.session_state.spreadsheet_objeto is None:
         try:
             client = obter_cliente_google()
+            
+            # VALIDAÇÃO DE SEGURANÇA: Se a internet caiu totalmente após as 4 tentativas
+            if client is None:
+                return None
+                
             st.session_state.spreadsheet_objeto = client.open_by_key(ID_PLANILHA)
         except Exception as e:
-            st.error(f"Erro crítico de conexão com o Banco de Dados: {e}")
+            # Captura erros específicos como ID inválido ou falta de permissão
+            st.error(f"Erro crítico ao aceder à planilha mestre: {e}")
             return None
+            
     return st.session_state.spreadsheet_objeto
-
 
 def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa):
     """Grava o estado atual da auditagem com logs de depuração"""
@@ -763,18 +769,20 @@ def carregar_dados_cache(nome_aba):
 try:
     sh = obter_sh() 
     
-    if sh:
-        # Puxa a tabela de processos (certifique-se que 'carregar_dados_cache' já foi definida)
+    if sh is not None:
+        # Se a ligação estiver ativa, carrega os dados normalmente
         df = carregar_dados_cache(ABA_PROCESSOS)
     else:
-        raise ValueError("Planilha não conectada.")
+        # SE A INTERNET CAIR TOTALMENTE: O sistema não crasha.
+        # Ativa o modo de emergência com uma tabela vazia estruturada para os rascunhos funcionarem
+        st.sidebar.warning("⚠️ Modo de Emergência Ativo: Sem ligação ao banco de dados.")
+        sh = None
+        df = pd.DataFrame(columns=COLUNAS_MESTRE) 
 
 except Exception as e:
-    st.sidebar.error("⚠️ Conexão instável. Usando modo de emergência.")
+    st.sidebar.error("⚠️ Falha grave na inicialização do sistema.")
     sh = None
-    # Caso caia, cria um dataframe vazio para a tela não dar "crash" fatal
-    # Certifique-se de que a lista COLUNAS_MESTRE está definida lá em cima!
-    df = pd.DataFrame(columns=COLUNAS_MESTRE) 
+    df = pd.DataFrame(columns=COLUNAS_MESTRE)
 
 # --- CONTROLE DE SESSÃO ---
 if 'logged_in' not in st.session_state: 
