@@ -4066,7 +4066,6 @@ Cordialmente,
                         # Ordenação conforme o fluxo lógico
                         ordem_fluxo = list(mapa_status.values())
                         estatisticas_etapa['Etapa'] = pd.Categorical(estatisticas_etapa['Etapa'], categories=ordem_fluxo, ordered=True)
-                        estatisticas_etapa = ...
                         estatisticas_etapa = estatisticas_etapa.sort_values('Etapa')
 
                         # --- 6. GRÁFICO DE BARRAS (MÉDIAS REAIS) ---
