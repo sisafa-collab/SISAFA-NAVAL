@@ -3996,8 +3996,9 @@ Cordialmente,
         # 2. ABA: PRODUTIVIDADE (Médias Reais, Ciclo Total e Extremos)
         # =================================================================
         with tab_prod:
+        with tab_prod:
             st.subheader("🧑‍💻 Análise macroprocessual")
-            st.subheader("⏱️ Análise Estatística de Permanência por Etapa")
+            st.subheader("⏱️ Análise Estatística de Permanência por Etapa (restrita às OSE civis)")
             
             try:
                 aba_h = sh.worksheet("SISAFA-NAVAL-historico")
@@ -4008,6 +4009,17 @@ Cordialmente,
                 else:
                     df_h = df_hist_raw.copy()
                     
+                    # =================================================================
+                    # 🔒 FILTRO DE DIRECIONAMENTO: ISOLANDO APENAS OSE CIVIS
+                    # =================================================================
+                    # 1. Carrega a Tabela A e filtra as OSEs do tipo CIVIL
+                    aba_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
+                    df_tabela_a = pd.DataFrame(aba_a.get_all_records())
+                    nomes_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
+
+                    # 2. Descobre quais NUPs pertencem a essas OSEs na base principal (df)
+                    nups_civis = df[df['ose'].isin(nomes_civis)]['nup'].astype(str).unique().tolist()
+                    
                     # 1. Vacina de Tipos e Limpeza
                     df_h['nup'] = df_h['nup'].astype(str).str.strip()
                     col_dest = 'status_destinou' if 'status_destinou' in df_h.columns else 'status_destino'
@@ -4015,76 +4027,82 @@ Cordialmente,
                     df_h['timestamp'] = pd.to_datetime(df_h['timestamp'], format='mixed', errors='coerce')
                     df_h = df_h.dropna(subset=['timestamp']).sort_values(['nup', 'timestamp'])
                     
-                    # 2. Cálculo de Permanência Individual
-                    df_h['data_saida'] = df_h.groupby('nup')['timestamp'].shift(-1)
-                    df_h['data_saida'] = df_h['data_saida'].fillna(pd.Timestamp.now())
-                    df_h['tempo_na_etapa'] = (df_h['data_saida'] - df_h['timestamp']).dt.total_seconds() / 86400
-                    
-                    # 3. Mapeamento das Etapas
-                    mapa_status = {                
-                        "1": "1. 📥 Cadastrada (SECOM)",
-                        "2": "2. 🩺 Em Auditagem",
-                        "3": "3. ✅ Auditada",
-                        "4": "4. 💰 Aguardando NE",
-                        "5": "5. 🏦 Empenhada",
-                        "6": "6. 📝 Aguardando NF",
-                        "7": "7. ⏳ Em liquidação",
-                        "8": "8. 🖥️ Liquidada",
-                    }
-                    
-                    df_h['nome_etapa'] = df_h[col_dest].map(mapa_status)
+                    # 3. APLICA O FILTRO CIVIL NO HISTÓRICO
+                    df_h = df_h[df_h['nup'].isin(nups_civis)]
 
-                    # 4. Criação da Tabela de Tempos (Trata 'saltos' como NaN automaticamente)
-                    tabela_tempos = df_h.pivot_table(
-                        index='nup', 
-                        columns='nome_etapa', 
-                        values='tempo_na_etapa', 
-                        aggfunc='sum' 
-                    )
+                    if df_h.empty:
+                        st.warning("Sem dados históricos mapeados para OSEs do tipo CIVIL no momento.")
+                    else:
+                        # 2. Cálculo de Permanência Individual
+                        df_h['data_saida'] = df_h.groupby('nup')['timestamp'].shift(-1)
+                        df_h['data_saida'] = df_h['data_saida'].fillna(pd.Timestamp.now())
+                        df_h['tempo_na_etapa'] = (df_h['data_saida'] - df_h['timestamp']).dt.total_seconds() / 86400
+                        
+                        # 3. Mapeamento das Etapas
+                        mapa_status = {                
+                            "1": "1. 📥 Cadastrada (SECOM)",
+                            "2": "2. 🩺 Em Auditagem",
+                            "3": "3. ✅ Auditada",
+                            "4": "4. 💰 Aguardando NE",
+                            "5": "5. 🏦 Empenhada",
+                            "6": "6. 📝 Aguardando NF",
+                            "7": "7. ⏳ Em liquidação",
+                            "8": "8. 🖥️ Liquidada",
+                        }
+                        
+                        df_h['nome_etapa'] = df_h[col_dest].map(mapa_status)
 
-                    # --- 5. CÁLCULO DAS ESTATÍSTICAS POR ETAPA ---
-                    # Calculamos Média, Mínimo e Máximo ignorando quem pulou a etapa
-                    estatisticas_etapa = tabela_tempos.agg(['mean', 'min', 'max']).T.reset_index()
-                    estatisticas_etapa.columns = ['Etapa', 'Média', 'Mínimo', 'Máximo']
-                    
-                    # Ordenação conforme o fluxo lógico
-                    ordem_fluxo = list(mapa_status.values())
-                    estatisticas_etapa['Etapa'] = pd.Categorical(estatisticas_etapa['Etapa'], categories=ordem_fluxo, ordered=True)
-                    estatisticas_etapa = estatisticas_etapa.sort_values('Etapa')
+                        # 4. Criação da Tabela de Tempos
+                        tabela_tempos = df_h.pivot_table(
+                            index='nup', 
+                            columns='nome_etapa', 
+                            values='tempo_na_etapa', 
+                            aggfunc='sum' 
+                        )
 
-                    # --- 6. GRÁFICO DE BARRAS (MÉDIAS REAIS) ---
-                    fig_real = px.bar(
-                        estatisticas_etapa, x='Etapa', y='Média',
-                        color='Média', color_continuous_scale='Reds',
-                        text_auto='.1f', title="Tempo Médio de Espera Real (Dias)"
-                    )
-                    st.plotly_chart(fig_real, use_container_width=True)
+                        # --- 5. CÁLCULO DAS ESTATÍSTICAS POR ETAPA ---
+                        estatisticas_etapa = tabela_tempos.agg(['mean', 'min', 'max']).T.reset_index()
+                        estatisticas_etapa.columns = ['Etapa', 'Média', 'Mínimo', 'Máximo']
+                        
+                        # Ordenação conforme o fluxo lógico
+                        ordem_fluxo = list(mapa_status.values())
+                        estatisticas_etapa['Etapa'] = pd.Categorical(estatisticas_etapa['Etapa'], categories=ordem_fluxo, ordered=True)
+                        estatisticas_etapa = ...
+                        estatisticas_etapa = estatisticas_etapa.sort_values('Etapa')
 
-                    # --- 7. MÉTRICAS CONSOLIDADAS ---
-                    st.divider()
-                    
-                    # Cálculo do Tempo Médio Total (Soma das médias de cada etapa)
-                    tempo_ciclo_total = estatisticas_etapa['Média'].sum()
-                    
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.metric("⏳ Tempo Médio Total do Ciclo", f"{tempo_ciclo_total:.1f} dias")
-                        st.caption("Soma das médias reais de todas as etapas do fluxo.")
-                    with c2:
-                        # Taxa de liquidação baseada na aba principal (df)
-                        total_nup = df['nup'].nunique()
-                        concluidos = df[df['status'].astype(str).str.contains('8', na=False)]['nup'].nunique()
-                        taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
-                        st.metric("✅ Taxa de Liquidação", f"{taxa:.1f}%")
+                        # --- 6. GRÁFICO DE BARRAS (MÉDIAS REAIS) ---
+                        fig_real = px.bar(
+                            estatisticas_etapa, x='Etapa', y='Média',
+                            color='Média', color_continuous_scale='Reds',
+                            text_auto='.1f', title="Tempo Médio de Espera Real - OSE Civis (Dias)"
+                        )
+                        st.plotly_chart(fig_real, use_container_width=True)
 
-                    # --- 8. TABELA DE EXTREMOS (Mín/Máx por Etapa) ---
-                    st.write("### 🔍 Detalhamento de Performance por Etapa")
-                    # Formata a tabela para ficar apresentável
-                    df_formatado = estatisticas_etapa.copy()
-                    for col in ['Média', 'Mínimo', 'Máximo']:
-                        df_formatado[col] = df_formatado[col].apply(lambda x: f"{x:.2f} dias" if pd.notnull(x) else "-")
-                    
-                    st.table(df_formatado.set_index('Etapa'))
+                        # --- 7. MÉTRICAS CONSOLIDADAS ---
+                        st.divider()
+                        
+                        tempo_ciclo_total = ...
+                        tempo_ciclo_total = estatisticas_etapa['Média'].sum()
+                        
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.metric("⏳ Tempo Médio Total do Ciclo", f"{tempo_ciclo_total:.1f} dias")
+                            st.caption("Soma das médias reais das faturas Civis por todas as etapas.")
+                        with c2:
+                            # Taxa de liquidação calculada APENAS para o universo CIVIL
+                            df_civis_main = df[df['nup'].isin(nups_civis)]
+                            total_nup = df_civis_main['nup'].nunique()
+                            concluidos = df_civis_main[df_civis_main['status'].astype(str).str.contains('8', na=False)]['nup'].nunique()
+                            taxa = (concluidos / total_nup * 100) if total_nup > 0 else 0
+                            st.metric("✅ Taxa de Liquidação (Civil)", f"{taxa:.1f}%")
+
+                        # --- 8. TABELA DE EXTREMOS (Mín/Máx por Etapa) ---
+                        st.write("### 🔍 Detalhamento de Performance por Etapa (Civil)")
+                        df_formatado = estatisticas_etapa.copy()
+                        for col in ['Média', 'Mínimo 😎', 'Máximo 🤯']:
+                            df_formatado[col] = df_formatado[col].apply(lambda x: f"{x:.2f} dias" if pd.notnull(x) else "-")
+                        
+                        st.table(df_formatado.set_index('Etapa'))
 
             except Exception as e:
                 st.error(f"Erro na análise estatística: {e}")
