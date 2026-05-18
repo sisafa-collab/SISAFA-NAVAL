@@ -104,7 +104,7 @@ st.markdown("""
 # =================================================================
 
 def conectar_google_com_insistencia(tentativas=4, atraso=2):
-    """Tenta conectar ao Google várias vezes antes de acusar erro. Ideal para internet instável."""
+    """Tenta conectar ao Google várias vezes e expõe o erro real se falhar."""
     for tentativa in range(tentativas):
         try:
             scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -127,10 +127,12 @@ def conectar_google_com_insistencia(tentativas=4, atraso=2):
                 return client # Se chegou aqui, a conexão foi um sucesso!
                 
         except Exception as e:
+            # AQUI ESTÁ A MÁGICA: Vamos ver o que o Python/Google estão reclamando!
+            st.sidebar.warning(f"⚠️ Falha na tentativa {tentativa + 1}: {e}")
             if tentativa < tentativas - 1:
-                time.sleep(atraso) # Dá um "fôlego" de alguns segundos e tenta de novo
+                time.sleep(atraso) 
             else:
-                st.sidebar.error(f"❌ Queda de conexão com o banco de dados após {tentativas} tentativas.")
+                st.sidebar.error(f"❌ Queda definitiva após {tentativas} tentativas.")
                 return None
 
 # --- GERENCIAMENTO DE CACHE BLINDADO ---
