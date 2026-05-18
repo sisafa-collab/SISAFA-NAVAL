@@ -98,41 +98,64 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE CONEXÃO ---
-def conectar_google():
-    try:
-        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        if "gcp_service_account" in st.secrets:
-            creds_info = st.secrets["gcp_service_account"]
-            if isinstance(creds_info, str):
-                import json
-                creds_info = json.loads(creds_info.strip())
-            
-            # Garante que a chave privada seja lida corretamente em qualquer servidor
-            if "private_key" in creds_info:
-                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
-            
-            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
-            return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"Erro na conexão com Google: {e}")
-        return None
 
-# --- FUNÇÕES DE CONEXÃO E CACHE (BLINDAGEM DO GOOGLE) ---
+# =================================================================
+# --- FUNÇÕES DE CONEXÃO (BLINDAGEM DE RETENTATIVAS) ---
+# =================================================================
 
-@st.cache_resource
+def conectar_google_com_insistencia(tentativas=4, atraso=2):
+    """Tenta conectar ao Google várias vezes antes de acusar erro. Ideal para internet instável."""
+    for tentativa in range(tentativas):
+        try:
+            scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+            if "gcp_service_account" in st.secrets:
+                creds_info = st.secrets["gcp_service_account"]
+                
+                if isinstance(creds_info, str):
+                    creds_info = json.loads(creds_info.strip())
+                
+                # Garante que a chave privada seja lida corretamente
+                if "private_key" in creds_info:
+                    creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+                
+                creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
+                client = gspread.authorize(creds)
+                
+                # Teste rápido: garante que a conexão é real antes de liberar o cliente
+                client.open_by_key(ID_PLANILHA) 
+                
+                return client # Se chegou aqui, a conexão foi um sucesso!
+                
+        except Exception as e:
+            if tentativa < tentativas - 1:
+                time.sleep(atraso) # Dá um "fôlego" de alguns segundos e tenta de novo
+            else:
+                st.sidebar.error(f"❌ Queda de conexão com o banco de dados após {tentativas} tentativas.")
+                return None
+
+# --- GERENCIAMENTO DE CACHE BLINDADO ---
+
+# O ttl=3600 (Time To Live) força o Streamlit a renovar a conexão de hora em hora.
+# Isso evita que o token do Google expire silenciosamente e derrube o sistema do nada.
+@st.cache_resource(ttl=3600) 
 def obter_cliente_google():
-    """Mantém a sessão com o Google ativa para evitar múltiplos logins"""
-    return conectar_google() # Mantive sua função original aqui
+    """Mantém a sessão ativa, mas com prazo de validade para evitar desconexões fantasmas."""
+    return conectar_google_com_insistencia()
 
-@st.cache_resource 
 def abrir_planilha_mestre():
-    """Abre a planilha uma vez e guarda na memória para a sessão inteira"""
+    """Abre a planilha garantindo que, se o cache estiver corrompido, ele se autocorrige."""
     client = obter_cliente_google()
     if client:
-        return client.open_by_key(ID_PLANILHA) 
+        try:
+            return client.open_by_key(ID_PLANILHA)
+        except Exception:
+            # Se der erro aqui, é porque a internet piscou e o cliente salvo na memória "morreu".
+            # Solução: Limpa a memória e força uma conexão nova na mesma hora!
+            st.cache_resource.clear()
+            client_novo = obter_cliente_google()
+            if client_novo:
+                return client_novo.open_by_key(ID_PLANILHA)
     return None
-
 
 # --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
 try:
