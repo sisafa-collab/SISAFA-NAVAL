@@ -102,6 +102,7 @@ st.markdown("""
 # =================================================================
 # --- CONEXÃO DIRETA E OTIMIZADA (FOCO EM PERFORMANCE E COTA) ---
 # =================================================================
+
 @st.cache_resource(ttl=3600)
 def obter_cliente_google():
     """
@@ -130,7 +131,7 @@ def obter_cliente_google():
         st.error(f"❌ Erro na autenticação com o Google: {e}")
         return None
 
-def obter_sh():
+def abrir_planilha_mestre():
     """Garante a ligação à planilha mestre utilizando o cliente em cache de forma segura"""
     if 'spreadsheet_objeto' not in st.session_state or st.session_state.spreadsheet_objeto is None:
         try:
@@ -147,7 +148,7 @@ def obter_sh():
 # =================================================================
 # --- INICIALIZAÇÃO GLOBAL LIMPA ---
 # =================================================================
-sh = obter_sh()
+sh = abrir_planilha_mestre()
 
 if sh is not None:
     try:
@@ -157,6 +158,11 @@ if sh is not None:
         st.error(f"Erro ao aceder à aba de processos: {e}")
 else:
     st.warning("⚠️ Sistema temporariamente indisponível. Por favor, atualize a página (F5) dentro de alguns minutos.")
+
+
+
+
+
 
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
