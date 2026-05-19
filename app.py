@@ -100,80 +100,53 @@ st.markdown("""
 
 
 # =================================================================
-# --- FUNÇÕES DE CONEXÃO (BLINDAGEM DE RETENTATIVAS) ---
+# --- CONEXÃO DIRETA E OTIMIZADA (FOCO EM PERFORMANCE E COTA) ---
 # =================================================================
-
-def conectar_google_com_insistencia(tentativas=4, atraso=2):
-    """Tenta conectar ao Google e verifica se as chaves secretas existem."""
-    
-    # 1. TESTE DO COFRE (SECRETS)
-    if "gcp_service_account" not in st.secrets:
-        st.sidebar.error("🚨 ALERTA VERMELHO: As chaves do Google (gcp_service_account) não foram encontradas no st.secrets!")
+@st.cache_resource(ttl=3600) 
+def obter_sh():
+    """
+    Conecta ao Google e abre a folha de cálculo de forma direta.
+    O cache (ttl=3600) assegura que o sistema só faz 1 pedido por hora ao Google, 
+    evitando completamente o Erro 429 (Quota Exceeded).
+    """
+    try:
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        
+        if "gcp_service_account" not in st.secrets:
+            st.error("🚨 Chaves do Google (gcp_service_account) não encontradas no st.secrets!")
+            return None
+            
+        creds_info = st.secrets["gcp_service_account"]
+        
+        if isinstance(creds_info, str):
+            creds_info = json.loads(creds_info.strip())
+        
+        if "private_key" in creds_info:
+            creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
+        
+        creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Abre a folha de cálculo e retorna o objeto pronto
+        return client.open_by_key(ID_PLANILHA)
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao ligar à base de dados: {e}")
         return None
 
-    # 2. TENTATIVAS DE CONEXÃO
-    for tentativa in range(tentativas):
-        try:
-            scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-            creds_info = st.secrets["gcp_service_account"]
-            
-            if isinstance(creds_info, str):
-                creds_info = json.loads(creds_info.strip())
-            
-            if "private_key" in creds_info:
-                creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
-            
-            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
-            client = gspread.authorize(creds)
-            client.open_by_key(ID_PLANILHA) 
-            
-            return client 
-            
-        except Exception as e:
-            st.sidebar.warning(f"⚠️ Falha na tentativa {tentativa + 1}: {e}")
-            if tentativa < tentativas - 1:
-                time.sleep(atraso) 
-            else:
-                st.sidebar.error(f"❌ Queda definitiva após {tentativas} tentativas.")
-                return None
+# =================================================================
+# --- INICIALIZAÇÃO GLOBAL LIMPA ---
+# =================================================================
+sh = obter_sh()
 
-# --- GERENCIAMENTO DE CACHE BLINDADO ---
-
-# O ttl=3600 (Time To Live) força o Streamlit a renovar a conexão de hora em hora.
-# Isso evita que o token do Google expire silenciosamente e derrube o sistema do nada.
-@st.cache_resource(ttl=3600) 
-def obter_cliente_google():
-    """Mantém a sessão ativa, mas com prazo de validade para evitar desconexões fantasmas."""
-    return conectar_google_com_insistencia()
-
-def abrir_planilha_mestre():
-    """Abre a planilha garantindo que, se o cache estiver corrompido, ele se autocorrige."""
-    client = obter_cliente_google()
-    if client:
-        try:
-            return client.open_by_key(ID_PLANILHA)
-        except Exception:
-            # Se der erro aqui, é porque a internet piscou e o cliente salvo na memória "morreu".
-            # Solução: Limpa a memória e força uma conexão nova na mesma hora!
-            st.cache_resource.clear()
-            client_novo = obter_cliente_google()
-            if client_novo:
-                return client_novo.open_by_key(ID_PLANILHA)
-    return None
-
-# --- VARIÁVEL GLOBAL PARA ESCRITA (CRUCIAL PARA O LOGIN) ---
-try:
-    if 'sh' not in locals() or sh is None:
-        client_direto = obter_cliente_google()
-        if client_direto:
-            sh = client_direto.open_by_key(ID_PLANILHA)
-            # Aba de processos definida globalmente para mover status
-            aba_p = sh.worksheet(ABA_PROCESSOS)
-        else:
-            sh = None
-except Exception as e:
-    sh = None
-    print(f"Erro ao definir 'sh' global: {e}")
+if sh is not None:
+    try:
+        # A partir daqui, usa o 'sh' normalmente para carregar as abas
+        aba_p = sh.worksheet(ABA_PROCESSOS)
+    except Exception as e:
+        st.error(f"Erro ao aceder à aba de processos: {e}")
+else:
+    st.warning("⚠️ Sistema temporariamente indisponível. Por favor, atualize a página (F5) dentro de alguns minutos.")
 
 
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
