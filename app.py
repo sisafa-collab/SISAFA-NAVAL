@@ -102,12 +102,11 @@ st.markdown("""
 # =================================================================
 # --- CONEXÃO DIRETA E OTIMIZADA (FOCO EM PERFORMANCE E COTA) ---
 # =================================================================
-@st.cache_resource(ttl=3600) 
-def obter_sh():
+@st.cache_resource(ttl=3600)
+def obter_cliente_google():
     """
-    Conecta ao Google e abre a folha de cálculo de forma direta.
-    O cache (ttl=3600) assegura que o sistema só faz 1 pedido por hora ao Google, 
-    evitando completamente o Erro 429 (Quota Exceeded).
+    Autentica no Google de forma direta e guarda o cliente em cache por 1 hora.
+    Evita múltiplas requisições e protege contra o Erro 429.
     """
     try:
         scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -125,14 +124,25 @@ def obter_sh():
             creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n").strip()
         
         creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scope)
-        client = gspread.authorize(creds)
-        
-        # Abre a folha de cálculo e retorna o objeto pronto
-        return client.open_by_key(ID_PLANILHA)
+        return gspread.authorize(creds)
         
     except Exception as e:
-        st.error(f"❌ Erro ao ligar à base de dados: {e}")
+        st.error(f"❌ Erro na autenticação com o Google: {e}")
         return None
+
+def obter_sh():
+    """Garante a ligação à planilha mestre utilizando o cliente em cache de forma segura"""
+    if 'spreadsheet_objeto' not in st.session_state or st.session_state.spreadsheet_objeto is None:
+        try:
+            client = obter_cliente_google()
+            if client is None:
+                return None
+            st.session_state.spreadsheet_objeto = client.open_by_key(ID_PLANILHA)
+        except Exception as e:
+            st.error(f"Erro crítico ao aceder à planilha mestre: {e}")
+            return None
+            
+    return st.session_state.spreadsheet_objeto
 
 # =================================================================
 # --- INICIALIZAÇÃO GLOBAL LIMPA ---
@@ -141,7 +151,7 @@ sh = obter_sh()
 
 if sh is not None:
     try:
-        # A partir daqui, usa o 'sh' normalmente para carregar as abas
+        # Define a aba de processos globalmente
         aba_p = sh.worksheet(ABA_PROCESSOS)
     except Exception as e:
         st.error(f"Erro ao aceder à aba de processos: {e}")
