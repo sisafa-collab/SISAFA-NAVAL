@@ -4433,110 +4433,118 @@ Cordialmente,
                         }
                     )
 
-            # =================================================================
+            
 
                     # =================================================================
-                    # 🎯 RADAR DE DISPERSÃO: TEMPO DE RESPOSTA DA OSE (E-mail vs Chegada NF)
+                    # 🎯 RADAR DE ENXAME: TEMPO TOTAL NA FISCALIZAÇÃO (STATUS 6)
                     # =================================================================
-                    st.markdown("<br><br>#### 🎯 Radar de Resposta das OSEs (E-mail vs Chegada na Execução)", unsafe_allow_html=True)
-                    st.info("💡 Este radar isola o tempo exato entre o envio do e-mail solicitando a NF e o momento em que ela efetivamente deu entrada na Execução Financeira. Cada ponto é um processo (NUP).")
+                    st.markdown("<br><br>#### 🎯 Radar de Faturas: Tempo em Posse da Fiscalização", unsafe_allow_html=True)
+                    st.info("💡 Este radar mapeia **TODAS** as faturas civis pagas. Elas são agrupadas por desempenho (Ideal, Atenção, Crítico). Passe o mouse sobre a bolha para auditar as datas de Entrada, E-mail e Retorno.")
 
                     try:
-                        # 1. Puxar os dados de log
-                        aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
-                        df_logs = pd.DataFrame(aba_logs.get_all_records())
+                        # 1. Puxar as Datas de Entrada (Status 6) e Retorno/Saída (Status 7)
+                        # df_civis já está filtrado no topo do seu código para ter apenas faturas concluídas
+                        df_6 = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
+                        df_6.rename(columns={'timestamp': 'Entrada_Fisc'}, inplace=True)
 
-                        # 2. Filtrar apenas a ação de envio de e-mail
-                        df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].copy()
+                        df_7 = df_civis[df_civis['status_destino'] == '7'].groupby('nup')['timestamp'].min().reset_index()
+                        df_7.rename(columns={'timestamp': 'Retorno_Exec'}, inplace=True)
+
+                        # Merge interno: Garante que pegamos a fatura apenas se ela passou pelo 6 e chegou no 7
+                        df_radar = pd.merge(df_6, df_7, on='nup', how='inner')
                         
-                        if not df_emails.empty:
-                            # Tratar as datas dos logs (que estão em dd/mm/aaaa hh:mm:ss)
-                            df_emails['data_hora'] = pd.to_datetime(df_emails['data_hora'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
-                            
-                            # Pegar o PRIMEIRO e-mail enviado para cada NUP (início do relógio)
-                            df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
-                            df_envio.rename(columns={'data_hora': 'Data_Envio_Email'}, inplace=True)
+                        if df_radar.empty:
+                            st.warning("Ainda não há dados de faturas que completaram o ciclo de fiscalização (6 ➔ 7) para o radar.")
+                        else:
+                            # 2. Calcular o tempo total real na fiscalização (Eixo Y)
+                            df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
+                            df_radar = df_radar[df_radar['Dias_Fisc'] >= 0].copy()
 
-                            # 3. Pegar a data em que o NUP chegou no Status 7 (A NF chegou!)
-                            df_chegada = df_civis[df_civis['status_destino'] == '7'].copy()
-                            df_chegada['timestamp'] = pd.to_datetime(df_chegada['timestamp'], errors='coerce')
-                            df_chegada = df_chegada.groupby('nup')['timestamp'].min().reset_index()
-                            df_chegada.rename(columns={'timestamp': 'Data_Chegada_Execucao'}, inplace=True)
-
-                            # 4. Cruzar E-mail com Chegada
-                            df_radar = pd.merge(df_envio, df_chegada, on='nup', how='inner')
+                            # 3. Puxar os logs de e-mail (Vacina de Espaços Fantasmas ativada)
+                            aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
+                            df_logs = pd.DataFrame(aba_logs.get_all_records())
+                            df_logs.columns = df_logs.columns.str.strip()
                             
-                            # 5. Trazer o Gestor e a OSE para o tooltip do gráfico
+                            df_envio = pd.DataFrame(columns=['nup', 'Envio_Email']) # Tabela vazia como plano B
+                            
+                            if 'acao' in df_logs.columns and 'nup' in df_logs.columns:
+                                df_logs['acao'] = df_logs['acao'].astype(str).str.strip().str.upper()
+                                df_logs['nup'] = df_logs['nup'].astype(str).str.strip()
+                                
+                                df_emails = df_logs[df_logs['acao'] == 'EMAIL_SOLICITACAO_NF'].copy()
+                                if not df_emails.empty:
+                                    df_emails['data_hora'] = pd.to_datetime(df_emails['data_hora'], format='mixed', dayfirst=True, errors='coerce')
+                                    # Pega sempre o primeiro e-mail enviado para aquele NUP
+                                    df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
+                                    df_envio.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
+
+                            # 4. Cruzar Dados (Left Join: mantém todas as faturas, mesmo as sem e-mail)
+                            df_radar = pd.merge(df_radar, df_envio, on='nup', how='left')
                             df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
 
-                            # 6. Calcular a diferença real em dias
-                            df_radar['Dias_Espera_OSE'] = (df_radar['Data_Chegada_Execucao'] - df_radar['Data_Envio_Email']).dt.total_seconds() / 86400
+                            # 5. Classificação (SLA) e Formatação Elegante para o Balão
+                            def classificar_ose(dias):
+                                if dias <= 20: return '🟢 Ideal (≤20d)'
+                                elif dias <= 30: return '🟠 Atenção (21-30d)'
+                                else: return '🔴 Crítico (>30d)'
                             
-                            # Filtrar inconsistências (ex: NF chegou antes do e-mail ser registrado no log)
-                            df_radar = df_radar[df_radar['Dias_Espera_OSE'] >= 0].copy()
+                            df_radar['SLA'] = df_radar['Dias_Fisc'].apply(classificar_ose)
+                            
+                            df_radar['Entrada na Fiscalização'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y %H:%M')
+                            df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Sem registro / Não enviado')
+                            df_radar['Retorno p/ Execução'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y %H:%M')
+                            df_radar['Dias Totais (Status 6)'] = df_radar['Dias_Fisc'].round(1)
 
-                            if not df_radar.empty:
-                                # 7. Classificar por SLA para as cores
-                                def classificar_ose(dias):
-                                    if dias <= 20: return '🟢 Ideal (≤20d)'
-                                    elif dias <= 30: return '🟠 Atenção (21-30d)'
-                                    else: return '🔴 Crítico (>30d)'
-                                
-                                df_radar['SLA'] = df_radar['Dias_Espera_OSE'].apply(classificar_ose)
-                                
-                                # Formatar datas para o balão flutuante ficar bonito
-                                df_radar['Envio Formatado'] = df_radar['Data_Envio_Email'].dt.strftime('%d/%m/%Y %H:%M')
-                                df_radar['Chegada Formatada'] = df_radar['Data_Chegada_Execucao'].dt.strftime('%d/%m/%Y %H:%M')
-                                df_radar['Dias_Espera_OSE'] = df_radar['Dias_Espera_OSE'].round(1)
+                            # Garante que as colunas apareçam na ordem correta no gráfico
+                            df_radar['SLA'] = pd.Categorical(df_radar['SLA'], categories=['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)'], ordered=True)
+                            df_radar = df_radar.sort_values('SLA')
 
-                                # Mapa de cores forçado
-                                color_map_radar = {
-                                    '🟢 Ideal (≤20d)': cor_ideal,
-                                    '🟠 Atenção (21-30d)': cor_atencao,
-                                    '🔴 Crítico (>30d)': cor_critico
+                            color_map_radar = {
+                                '🟢 Ideal (≤20d)': cor_ideal,
+                                '🟠 Atenção (21-30d)': cor_atencao,
+                                '🔴 Crítico (>30d)': cor_critico
+                            }
+
+                            # 6. CRIAR O GRÁFICO (STRIP PLOT / ENXAME)
+                            fig_radar = px.strip(
+                                df_radar,
+                                x='SLA',          # O Eixo X agora é o grupo!
+                                y='Dias_Fisc',    # O Eixo Y é o tempo que demorou
+                                color='SLA',
+                                color_discrete_map=color_map_radar,
+                                stripmode='overlay', 
+                                hover_name='nup',
+                                hover_data={
+                                    'SLA': False,
+                                    'Dias_Fisc': False,
+                                    'Gestor': True,
+                                    'ose': True,
+                                    'Entrada na Fiscalização': True,
+                                    'Envio do E-mail (OSE)': True,
+                                    'Retorno p/ Execução': True,
+                                    'Dias Totais (Status 6)': True
                                 }
+                            )
 
-                                # 8. CRIAR O GRÁFICO DE DISPERSÃO
-                                fig_radar = px.scatter(
-                                    df_radar,
-                                    x='Data_Envio_Email',
-                                    y='Dias_Espera_OSE',
-                                    color='SLA',
-                                    color_discrete_map=color_map_radar,
-                                    size='Dias_Espera_OSE', # Bolinhas maiores para maiores atrasos
-                                    hover_name='nup',
-                                    hover_data={
-                                        'Data_Envio_Email': False, # Oculta a padrão
-                                        'SLA': False,
-                                        'Dias_Espera_OSE': False,
-                                        'Gestor': True,
-                                        'ose': True,
-                                        'Envio Formatado': True,
-                                        'Chegada Formatada': True,
-                                        'Dias de Atraso': df_radar['Dias_Espera_OSE'] # Renomeia para ficar claro
-                                    },
-                                    title="Dispersão de Faturas: Tempo que a OSE demorou para responder ao E-mail",
-                                    labels={'Data_Envio_Email': 'Data do E-mail de Cobrança', 'Dias_Espera_OSE': 'Dias até a NF chegar'}
-                                )
+                            # Estética: Bolinhas com tamanho generoso, contorno e espalhamento (jitter)
+                            fig_radar.update_traces(
+                                jitter=0.7, # Define o quão "espalhadas" as bolhas ficam dentro da mesma coluna
+                                marker=dict(size=14, opacity=0.85, line=dict(width=1, color='DarkSlateGrey'))
+                            )
+                            
+                            fig_radar.update_layout(
+                                title="Análise Individual de Faturas (Agrupamento por Prazo)",
+                                xaxis=dict(showgrid=False, title=""), # Remove o título do eixo X pois as cores já explicam
+                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização (Status 6)"),
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                margin=dict(l=0, r=20, t=40, b=0),
+                                showlegend=False # Oculta a legenda redundante
+                            )
 
-                                # Melhorias visuais no gráfico (Deixa ele com cara de Dashboard corporativo)
-                                fig_radar.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
-                                fig_radar.update_layout(
-                                    xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)'),
-                                    yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)'),
-                                    plot_bgcolor='rgba(0,0,0,0)', # Fundo transparente
-                                    margin=dict(l=0, r=20, t=40, b=0),
-                                    legend_title_text='Faixa de Prazo'
-                                )
-
-                                st.plotly_chart(fig_radar, use_container_width=True)
-                            else:
-                                st.warning("Ainda não há dados suficientes de faturas que completaram o ciclo E-mail ➔ Chegada para gerar o radar.")
-                        else:
-                            st.info("O sistema de logs ainda não registrou envios de e-mail de cobrança para OSEs.")
+                            st.plotly_chart(fig_radar, use_container_width=True)
 
                     except Exception as e:
-                        st.error(f"Erro ao montar o radar de OSEs: {e}")
+                        st.error(f"Erro ao montar o radar de faturas: {e}")
 
 
             
