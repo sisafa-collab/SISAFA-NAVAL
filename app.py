@@ -4436,6 +4436,7 @@ Cordialmente,
             
 
                     # =================================================================
+                    # =================================================================
                     # 🎯 RADAR DE ENXAME: TEMPO TOTAL NA FISCALIZAÇÃO (STATUS 6)
                     # =================================================================
                     st.markdown("<br><br>#### 🎯 Radar de Faturas: Tempo em Posse da Fiscalização", unsafe_allow_html=True)
@@ -4443,23 +4444,18 @@ Cordialmente,
 
                     try:
                         # 1. Puxar as Datas de Entrada (Status 6) e Retorno/Saída (Status 7)
-                        # df_civis já está filtrado no topo do seu código para ter apenas faturas concluídas
                         df_6 = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
                         df_6.rename(columns={'timestamp': 'Entrada_Fisc'}, inplace=True)
 
                         df_7 = df_civis[df_civis['status_destino'] == '7'].groupby('nup')['timestamp'].min().reset_index()
                         df_7.rename(columns={'timestamp': 'Retorno_Exec'}, inplace=True)
 
-                        # Merge interno: Garante que pegamos a fatura apenas se ela passou pelo 6 e chegou no 7
                         df_radar = pd.merge(df_6, df_7, on='nup', how='inner')
                         
                         if df_radar.empty:
                             st.warning("Ainda não há dados de faturas que completaram o ciclo de fiscalização (6 ➔ 7) para o radar.")
                         else:
-                            # =========================================================
                             # 🛡️ BLINDAGEM DE DATAS INICIAL
-                            # Garante que o Pandas entenda que são datas para fazer a conta
-                            # =========================================================
                             df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
                             df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
 
@@ -4472,30 +4468,26 @@ Cordialmente,
                             df_logs = pd.DataFrame(aba_logs.get_all_records())
                             df_logs.columns = df_logs.columns.str.strip()
                             
-                            df_envio = pd.DataFrame(columns=['nup', 'Envio_Email']) # Plano B (Tabela vazia)
+                            df_envio = pd.DataFrame(columns=['nup', 'Envio_Email']) 
                             
                             if 'acao' in df_logs.columns and 'nup' in df_logs.columns:
                                 df_logs['acao'] = df_logs['acao'].astype(str).str.strip().str.upper()
                                 df_logs['nup'] = df_logs['nup'].astype(str).str.strip()
                                 
-                                df_emails = df_logs[df_logs['acao'] == 'EMAIL_SOLICITACAO_NF'].copy()
+                                df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].copy()
                                 if not df_emails.empty:
                                     df_emails['data_hora'] = pd.to_datetime(df_emails['data_hora'], format='mixed', dayfirst=True, errors='coerce')
-                                    # Pega sempre o primeiro e-mail enviado para aquele NUP
                                     df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
                                     df_envio.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
 
-                            # 4. Cruzar Dados (Left Join)
+                            # 4. Cruzar Dados
                             df_radar = pd.merge(df_radar, df_envio, on='nup', how='left')
                             df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
 
-                            # =========================================================
-                            # 🛡️ BLINDAGEM DO E-MAIL (A CURA DO ERRO)
-                            # Se não houve e-mail, a coluna é 'object'. Aqui forçamos a virar 'datetime'
-                            # =========================================================
+                            # 🛡️ BLINDAGEM DO E-MAIL
                             df_radar['Envio_Email'] = pd.to_datetime(df_radar['Envio_Email'], errors='coerce')
 
-                            # 5. Classificação (SLA) e Formatação Elegante para o Balão
+                            # 5. Classificação (SLA)
                             def classificar_ose(dias):
                                 if dias <= 20: return '🟢 Ideal (≤20d)'
                                 elif dias <= 30: return '🟠 Atenção (21-30d)'
@@ -4503,19 +4495,30 @@ Cordialmente,
                             
                             df_radar['SLA'] = df_radar['Dias_Fisc'].apply(classificar_ose)
                             
-                            # Agora o .dt.strftime vai funcionar perfeitamente, com ou sem e-mail!
+                            # Formatação Elegante para o Balão
                             df_radar['Entrada na Fiscalização'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Sem registro / Não enviado')
                             df_radar['Retorno p/ Execução'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Dias Totais (Status 6)'] = df_radar['Dias_Fisc'].round(1)
 
-                            # ... (resto do código continua igual, na parte do "Garante que as colunas apareçam...") ...
+                            # ==========================================================
+                            # AS LINHAS QUE SUMIRAM ESTÃO AQUI DE VOLTA!
+                            # ==========================================================
+                            df_radar['SLA'] = pd.Categorical(df_radar['SLA'], categories=['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)'], ordered=True)
+                            df_radar = df_radar.sort_values('SLA')
+
+                            color_map_radar = {
+                                '🟢 Ideal (≤20d)': cor_ideal,
+                                '🟠 Atenção (21-30d)': cor_atencao,
+                                '🔴 Crítico (>30d)': cor_critico
+                            }
+                            # ==========================================================
 
                             # 6. CRIAR O GRÁFICO (STRIP PLOT / ENXAME)
                             fig_radar = px.strip(
                                 df_radar,
-                                x='SLA',          # O Eixo X agora é o grupo!
-                                y='Dias_Fisc',    # O Eixo Y é o tempo que demorou
+                                x='SLA',          
+                                y='Dias_Fisc',    
                                 color='SLA',
                                 color_discrete_map=color_map_radar,
                                 stripmode='overlay', 
@@ -4532,19 +4535,19 @@ Cordialmente,
                                 }
                             )
 
-                            # Estética: Bolinhas com tamanho generoso, contorno e espalhamento (jitter)
+                            # Estética: Bolinhas e Jitter
                             fig_radar.update_traces(
-                                jitter=0.7, # Define o quão "espalhadas" as bolhas ficam dentro da mesma coluna
+                                jitter=0.7, 
                                 marker=dict(size=14, opacity=0.85, line=dict(width=1, color='DarkSlateGrey'))
                             )
                             
                             fig_radar.update_layout(
                                 title="Análise Individual de Faturas (Agrupamento por Prazo)",
-                                xaxis=dict(showgrid=False, title=""), # Remove o título do eixo X pois as cores já explicam
-                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização"),
+                                xaxis=dict(showgrid=False, title=""), 
+                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização (Status 6)"),
                                 plot_bgcolor='rgba(0,0,0,0)',
                                 margin=dict(l=0, r=20, t=40, b=0),
-                                showlegend=False # Oculta a legenda redundante
+                                showlegend=False 
                             )
 
                             st.plotly_chart(fig_radar, use_container_width=True)
