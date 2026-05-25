@@ -4447,7 +4447,7 @@ Cordialmente,
                         df_logs = pd.DataFrame(aba_logs.get_all_records())
 
                         # 2. Filtrar apenas a ação de envio de e-mail
-                        df_emails = df_logs[df_logs['acao'] == 'EMAIL_SOLICITACAO_NF'].copy()
+                        df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].copy()
                         
                         if not df_emails.empty:
                             # Tratar as datas dos logs (que estão em dd/mm/aaaa hh:mm:ss)
