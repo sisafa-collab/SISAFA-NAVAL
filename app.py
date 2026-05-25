@@ -4281,16 +4281,16 @@ Cordialmente,
                     c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
                     c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
-                    ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 30])
-                    atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 30) & (df_pivot['tempo_liquidacao'] <= 60)])
-                    critico_l = len(df_pivot[df_pivot['tempo_liquidacao'] > 60])
+                    ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 20])
+                    atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 20) & (df_pivot['tempo_liquidacao'] <= 30)])
+                    critico_l = len(df_pivot[df_pivot['tempo_liquidacao'] > 30])
 
                     fig_liq = px.pie(
                         values=[ideal_l, atencao_l, critico_l],
-                        names=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
+                        names=['Ideal (≤20d)', 'Atenção (21-30d)', 'Crítico (>30d)'],
                         hole=0.6,
-                        color=['Ideal (≤30d)', 'Atenção (31-60d)', 'Crítico (>60d)'],
-                        color_discrete_map={'Ideal (≤30d)': cor_ideal, 'Atenção (31-60d)': cor_atencao, 'Crítico (>60d)': cor_critico}
+                        color=['Ideal (≤20d)', 'Atenção (21-30d)', 'Crítico (>30d)'],
+                        color_discrete_map={'Ideal (≤20d)': cor_ideal, 'Atenção (21-30d)': cor_atencao, 'Crítico (>30d)': cor_critico}
                     )
                     fig_liq.update_traces(textposition='inside', textinfo='percent')
                     fig_liq.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
