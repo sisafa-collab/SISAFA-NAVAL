@@ -4456,16 +4456,23 @@ Cordialmente,
                         if df_radar.empty:
                             st.warning("Ainda não há dados de faturas que completaram o ciclo de fiscalização (6 ➔ 7) para o radar.")
                         else:
+                            # =========================================================
+                            # 🛡️ BLINDAGEM DE DATAS INICIAL
+                            # Garante que o Pandas entenda que são datas para fazer a conta
+                            # =========================================================
+                            df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
+                            df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
+
                             # 2. Calcular o tempo total real na fiscalização (Eixo Y)
                             df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
                             df_radar = df_radar[df_radar['Dias_Fisc'] >= 0].copy()
 
-                            # 3. Puxar os logs de e-mail (Vacina de Espaços Fantasmas ativada)
+                            # 3. Puxar os logs de e-mail
                             aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
                             df_logs = pd.DataFrame(aba_logs.get_all_records())
                             df_logs.columns = df_logs.columns.str.strip()
                             
-                            df_envio = pd.DataFrame(columns=['nup', 'Envio_Email']) # Tabela vazia como plano B
+                            df_envio = pd.DataFrame(columns=['nup', 'Envio_Email']) # Plano B (Tabela vazia)
                             
                             if 'acao' in df_logs.columns and 'nup' in df_logs.columns:
                                 df_logs['acao'] = df_logs['acao'].astype(str).str.strip().str.upper()
@@ -4478,9 +4485,15 @@ Cordialmente,
                                     df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
                                     df_envio.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
 
-                            # 4. Cruzar Dados (Left Join: mantém todas as faturas, mesmo as sem e-mail)
+                            # 4. Cruzar Dados (Left Join)
                             df_radar = pd.merge(df_radar, df_envio, on='nup', how='left')
                             df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
+
+                            # =========================================================
+                            # 🛡️ BLINDAGEM DO E-MAIL (A CURA DO ERRO)
+                            # Se não houve e-mail, a coluna é 'object'. Aqui forçamos a virar 'datetime'
+                            # =========================================================
+                            df_radar['Envio_Email'] = pd.to_datetime(df_radar['Envio_Email'], errors='coerce')
 
                             # 5. Classificação (SLA) e Formatação Elegante para o Balão
                             def classificar_ose(dias):
@@ -4490,20 +4503,13 @@ Cordialmente,
                             
                             df_radar['SLA'] = df_radar['Dias_Fisc'].apply(classificar_ose)
                             
+                            # Agora o .dt.strftime vai funcionar perfeitamente, com ou sem e-mail!
                             df_radar['Entrada na Fiscalização'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Sem registro / Não enviado')
                             df_radar['Retorno p/ Execução'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Dias Totais (Status 6)'] = df_radar['Dias_Fisc'].round(1)
 
-                            # Garante que as colunas apareçam na ordem correta no gráfico
-                            df_radar['SLA'] = pd.Categorical(df_radar['SLA'], categories=['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)'], ordered=True)
-                            df_radar = df_radar.sort_values('SLA')
-
-                            color_map_radar = {
-                                '🟢 Ideal (≤20d)': cor_ideal,
-                                '🟠 Atenção (21-30d)': cor_atencao,
-                                '🔴 Crítico (>30d)': cor_critico
-                            }
+                            # ... (resto do código continua igual, na parte do "Garante que as colunas apareçam...") ...
 
                             # 6. CRIAR O GRÁFICO (STRIP PLOT / ENXAME)
                             fig_radar = px.strip(
@@ -4535,7 +4541,7 @@ Cordialmente,
                             fig_radar.update_layout(
                                 title="Análise Individual de Faturas (Agrupamento por Prazo)",
                                 xaxis=dict(showgrid=False, title=""), # Remove o título do eixo X pois as cores já explicam
-                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização (Status 6)"),
+                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização"),
                                 plot_bgcolor='rgba(0,0,0,0)',
                                 margin=dict(l=0, r=20, t=40, b=0),
                                 showlegend=False # Oculta a legenda redundante
