@@ -4317,9 +4317,9 @@ Cordialmente,
 
                     fig_pag = px.pie(
                         values=[ideal_p, atencao_p, critico_p],
-                        names=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
+                        names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
                         hole=0.6,
-                        color=['Ideal (≤3d)', 'Alerta (4-10d)', 'Atraso (>10d)'],
+                        color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
                         color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Alerta (4-10d)': cor_atencao, 'Atraso (>10d)': cor_critico}
                     )
                     fig_pag.update_traces(textposition='inside', textinfo='percent')
@@ -4433,7 +4433,112 @@ Cordialmente,
                         }
                     )
 
-                    
+            # =================================================================
+
+                    # =================================================================
+                    # 🎯 RADAR DE DISPERSÃO: TEMPO DE RESPOSTA DA OSE (E-mail vs Chegada NF)
+                    # =================================================================
+                    st.markdown("<br><br>#### 🎯 Radar de Resposta das OSEs (E-mail vs Chegada na Execução)", unsafe_allow_html=True)
+                    st.info("💡 Este radar isola o tempo exato entre o envio do e-mail solicitando a NF e o momento em que ela efetivamente deu entrada na Execução Financeira. Cada ponto é um processo (NUP).")
+
+                    try:
+                        # 1. Puxar os dados de log
+                        aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
+                        df_logs = pd.DataFrame(aba_logs.get_all_records())
+
+                        # 2. Filtrar apenas a ação de envio de e-mail
+                        df_emails = df_logs[df_logs['acao'] == 'EMAIL_SOLICITACAO_NF'].copy()
+                        
+                        if not df_emails.empty:
+                            # Tratar as datas dos logs (que estão em dd/mm/aaaa hh:mm:ss)
+                            df_emails['data_hora'] = pd.to_datetime(df_emails['data_hora'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+                            
+                            # Pegar o PRIMEIRO e-mail enviado para cada NUP (início do relógio)
+                            df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
+                            df_envio.rename(columns={'data_hora': 'Data_Envio_Email'}, inplace=True)
+
+                            # 3. Pegar a data em que o NUP chegou no Status 7 (A NF chegou!)
+                            df_chegada = df_civis[df_civis['status_destino'] == '7'].copy()
+                            df_chegada['timestamp'] = pd.to_datetime(df_chegada['timestamp'], errors='coerce')
+                            df_chegada = df_chegada.groupby('nup')['timestamp'].min().reset_index()
+                            df_chegada.rename(columns={'timestamp': 'Data_Chegada_Execucao'}, inplace=True)
+
+                            # 4. Cruzar E-mail com Chegada
+                            df_radar = pd.merge(df_envio, df_chegada, on='nup', how='inner')
+                            
+                            # 5. Trazer o Gestor e a OSE para o tooltip do gráfico
+                            df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
+
+                            # 6. Calcular a diferença real em dias
+                            df_radar['Dias_Espera_OSE'] = (df_radar['Data_Chegada_Execucao'] - df_radar['Data_Envio_Email']).dt.total_seconds() / 86400
+                            
+                            # Filtrar inconsistências (ex: NF chegou antes do e-mail ser registrado no log)
+                            df_radar = df_radar[df_radar['Dias_Espera_OSE'] >= 0].copy()
+
+                            if not df_radar.empty:
+                                # 7. Classificar por SLA para as cores
+                                def classificar_ose(dias):
+                                    if dias <= 20: return '🟢 Ideal (≤20d)'
+                                    elif dias <= 30: return '🟠 Atenção (21-30d)'
+                                    else: return '🔴 Crítico (>30d)'
+                                
+                                df_radar['SLA'] = df_radar['Dias_Espera_OSE'].apply(classificar_ose)
+                                
+                                # Formatar datas para o balão flutuante ficar bonito
+                                df_radar['Envio Formatado'] = df_radar['Data_Envio_Email'].dt.strftime('%d/%m/%Y %H:%M')
+                                df_radar['Chegada Formatada'] = df_radar['Data_Chegada_Execucao'].dt.strftime('%d/%m/%Y %H:%M')
+                                df_radar['Dias_Espera_OSE'] = df_radar['Dias_Espera_OSE'].round(1)
+
+                                # Mapa de cores forçado
+                                color_map_radar = {
+                                    '🟢 Ideal (≤20d)': cor_ideal,
+                                    '🟠 Atenção (21-30d)': cor_atencao,
+                                    '🔴 Crítico (>30d)': cor_critico
+                                }
+
+                                # 8. CRIAR O GRÁFICO DE DISPERSÃO
+                                fig_radar = px.scatter(
+                                    df_radar,
+                                    x='Data_Envio_Email',
+                                    y='Dias_Espera_OSE',
+                                    color='SLA',
+                                    color_discrete_map=color_map_radar,
+                                    size='Dias_Espera_OSE', # Bolinhas maiores para maiores atrasos
+                                    hover_name='nup',
+                                    hover_data={
+                                        'Data_Envio_Email': False, # Oculta a padrão
+                                        'SLA': False,
+                                        'Dias_Espera_OSE': False,
+                                        'Gestor': True,
+                                        'ose': True,
+                                        'Envio Formatado': True,
+                                        'Chegada Formatada': True,
+                                        'Dias de Atraso': df_radar['Dias_Espera_OSE'] # Renomeia para ficar claro
+                                    },
+                                    title="Dispersão de Faturas: Tempo que a OSE demorou para responder ao E-mail",
+                                    labels={'Data_Envio_Email': 'Data do E-mail de Cobrança', 'Dias_Espera_OSE': 'Dias até a NF chegar'}
+                                )
+
+                                # Melhorias visuais no gráfico (Deixa ele com cara de Dashboard corporativo)
+                                fig_radar.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')), opacity=0.8)
+                                fig_radar.update_layout(
+                                    xaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)'),
+                                    yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)'),
+                                    plot_bgcolor='rgba(0,0,0,0)', # Fundo transparente
+                                    margin=dict(l=0, r=20, t=40, b=0),
+                                    legend_title_text='Faixa de Prazo'
+                                )
+
+                                st.plotly_chart(fig_radar, use_container_width=True)
+                            else:
+                                st.warning("Ainda não há dados suficientes de faturas que completaram o ciclo E-mail ➔ Chegada para gerar o radar.")
+                        else:
+                            st.info("O sistema de logs ainda não registrou envios de e-mail de cobrança para OSEs.")
+
+                    except Exception as e:
+                        st.error(f"Erro ao montar o radar de OSEs: {e}")
+
+
             
             # =================================================================
             # =================================================================
