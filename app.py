@@ -4433,59 +4433,76 @@ Cordialmente,
             
                     
                     # =================================================================
-                    # 🎯 RADAR 3D EXECUTIVO: CICLO STATUS 6 -> 7 (ESTRUTURA CORRIGIDA)
+                    # =================================================================
+                    # 🎯 RADAR 3D EXECUTIVO: CICLO STATUS 6 -> 7
                     # =================================================================
                     st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Status 6 (Fiscalização)", unsafe_allow_html=True)
 
+                    # 1. Inicialização segura
+                    df_radar = pd.DataFrame() 
+
                     try:
-                        # ... (Mantenha seu código de processamento de dados e df_radar até o filtro) ...
+                        # Preparação básica dos dados
+                        df_6 = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
+                        df_7 = df_civis[df_civis['status_destino'] == '7'].groupby('nup')['timestamp'].min().reset_index()
                         
-                        # 4. Filtro por Fiscal (Seletor)
+                        # Merge inicial
+                        df_radar = pd.merge(df_6, df_7, on='nup', suffixes=('_6', '_7'))
+                        df_radar.rename(columns={'timestamp_6': 'Entrada_Fisc', 'timestamp_7': 'Retorno_Exec'}, inplace=True)
+                        
+                        # --- LOGS DE EMAIL (Merge seguro) ---
+                        aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
+                        df_logs = pd.DataFrame(aba_logs.get_all_records())
+                        df_logs.columns = df_logs.columns.str.strip()
+                        df_logs['nup'] = df_logs['nup'].astype(str).str.strip()
+                        
+                        df_emails = df_logs[df_logs['acao'].str.strip().str.upper() == 'SOLICITACAO_NF_ENVIADA'].groupby('nup')['data_hora'].min().reset_index()
+                        df_emails.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
+                        
+                        # Merge com Emails
+                        df_radar = pd.merge(df_radar, df_emails, on='nup', how='left')
+                        df_radar['Envio_Email'] = df_radar['Envio_Email'].fillna("e-mail não enviado via SISAFA")
+
+                        # Cruzamentos finais
+                        df_mapa = df_tabela_a[['Razão Social', 'Gestor Titular', 'Gestor Substituto']].rename(columns={'Razão Social': 'ose'}).drop_duplicates()
+                        df_radar = pd.merge(df_radar, df[['nup', 'ose', 'valor_liquido']], on='nup', how='left')
+                        df_radar = pd.merge(df_radar, df_mapa, on='ose', how='left')
+                        
+                        # Cálculos
+                        df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'])
+                        df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'])
+                        df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
+                        df_radar['Valor_Num'] = df_radar['valor_liquido'].apply(limpar_valor)
+                        
+                        ordem_sla = ['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)']
+                        df_radar['SLA'] = pd.cut(df_radar['Dias_Fisc'], bins=[-1, 20, 30, 9999], labels=ordem_sla)
+                        df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
+                        df_radar['Entrada_Fisc_Str'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y')
+                        df_radar['Retorno_Exec_Str'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y')
+
+                    except Exception as e:
+                        st.error(f"Erro ao processar dados do Radar: {e}")
+
+                    # 2. SELETOR E RENDERIZAÇÃO (Fora do try para garantir acesso ao df_radar)
+                    if not df_radar.empty:
                         lista_gestores = sorted(list(set(df_tabela_a['Gestor Titular'].dropna().unique().tolist() + 
-                                                         df_tabela_a['Gestor Substituto'].dropna().unique().tolist())))
+                                                        df_tabela_a['Gestor Substituto'].dropna().unique().tolist())))
                         sel_gestor_radar = st.selectbox("Filtrar Radar por Fiscal:", ["TODOS (Visão Geral)"] + lista_gestores, key="radar_filtro")
 
-                        # Filtro lógico do Radar
                         if sel_gestor_radar != "TODOS (Visão Geral)":
                             empresas = df_tabela_a[(df_tabela_a['Gestor Titular'] == sel_gestor_radar) | 
-                                                   (df_tabela_a['Gestor Substituto'] == sel_gestor_radar)]['Razão Social'].unique()
+                                                (df_tabela_a['Gestor Substituto'] == sel_gestor_radar)]['Razão Social'].unique()
                             df_radar_view = df_radar[df_radar['ose'].isin(empresas)].copy()
                         else:
                             df_radar_view = df_radar.copy()
 
-                        # 5. Plotagem 3D (Aqui verificamos se há dados para plotar)
                         if not df_radar_view.empty:
-                            fig_radar = px.scatter_3d(
-                                df_radar_view, x='Valor_Num', y='SLA', z='Dias_Fisc',
-                                color='SLA', size='Tamanho_Bolha', size_max=40,
-                                category_orders={"SLA": ordem_sla},
-                                color_discrete_map={ordem_sla[0]: '#2ecc71', ordem_sla[1]: '#f1c40f', ordem_sla[2]: '#e74c3c'},
-                                hover_name='nup',
-                                hover_data={
-                                    'Valor_Num': False, 'SLA': False, 'Dias_Fisc': False,
-                                    'Gestor Titular': True, 'Gestor Substituto': True, 'ose': True,
-                                    'Entrada_Fisc_Str': True, 'Retorno_Exec_Str': True, 'Envio_Email': True
-                                }
-                            )
-
-                            fig_radar.update_layout(
-                                paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=0, r=0, t=20, b=20),
-                                showlegend=False,
-                                scene=dict(
-                                    aspectmode='manual', aspectratio=dict(x=1, y=0.5, z=1.5),
-                                    xaxis=dict(title=dict(text="Valor líquido (R$)", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black'),
-                                    yaxis=dict(title=dict(text="Status", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black', categoryorder='array', categoryarray=ordem_sla),
-                                    zaxis=dict(title=dict(text="Período aguardando NF", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black'),
-                                    bgcolor='white'
-                                )
-                            )
-                            st.plotly_chart(fig_radar, use_container_width=True)
+                            # Plotagem... (seu código px.scatter_3d aqui)
+                            # ...
                         else:
-                            # ESTE ELSE PERTENCE AO IF NOT DF_RADAR_VIEW.EMPTY
                             st.info("Nenhum dado para o filtro selecionado.")
-                            
-                    except Exception as e:
-                        st.error(f"Erro na execução final do radar: {e}")
+                    else:
+                        st.warning("Não há processos que concluíram o ciclo 6->7 para exibir no Radar.")
 
             # =================================================================
             # =================================================================
