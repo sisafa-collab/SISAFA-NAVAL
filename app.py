@@ -4436,82 +4436,78 @@ Cordialmente,
                     # =================================================================
                     # =================================================================
                     # =================================================================
-                    # 🎯 RADAR 3D EXECUTIVO: VALOR x SLA x TEMPO
                     # =================================================================
-                    st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Valor x SLA x Tempo", unsafe_allow_html=True)
-                    st.info("💡 Radar tridimensional. **Clique e arraste** para rotacionar. Bolhas maiores = maiores valores.")
+                    # 🎯 RADAR 3D EXECUTIVO: VALOR x SLA x TEMPO (FOCO: STATUS 6)
+                    # =================================================================
+                    st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Status 6 (Fiscalização)", unsafe_allow_html=True)
+                    st.info("💡 Radar focado na permanência dos processos no Status 6.")
 
                     try:
-                        # 1. Puxar as Datas de Entrada e Retorno
-                        df_6 = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
-                        df_6.rename(columns={'timestamp': 'Entrada_Fisc'}, inplace=True)
-                        df_7 = df_civis[df_civis['status_destino'] == '7'].groupby('nup')['timestamp'].min().reset_index()
-                        df_7.rename(columns={'timestamp': 'Retorno_Exec'}, inplace=True)
-
-                        df_radar = pd.merge(df_6, df_7, on='nup', how='inner')
+                        # 1. Pegar a data da entrada no Status 6
+                        df_fisc = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
+                        df_fisc.rename(columns={'timestamp': 'Entrada_Fisc'}, inplace=True)
                         
-                        if df_radar.empty:
-                            st.warning("Sem dados suficientes para o radar.")
-                        else:
-                            # 2. Blindagem de Datas
-                            df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
-                            df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
-                            df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
-                            df_radar = df_radar[df_radar['Dias_Fisc'] >= 0].copy()
+                        # Definir 'hoje' para calcular o tempo decorrido
+                        hoje = pd.Timestamp.now()
+                        
+                        # 2. Blindagem e cálculo de Dias no Status 6
+                        df_radar = df_fisc.copy()
+                        df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
+                        df_radar['Dias_Fisc'] = (hoje - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
+                        
+                        # 3. Limpeza de Moeda
+                        def limpar_valor(valor):
+                            if pd.isna(valor) or valor == '': return 0.0
+                            if isinstance(valor, (int, float)): return float(valor)
+                            limpo = str(valor).replace('R$', '').replace(' ', '').strip()
+                            if ',' in limpo and '.' in limpo:
+                                if limpo.find('.') < limpo.find(','): limpo = limpo.replace('.', '').replace(',', '.')
+                                else: limpo = limpo.replace(',', '')
+                            elif ',' in limpo: limpo = limpo.replace(',', '.')
+                            try: return float(limpo)
+                            except ValueError: return 0.0
 
-                            # 3. Limpeza de Moeda
-                            def limpar_valor(valor):
-                                if pd.isna(valor) or valor == '': return 0.0
-                                if isinstance(valor, (int, float)): return float(valor)
-                                limpo = str(valor).replace('R$', '').replace(' ', '').strip()
-                                if ',' in limpo and '.' in limpo:
-                                    if limpo.find('.') < limpo.find(','): limpo = limpo.replace('.', '').replace(',', '.')
-                                    else: limpo = limpo.replace(',', '')
-                                elif ',' in limpo: limpo = limpo.replace(',', '.')
-                                try: return float(limpo)
-                                except ValueError: return 0.0
+                        # 4. Cruzamento de Gestores e Valores
+                        df_mapa_gestores = df_tabela_a[['Razão Social', 'Gestor Titular', 'Gestor Substituto']].rename(columns={'Razão Social': 'ose'}).drop_duplicates()
+                        df_radar = pd.merge(df_radar, df[['nup', 'ose', 'valor_liquido']], on='nup', how='left')
+                        df_radar = pd.merge(df_radar, df_mapa_gestores, on='ose', how='left')
+                        df_radar['Valor_Num'] = df_radar['valor_liquido'].apply(limpar_valor)
 
-                            # 4. Cruzamento de Gestores (Tabela A) e Valores (df)
-                            df_mapa_gestores = df_tabela_a[['Razão Social', 'Gestor Titular', 'Gestor Substituto']].rename(columns={'Razão Social': 'ose'}).drop_duplicates()
-                            df_radar = pd.merge(df_radar, df[['nup', 'ose', 'valor_liquido']], on='nup', how='left')
-                            df_radar = pd.merge(df_radar, df_mapa_gestores, on='ose', how='left')
-                            df_radar['Valor_Num'] = df_radar['valor_liquido'].apply(limpar_valor)
+                        # 5. Classificação (SLA)
+                        df_radar['SLA'] = df_radar['Dias_Fisc'].apply(lambda d: '🟢 Ideal (≤20d)' if d <= 20 else ('🟠 Atenção (21-30d)' if d <= 30 else '🔴 Crítico (>30d)'))
+                        df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
+                        
+                        # Formatação
+                        df_radar['Entrada_Fisc_Str'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y')
 
-                            # 5. Logs de E-mail
-                            aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
-                            df_logs = pd.DataFrame(aba_logs.get_all_records())
-                            df_logs.columns = df_logs.columns.str.strip()
-                            df_logs['acao'] = df_logs['acao'].astype(str).str.strip().str.upper()
-                            df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].groupby('nup')['data_hora'].min().reset_index()
-                            df_emails.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
-                            df_radar = pd.merge(df_radar, df_emails, on='nup', how='left')
+                        # 6. Plotagem 3D
+                        fig_radar = px.scatter_3d(
+                            df_radar, x='Valor_Num', y='SLA', z='Dias_Fisc',
+                            color='SLA', size='Tamanho_Bolha', size_max=40,
+                            color_discrete_map={'🟢 Ideal (≤20d)': '#2ecc71', '🟠 Atenção (21-30d)': '#f1c40f', '🔴 Crítico (>30d)': '#e74c3c'},
+                            hover_name='nup',
+                            hover_data={
+                                'Valor_Num': False, 'Tamanho_Bolha': False, 'SLA': False, 'Dias_Fisc': False,
+                                'Gestor Titular': True, 'Gestor Substituto': True, 'ose': True,
+                                'Entrada_Fisc_Str': True
+                            }
+                        )
 
-                            # 6. Preparação final para o Gráfico
-                            df_radar['SLA'] = df_radar['Dias_Fisc'].apply(lambda d: '🟢 Ideal (≤20d)' if d <= 20 else ('🟠 Atenção (21-30d)' if d <= 30 else '🔴 Crítico (>30d)'))
-                            df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
-                            
-                            # Formatação para Hover
-                            df_radar['Entrada_Fisc_Str'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y')
-                            df_radar['Envio_Email_Str'] = pd.to_datetime(df_radar['Envio_Email'], format='mixed', dayfirst=True, errors='coerce').dt.strftime('%d/%m/%Y').fillna('Não enviado')
-
-                            # 7. Plotagem 3D
-                            fig_radar = px.scatter_3d(
-                                df_radar, x='Valor_Num', y='SLA', z='Dias_Fisc',
-                                color='SLA', size='Tamanho_Bolha', size_max=40,
-                                color_discrete_map={'🟢 Ideal (≤20d)': '#2ecc71', '🟠 Atenção (21-30d)': '#f1c40f', '🔴 Crítico (>30d)': '#e74c3c'},
-                                hover_name='nup',
-                                hover_data={
-                                    'Valor_Num': False, 'Tamanho_Bolha': False, 'SLA': False, 'Dias_Fisc': False,
-                                    'Gestor Titular': True, 'Gestor Substituto': True, 'ose': True,
-                                    'Entrada_Fisc_Str': True, 'Envio_Email_Str': True
-                                }
+                        fig_radar.update_layout(
+                            paper_bgcolor='white', plot_bgcolor='white',
+                            margin=dict(l=0, r=0, t=50, b=0),
+                            showlegend=False,
+                            scene=dict(
+                                xaxis=dict(title="Valor líquido (R$)", titlefont=dict(size=14), color='black'),
+                                yaxis=dict(title="Status", titlefont=dict(size=14), color='black'),
+                                zaxis=dict(title="Período aguardando NF", titlefont=dict(size=14), color='black'),
+                                bgcolor='white'
                             )
-
-                            fig_radar.update_layout(paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=0, r=0, t=40, b=0), showlegend=False)
-                            st.plotly_chart(fig_radar, use_container_width=True)
+                        )
+                        st.plotly_chart(fig_radar, use_container_width=True)
 
                     except Exception as e:
-                        st.error(f"Erro ao montar o radar 3D: {e}")
+                        st.error(f"Erro na análise de Status 6: {e}")
 
 
             
