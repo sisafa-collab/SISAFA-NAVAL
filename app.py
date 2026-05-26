@@ -4487,7 +4487,7 @@ Cordialmente,
                                                         df_tabela_a['Gestor Substituto'].dropna().unique().tolist())))
                         sel_gestor_radar = st.selectbox("Filtrar Radar por Fiscal:", ["TODOS (Visão Geral)"] + lista_gestores, key="radar_filtro")
 
-                        if sel_gestor_radar != "Todos (Visão Geral)":
+                        if sel_gestor_radar != "TODOS (Visão Geral)":
                             empresas = df_tabela_a[(df_tabela_a['Gestor Titular'] == sel_gestor_radar) | 
                                                 (df_tabela_a['Gestor Substituto'] == sel_gestor_radar)]['Razão Social'].unique()
                             df_radar_view = df_radar[df_radar['ose'].isin(empresas)].copy()
