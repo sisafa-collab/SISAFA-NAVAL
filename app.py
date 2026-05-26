@@ -4437,10 +4437,11 @@ Cordialmente,
 
                     # =================================================================
                     # =================================================================
-                    # 🎯 RADAR DE ENXAME: TEMPO TOTAL NA FISCALIZAÇÃO (STATUS 6)
                     # =================================================================
-                    st.markdown("<br><br>#### 🎯 Radar de Faturas: Tempo em Posse da Fiscalização", unsafe_allow_html=True)
-                    st.info("💡 Este radar mapeia **TODAS** as faturas civis pagas. Elas são agrupadas por desempenho (Ideal, Atenção, Crítico). Passe o mouse sobre a bolha para auditar as datas de Entrada, E-mail e Retorno.")
+                    # 🎯 RADAR 3D NEON: TEMPO vs VALOR FINANCEIRO vs SLA (STATUS 6)
+                    # =================================================================
+                    st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Tempo vs Valor", unsafe_allow_html=True)
+                    st.info("💡 Este radar em 3D dispersa as faturas cruzando o **Tempo de Atraso** com o **Valor da Fatura**. Bolhas maiores representam maiores valores. Fique de olho no quadrante superior direito! 🚨")
 
                     try:
                         # 1. Puxar as Datas de Entrada (Status 6) e Retorno/Saída (Status 7)
@@ -4459,11 +4460,25 @@ Cordialmente,
                             df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
                             df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
 
-                            # 2. Calcular o tempo total real na fiscalização (Eixo Y)
+                            # 2. PUXAR O VALOR FINANCEIRO (A NOVA DIMENSÃO 3D)
+                            # ====================================================================
+                            # ⚠️ AUDITOR: Mude 'VALOR DA FATURA' e 'NUP' para os nomes exatos das suas colunas na Tabela A!
+                            nome_coluna_valor = 'VALOR DA FATURA' 
+                            nome_coluna_nup = 'NUP'
+                            # ====================================================================
+                            
+                            df_valores = df_tabela_a[[nome_coluna_nup, nome_coluna_valor]].copy()
+                            df_valores.rename(columns={nome_coluna_nup: 'nup'}, inplace=True)
+                            
+                            # Limpeza pesada para transformar o "R$ 1.500,00" em número de verdade para o gráfico
+                            df_valores['Valor_Limpo'] = df_valores[nome_coluna_valor].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+                            df_valores['Valor_Num'] = pd.to_numeric(df_valores['Valor_Limpo'], errors='coerce').fillna(0)
+                            
+                            # 3. Calcular o tempo total real na fiscalização (Eixo Y)
                             df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
                             df_radar = df_radar[df_radar['Dias_Fisc'] >= 0].copy()
 
-                            # 3. Puxar os logs de e-mail
+                            # 4. Puxar os logs de e-mail e Cruzar tudo
                             aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
                             df_logs = pd.DataFrame(aba_logs.get_all_records())
                             df_logs.columns = df_logs.columns.str.strip()
@@ -4480,12 +4495,16 @@ Cordialmente,
                                     df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
                                     df_envio.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
 
-                            # 4. Cruzar Dados
+                            # Mesclando Tempo, Emails, Gestores e Valores!
                             df_radar = pd.merge(df_radar, df_envio, on='nup', how='left')
                             df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
+                            df_radar = pd.merge(df_radar, df_valores[['nup', 'Valor_Num', nome_coluna_valor]], on='nup', how='left')
 
-                            # 🛡️ BLINDAGEM DO E-MAIL
                             df_radar['Envio_Email'] = pd.to_datetime(df_radar['Envio_Email'], errors='coerce')
+                            df_radar['Valor_Num'] = df_radar['Valor_Num'].fillna(0)
+                            
+                            # Para o tamanho da bolha não bugar com zero, criamos um tamanho mínimo
+                            df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
 
                             # 5. Classificação (SLA)
                             def classificar_ose(dias):
@@ -4495,65 +4514,78 @@ Cordialmente,
                             
                             df_radar['SLA'] = df_radar['Dias_Fisc'].apply(classificar_ose)
                             
-                            # Formatação Elegante para o Balão
                             df_radar['Entrada na Fiscalização'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y %H:%M')
-                            df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Sem registro / Não enviado')
+                            df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Não enviado')
                             df_radar['Retorno p/ Execução'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Dias Totais (Status 6)'] = df_radar['Dias_Fisc'].round(1)
+                            df_radar['Valor Formatado'] = df_radar[nome_coluna_valor].fillna("R$ 0,00")
 
-                            # ==========================================================
-                            # AS LINHAS QUE SUMIRAM ESTÃO AQUI DE VOLTA!
-                            # ==========================================================
                             df_radar['SLA'] = pd.Categorical(df_radar['SLA'], categories=['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)'], ordered=True)
                             df_radar = df_radar.sort_values('SLA')
 
-                            color_map_radar = {
-                                '🟢 Ideal (≤20d)': cor_ideal,
-                                '🟠 Atenção (21-30d)': cor_atencao,
-                                '🔴 Crítico (>30d)': cor_critico
+                            # 🎨 PALETA NEON PARA FUNDO ESCURO
+                            color_map_neon = {
+                                '🟢 Ideal (≤20d)': '#00FF9D',     # Verde Neon brilhante
+                                '🟠 Atenção (21-30d)': '#FFD700', # Amarelo/Ouro Neon
+                                '🔴 Crítico (>30d)': '#FF0055'    # Rosa/Vermelho Neon
                             }
-                            # ==========================================================
 
-                            # 6. CRIAR O GRÁFICO (STRIP PLOT / ENXAME)
-                            fig_radar = px.strip(
+                            # 6. CRIAR O GRÁFICO (SCATTER PLOT MATRIZ)
+                            fig_radar = px.scatter(
                                 df_radar,
-                                x='SLA',          
-                                y='Dias_Fisc',    
+                                x='Valor_Num',          # Eixo X = DINHEIRO
+                                y='Dias_Fisc',          # Eixo Y = TEMPO
                                 color='SLA',
-                                color_discrete_map=color_map_radar,
-                                stripmode='overlay', 
+                                size='Tamanho_Bolha',   # Bolhas Maiores = Faturas mais caras
+                                color_discrete_map=color_map_neon,
                                 hover_name='nup',
                                 hover_data={
+                                    'Valor_Num': False,
+                                    'Tamanho_Bolha': False,
                                     'SLA': False,
-                                    'Dias_Fisc': False,
                                     'Gestor': True,
                                     'ose': True,
+                                    'Valor Formatado': True,
+                                    'Dias Totais (Status 6)': True,
                                     'Entrada na Fiscalização': True,
-                                    'Envio do E-mail (OSE)': True,
-                                    'Retorno p/ Execução': True,
-                                    'Dias Totais (Status 6)': True
+                                    'Envio do E-mail (OSE)': True
                                 }
                             )
 
-                            # Estética: Bolinhas e Jitter
+                            # 🕶️ ESTÉTICA DARK/NEON
                             fig_radar.update_traces(
-                                jitter=0.7, 
-                                marker=dict(size=14, opacity=0.85, line=dict(width=1, color='DarkSlateGrey'))
+                                marker=dict(opacity=0.75, line=dict(width=1.5, color='#FFFFFF')),
+                                selector=dict(mode='markers')
                             )
                             
                             fig_radar.update_layout(
-                                title="Análise Individual de Faturas (Agrupamento por Prazo)",
-                                xaxis=dict(showgrid=False, title=""), 
-                                yaxis=dict(showgrid=True, gridcolor='rgba(200,200,200,0.2)', title="Dias na Fiscalização (Status 6)"),
-                                plot_bgcolor='rgba(0,0,0,0)',
-                                margin=dict(l=0, r=20, t=40, b=0),
-                                showlegend=False 
+                                title=dict(text="Radar de Risco Financeiro: Dispersão de Processos", font=dict(color='#E0E0E0')),
+                                xaxis=dict(
+                                    title="Valor da Fatura (R$)", 
+                                    showgrid=True, 
+                                    gridcolor='rgba(255,255,255,0.1)', 
+                                    zerolinecolor='rgba(255,255,255,0.2)',
+                                    color='#E0E0E0'
+                                ), 
+                                yaxis=dict(
+                                    title="Dias de Tramitação", 
+                                    showgrid=True, 
+                                    gridcolor='rgba(255,255,255,0.1)',
+                                    zerolinecolor='rgba(255,255,255,0.2)',
+                                    color='#E0E0E0'
+                                ),
+                                # O segredo do Neon: Fundo chumbo escuro, quase preto
+                                plot_bgcolor='#121826', 
+                                paper_bgcolor='#121826',
+                                margin=dict(l=20, r=20, t=40, b=20),
+                                showlegend=True,
+                                legend=dict(font=dict(color='#E0E0E0'), orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                             )
 
                             st.plotly_chart(fig_radar, use_container_width=True)
 
                     except Exception as e:
-                        st.error(f"Erro ao montar o radar de faturas: {e}")
+                        st.error(f"Erro ao montar o radar de risco financeiro: {e}")
 
 
             
