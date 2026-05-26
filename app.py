@@ -4071,6 +4071,15 @@ Cordialmente,
                     line=dict(color='black', width=3, dash='dot'), marker=dict(size=8, color='black')
                 ))
 
+                # --- REFINAMENTO DE ESTILO ---
+                fig_audit.update_layout(
+                    barmode='stack',
+                    hovermode="x unified", paper_bgcolor='white', plot_bgcolor='white',
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+                    xaxis=dict(showgrid=False, linecolor='black', linewidth=1),
+                    yaxis=dict(title="Montante (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)')
+                )
+
                 st.plotly_chart(fig_audit, use_container_width=True)
 
 
