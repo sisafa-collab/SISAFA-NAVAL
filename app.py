@@ -4446,11 +4446,10 @@ Cordialmente,
                         df_6 = df_civis[df_civis['status_destino'] == '6'].groupby('nup')['timestamp'].min().reset_index()
                         df_7 = df_civis[df_civis['status_destino'] == '7'].groupby('nup')['timestamp'].min().reset_index()
                         
-                        # Merge inicial
                         df_radar = pd.merge(df_6, df_7, on='nup', suffixes=('_6', '_7'))
                         df_radar.rename(columns={'timestamp_6': 'Entrada_Fisc', 'timestamp_7': 'Retorno_Exec'}, inplace=True)
                         
-                        # --- LOGS DE EMAIL (Merge seguro) ---
+                        # --- LOGS DE EMAIL ---
                         aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
                         df_logs = pd.DataFrame(aba_logs.get_all_records())
                         df_logs.columns = df_logs.columns.str.strip()
@@ -4459,7 +4458,6 @@ Cordialmente,
                         df_emails = df_logs[df_logs['acao'].str.strip().str.upper() == 'SOLICITACAO_NF_ENVIADA'].groupby('nup')['data_hora'].min().reset_index()
                         df_emails.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
                         
-                        # Merge com Emails
                         df_radar = pd.merge(df_radar, df_emails, on='nup', how='left')
                         df_radar['Envio_Email'] = df_radar['Envio_Email'].fillna("e-mail não enviado via SISAFA")
 
@@ -4483,13 +4481,13 @@ Cordialmente,
                     except Exception as e:
                         st.error(f"Erro ao processar dados do Radar: {e}")
 
-                    # 2. SELETOR E RENDERIZAÇÃO (Fora do try para garantir acesso ao df_radar)
+                    # 2. SELETOR E RENDERIZAÇÃO
                     if not df_radar.empty:
                         lista_gestores = sorted(list(set(df_tabela_a['Gestor Titular'].dropna().unique().tolist() + 
                                                         df_tabela_a['Gestor Substituto'].dropna().unique().tolist())))
                         sel_gestor_radar = st.selectbox("Filtrar Radar por Fiscal:", ["TODOS (Visão Geral)"] + lista_gestores, key="radar_filtro")
 
-                        if sel_gestor_radar != "TODOS (Visão Geral)":
+                        if sel_gestor_radar != "Todos (Visão Geral)":
                             empresas = df_tabela_a[(df_tabela_a['Gestor Titular'] == sel_gestor_radar) | 
                                                 (df_tabela_a['Gestor Substituto'] == sel_gestor_radar)]['Razão Social'].unique()
                             df_radar_view = df_radar[df_radar['ose'].isin(empresas)].copy()
@@ -4497,8 +4495,32 @@ Cordialmente,
                             df_radar_view = df_radar.copy()
 
                         if not df_radar_view.empty:
-                            # Plotagem... (seu código px.scatter_3d aqui)
-                            # ...
+                            # Plotagem 3D Corrigida
+                            fig_radar = px.scatter_3d(
+                                df_radar_view, x='Valor_Num', y='SLA', z='Dias_Fisc',
+                                color='SLA', size='Tamanho_Bolha', size_max=40,
+                                category_orders={"SLA": ordem_sla},
+                                color_discrete_map={ordem_sla[0]: '#2ecc71', ordem_sla[1]: '#f1c40f', ordem_sla[2]: '#e74c3c'},
+                                hover_name='nup',
+                                hover_data={
+                                    'Valor_Num': False, 'SLA': False, 'Dias_Fisc': False,
+                                    'Gestor Titular': True, 'Gestor Substituto': True, 'ose': True,
+                                    'Entrada_Fisc_Str': True, 'Retorno_Exec_Str': True, 'Envio_Email': True
+                                }
+                            )
+
+                            fig_radar.update_layout(
+                                paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=0, r=0, t=20, b=20),
+                                showlegend=False,
+                                scene=dict(
+                                    aspectmode='manual', aspectratio=dict(x=1, y=0.5, z=1.5),
+                                    xaxis=dict(title=dict(text="Valor líquido (R$)", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black'),
+                                    yaxis=dict(title=dict(text="Status", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black', categoryorder='array', categoryarray=ordem_sla),
+                                    zaxis=dict(title=dict(text="Período aguardando NF", font=dict(size=14)), backgroundcolor="white", gridcolor='lightgray', color='black'),
+                                    bgcolor='white'
+                                )
+                            )
+                            st.plotly_chart(fig_radar, use_container_width=True)
                         else:
                             st.info("Nenhum dado para o filtro selecionado.")
                     else:
