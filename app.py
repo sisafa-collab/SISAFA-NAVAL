@@ -4460,17 +4460,27 @@ Cordialmente,
                             df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
                             df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
 
-                            # 2. PUXAR O VALOR FINANCEIRO (A NOVA DIMENSÃO 3D)
                             # ====================================================================
-                            # ⚠️ AUDITOR: Mude 'VALOR DA FATURA' e 'NUP' para os nomes exatos das suas colunas na Tabela A!
+                            # 2. PUXAR O VALOR FINANCEIRO (CALIBRANDO O SONAR)
+                            # ====================================================================
+                            # Vacina contra espaços fantasmas nos cabeçalhos da Tabela A
+                            df_tabela_a.columns = df_tabela_a.columns.str.strip()
+                            
+                            # ⚠️ AUDITOR: Tente adivinhar o nome correto, se errar, o sistema vai te avisar!
+                            nome_coluna_nup = 'NUP' 
                             nome_coluna_valor = 'VALOR DA FATURA' 
-                            nome_coluna_nup = 'NUP'
-                            # ====================================================================
+
+                            # --- SISTEMA DE DIAGNÓSTICO (O Radar avisa o que encontrou) ---
+                            if nome_coluna_nup not in df_tabela_a.columns or nome_coluna_valor not in df_tabela_a.columns:
+                                st.error(f"🚨 Alvo não identificado! O sistema procurou por '{nome_coluna_nup}' e '{nome_coluna_valor}'.")
+                                st.warning(f"As colunas que realmente existem na sua Tabela A são: {list(df_tabela_a.columns)}")
+                                st.stop() # Trava o painel temporariamente para você poder ler os nomes certos
+                            # ----------------------------------------------------------------
                             
                             df_valores = df_tabela_a[[nome_coluna_nup, nome_coluna_valor]].copy()
                             df_valores.rename(columns={nome_coluna_nup: 'nup'}, inplace=True)
                             
-                            # Limpeza pesada para transformar o "R$ 1.500,00" em número de verdade para o gráfico
+                            # Limpeza pesada para transformar o "R$ 1.500,00" em número para o gráfico
                             df_valores['Valor_Limpo'] = df_valores[nome_coluna_valor].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
                             df_valores['Valor_Num'] = pd.to_numeric(df_valores['Valor_Limpo'], errors='coerce').fillna(0)
                             
