@@ -162,9 +162,6 @@ else:
 
 
 
-
-
-
 def registrar_historico(nup, fatura, origem, destino, valor, obs=""):
     try:
         # Usa o 'sh' global, sem fazer novo login!
@@ -4438,10 +4435,11 @@ Cordialmente,
                     # =================================================================
                     # =================================================================
                     # =================================================================
+                    # =================================================================
                     # 🎯 RADAR 3D NEON: TEMPO vs VALOR FINANCEIRO vs SLA (STATUS 6)
                     # =================================================================
-                    st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Tempo vs Valor", unsafe_allow_html=True)
-                    st.info("💡 Este radar em 3D dispersa as faturas cruzando o **Tempo de Atraso** com o **Valor da Fatura**. Bolhas maiores representam maiores valores. Fique de olho no quadrante superior direito! 🚨")
+                    st.markdown("<br><br>#### 🎯 Radar de Risco Financeiro: Tempo vs Valor Líquido", unsafe_allow_html=True)
+                    st.info("💡 Este radar em 3D dispersa as faturas cruzando o **Tempo de Atraso** com o **Valor Líquido** (o que a Marinha efetivamente paga). Bolhas maiores representam maiores valores. Fique de olho no quadrante superior direito! 🚨")
 
                     try:
                         # 1. Puxar as Datas de Entrada (Status 6) e Retorno/Saída (Status 7)
@@ -4460,29 +4458,35 @@ Cordialmente,
                             df_radar['Entrada_Fisc'] = pd.to_datetime(df_radar['Entrada_Fisc'], errors='coerce')
                             df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
 
-                            # ====================================================================
-                            # 2. PUXAR O VALOR FINANCEIRO (CALIBRANDO O SONAR NA TABELA CERTA)
-                            # ====================================================================
-                            # A visão do Auditor estava correta: O valor está na tabela de Processos (df)
-                            df.columns = df.columns.str.strip() # Limpa espaços fantasmas
+                            # 2. PUXAR O VALOR LÍQUIDO DA ABA PROCESSOS
+                            df.columns = df.columns.str.strip() 
+                            nome_coluna_valor = 'valor_liquido' 
                             
-                            # ⚠️ AUDITOR: Qual é o nome da coluna de Valor na sua aba de Processos?
-                            nome_coluna_valor = 'VALOR' # <--- Tente colocar o nome exato aqui
-                            
-                            # --- SISTEMA DE DIAGNÓSTICO (Avisa o que encontrou na aba Processos) ---
-                            if nome_coluna_valor not in df.columns:
-                                st.error(f"🚨 Alvo não identificado! O sistema procurou por '{nome_coluna_valor}' na aba de Processos.")
-                                st.warning(f"As colunas que realmente existem na sua aba de PROCESSOS (df) são: {list(df.columns)}")
-                                st.stop() # Trava para o senhor poder ler os nomes
-                            # ----------------------------------------------------------------
-                            
-                            # Puxa o NUP e o Valor da aba de processos
                             df_valores = df[['nup', nome_coluna_valor]].copy()
                             
-                            # Limpeza pesada para transformar o "R$ 1.500,00" em número para o gráfico
-                            df_valores['Valor_Limpo'] = df_valores[nome_coluna_valor].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-                            df_valores['Valor_Num'] = pd.to_numeric(df_valores['Valor_Limpo'], errors='coerce').fillna(0)
-                            
+                            # =========================================================
+                            # 🛡️ FUNÇÃO DE LIMPEZA DE MOEDA (CÓDIGO ORIGINAL DO AUDITOR)
+                            # =========================================================
+                            def limpar_valor(valor):
+                                if pd.isna(valor) or valor == '': return 0.0 # Proteção extra para valores nulos do Pandas
+                                if isinstance(valor, (int, float)): 
+                                    return float(valor)
+                                limpo = str(valor).replace('R$', '').replace(' ', '').strip()
+                                if ',' in limpo and '.' in limpo:
+                                    if limpo.find('.') < limpo.find(','): 
+                                        limpo = limpo.replace('.', '').replace(',', '.')
+                                    else: 
+                                        limpo = limpo.replace(',', '')
+                                elif ',' in limpo:
+                                    limpo = limpo.replace(',', '.')
+                                try:
+                                    return float(limpo)
+                                except ValueError:
+                                    return 0.0
+                            # =========================================================
+
+                            df_valores['Valor_Num'] = df_valores[nome_coluna_valor].apply(limpar_valor)
+
                             # 3. Calcular o tempo total real na fiscalização (Eixo Y)
                             df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
                             df_radar = df_radar[df_radar['Dias_Fisc'] >= 0].copy()
@@ -4498,21 +4502,21 @@ Cordialmente,
                                 df_logs['acao'] = df_logs['acao'].astype(str).str.strip().str.upper()
                                 df_logs['nup'] = df_logs['nup'].astype(str).str.strip()
                                 
-                                df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].copy()
+                                df_emails = df_logs[df_logs['acao'] == 'SOLICITACAO_NF_ENVIADA'].copy() 
                                 if not df_emails.empty:
                                     df_emails['data_hora'] = pd.to_datetime(df_emails['data_hora'], format='mixed', dayfirst=True, errors='coerce')
                                     df_envio = df_emails.groupby('nup')['data_hora'].min().reset_index()
                                     df_envio.rename(columns={'data_hora': 'Envio_Email'}, inplace=True)
 
-                            # Mesclando Tempo, Emails, Gestores e Valores!
+                            # Mesclando Tempo, Emails, Gestores e Valores
                             df_radar = pd.merge(df_radar, df_envio, on='nup', how='left')
                             df_radar = pd.merge(df_radar, df_ranking_base[['nup', 'Gestor', 'ose']].drop_duplicates(), on='nup', how='left')
-                            df_radar = pd.merge(df_radar, df_valores[['nup', 'Valor_Num', nome_coluna_valor]], on='nup', how='left')
+                            df_radar = pd.merge(df_radar, df_valores[['nup', 'Valor_Num']], on='nup', how='left')
 
                             df_radar['Envio_Email'] = pd.to_datetime(df_radar['Envio_Email'], errors='coerce')
                             df_radar['Valor_Num'] = df_radar['Valor_Num'].fillna(0)
                             
-                            # Para o tamanho da bolha não bugar com zero, criamos um tamanho mínimo
+                            # Para o tamanho da bolha não bugar com zero, definimos um tamanho mínimo
                             df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
 
                             # 5. Classificação (SLA)
@@ -4527,22 +4531,24 @@ Cordialmente,
                             df_radar['Envio do E-mail (OSE)'] = df_radar['Envio_Email'].dt.strftime('%d/%m/%Y %H:%M').fillna('⚠️ Não enviado')
                             df_radar['Retorno p/ Execução'] = df_radar['Retorno_Exec'].dt.strftime('%d/%m/%Y %H:%M')
                             df_radar['Dias Totais (Status 6)'] = df_radar['Dias_Fisc'].round(1)
-                            df_radar['Valor Formatado'] = df_radar[nome_coluna_valor].fillna("R$ 0,00")
+                            
+                            # Formatação de moeda bonita para o balão flutuante
+                            df_radar['Valor Líquido'] = df_radar['Valor_Num'].apply(lambda x: f"R$ {x:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'))
 
                             df_radar['SLA'] = pd.Categorical(df_radar['SLA'], categories=['🟢 Ideal (≤20d)', '🟠 Atenção (21-30d)', '🔴 Crítico (>30d)'], ordered=True)
                             df_radar = df_radar.sort_values('SLA')
 
                             # 🎨 PALETA NEON PARA FUNDO ESCURO
                             color_map_neon = {
-                                '🟢 Ideal (≤20d)': '#00FF9D',     # Verde Neon brilhante
-                                '🟠 Atenção (21-30d)': '#FFD700', # Amarelo/Ouro Neon
-                                '🔴 Crítico (>30d)': '#FF0055'    # Rosa/Vermelho Neon
+                                '🟢 Ideal (≤20d)': '#00FF9D',     
+                                '🟠 Atenção (21-30d)': '#FFD700', 
+                                '🔴 Crítico (>30d)': '#FF0055'    
                             }
 
                             # 6. CRIAR O GRÁFICO (SCATTER PLOT MATRIZ)
                             fig_radar = px.scatter(
                                 df_radar,
-                                x='Valor_Num',          # Eixo X = DINHEIRO
+                                x='Valor_Num',          # Eixo X = DINHEIRO LÍQUIDO
                                 y='Dias_Fisc',          # Eixo Y = TEMPO
                                 color='SLA',
                                 size='Tamanho_Bolha',   # Bolhas Maiores = Faturas mais caras
@@ -4554,7 +4560,7 @@ Cordialmente,
                                     'SLA': False,
                                     'Gestor': True,
                                     'ose': True,
-                                    'Valor Formatado': True,
+                                    'Valor Líquido': True,
                                     'Dias Totais (Status 6)': True,
                                     'Entrada na Fiscalização': True,
                                     'Envio do E-mail (OSE)': True
@@ -4570,20 +4576,19 @@ Cordialmente,
                             fig_radar.update_layout(
                                 title=dict(text="Radar de Risco Financeiro: Dispersão de Processos", font=dict(color='#E0E0E0')),
                                 xaxis=dict(
-                                    title="Valor da Fatura (R$)", 
+                                    title="Valor Líquido da Fatura (R$)", 
                                     showgrid=True, 
                                     gridcolor='rgba(255,255,255,0.1)', 
                                     zerolinecolor='rgba(255,255,255,0.2)',
                                     color='#E0E0E0'
                                 ), 
                                 yaxis=dict(
-                                    title="Dias de Tramitação", 
+                                    title="Dias de Tramitação na Fiscalização", 
                                     showgrid=True, 
                                     gridcolor='rgba(255,255,255,0.1)',
                                     zerolinecolor='rgba(255,255,255,0.2)',
                                     color='#E0E0E0'
                                 ),
-                                # O segredo do Neon: Fundo chumbo escuro, quase preto
                                 plot_bgcolor='#121826', 
                                 paper_bgcolor='#121826',
                                 margin=dict(l=20, r=20, t=40, b=20),
