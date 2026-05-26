@@ -4089,7 +4089,7 @@ Cordialmente,
             # === SEÇÃO 7: ANÁLISE DE CENTROS DE CUSTO (ORÇAMENTO) ===
             # =======================================================
             st.divider()
-            st.subheader("🏢 7. Inteligência Orçamentária: Análise por Centro de Custo")
+            st.subheader("🏢 7. Análise por Centro de Custo")
 
             try:
                 # 1. Carga Segura dos Dados
@@ -4202,50 +4202,55 @@ Cordialmente,
                         
                         st.plotly_chart(fig_pie, use_container_width=True)
 
+                        
                         # =======================================================
-                        # VISÃO 2: EVOLUÇÃO TEMPORAL INDIVIDUALIZADA (NOVO FORMATO)
+                        # VISÃO 2: EVOLUÇÃO TEMPORAL - ÁREA COM SOMBRA (MODERNO)
                         # =======================================================
                         st.divider()
-                        st.markdown("#### 📈 Análise Individualizada por Centro de Custo")
+                        st.markdown("#### 📈 Evolução Individual por Centro de Custo")
                         
                         # Filtro Inteligente
                         lista_centros_ativos = sorted(df_long['Centro de Custo'].unique().tolist())
                         centro_selecionado = st.selectbox(
-                            "🎯 Selecione a linha de serviço para detalhamento histórico:", 
-                            lista_centros_ativos,
-                            index=0 # Seleciona o primeiro da lista por padrão
+                            "🎯 Selecione a linha de serviço para visualização técnica:", 
+                            lista_centros_ativos
                         )
 
-                        # Filtra a base apenas para a seleção do usuário
+                        # Filtra a base apenas para o centro selecionado
                         df_evol_individual = df_long[df_long['Centro de Custo'] == centro_selecionado]
                         df_evol_individual = df_evol_individual.groupby(['Competência', 'sort_key'])['Valor'].sum().reset_index()
                         df_evol_individual = df_evol_individual.sort_values('sort_key')
 
-                        # Gráfico de Barras focado (Precisão Financeira)
-                        fig_bar = px.bar(
+                        # Paleta tática para manter a cor consistente
+                        cor_tatica = '#2c5d71' 
+
+                        # Gráfico de Área Sombreado
+                        fig_area_ind = px.area(
                             df_evol_individual, 
                             x='Competência', 
                             y='Valor', 
-                            title=f"Histórico de Custos: {centro_selecionado}",
-                            text='Valor', # Imprime o valor exato no topo da coluna
-                            color_discrete_sequence=['#2e6b54'] # Verde Auditoria
+                            title=f"Histórico de Desembolso: {centro_selecionado}",
+                            markers=True,
+                            template="plotly_white"
                         )
                         
-                        fig_bar.update_traces(
-                            texttemplate='R$ %{text:,.2f}', 
-                            textposition='outside', # Valor fica flutuando acima da barra
-                            hovertemplate="<b>%{x}</b><br>Desembolso: R$ %{y:,.2f}<extra></extra>"
+                        # Estilização "Bonitão" com sombra
+                        fig_area_ind.update_traces(
+                            line_color=cor_tatica, 
+                            fillcolor='rgba(44, 93, 113, 0.2)', # Efeito sombreado suave
+                            marker=dict(size=8, color=cor_tatica, line=dict(width=2, color="white")),
+                            hovertemplate="<b>%{x}</b><br>Gasto: R$ %{y:,.2f}<extra></extra>"
                         )
                         
-                        fig_bar.update_layout(
+                        fig_area_ind.update_layout(
                             hovermode="x unified",
                             paper_bgcolor='white', plot_bgcolor='white',
                             margin=dict(l=20, r=20, t=50, b=20),
                             xaxis=dict(showgrid=False, type='category', linecolor='black', tickfont=dict(color='black')),
-                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'), range=[0, df_evol_individual['Valor'].max() * 1.2]) # Dá espaço para o texto não cortar no topo
+                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'))
                         )
                         
-                        st.plotly_chart(fig_bar, use_container_width=True)
+                        st.plotly_chart(fig_area_ind, use_container_width=True)
 
                         # =======================================================
                         # TABELA DE CONFERÊNCIA MATRICIAL
