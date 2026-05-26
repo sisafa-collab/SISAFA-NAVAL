@@ -4067,7 +4067,7 @@ Cordialmente,
                 # --- LINHA DE TENDÊNCIA (Total Líquido) ---
                 total_liq_mensal = [df_sec6[df_sec6['Competência'] == comp]['v_liq'].sum() for comp in lista_competencias]
                 fig_audit.add_trace(go.Scatter(
-                    x=lista_competencias, y=total_liq_mensal, name="Tendência Líquida", mode='lines+markers',
+                    x=lista_competencias, y=total_liq_mensal, name="Tendência", mode='lines+markers',
                     line=dict(color='black', width=3, dash='dot'), marker=dict(size=8, color='black')
                 ))
 
@@ -4082,7 +4082,139 @@ Cordialmente,
 
                 st.plotly_chart(fig_audit, use_container_width=True)
 
+            
+            # =======================================================
+            # === SEÇÃO 7: ANÁLISE DE CENTROS DE CUSTO (ORÇAMENTO) ===
+            # =======================================================
+            st.divider()
+            st.subheader("🏢 7. Inteligência Orçamentária: Análise por Centro de Custo")
 
+            try:
+                # 1. Carga e Preparação Segura dos Dados de Auditoria
+                aba_auditoria = sh.worksheet("SISAFA-NAVAL-Auditoria")
+                df_aud = pd.DataFrame(aba_auditoria.get_all_records())
+                
+                if df_aud.empty:
+                    st.info("Aguardando inserção de dados na aba de Auditoria para carregar os Centros de Custo.")
+                else:
+                    # Limpeza de colunas e identificores
+                    df_aud.columns = df_aud.columns.str.strip()
+                    df_aud['nup'] = df_aud['nup'].astype(str).str.strip()
+                    
+                    # Criação da Chave Cronológica (IGUAL FASES ANTERIORES)
+                    df_aud['sort_key'] = df_aud['ano_competencia'] * 100 + df_aud['mes_competencia']
+                    df_aud['Competência'] = df_aud.apply(
+                        lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
+                    )
+                    
+                    # 2. Mapeamento das colunas de Centros de Custo (tudo entre Internações e Ortodontia)
+                    # Identificamos dinamicamente as colunas médicas para não quebrar se o senhor mudar a ordem
+                    colunas_metadados = ['timestamp', 'nup', 'cnpj', 'ose', 'Numero_da_fatura', 'mes_competencia', 'ano_competencia', 'Grupo', 'Descrição', 'Quantidade', 'Custo total', 'sort_key', 'Competência']
+                    colunas_centros_custo = [col for col in df_aud.columns if col not in colunas_metadados]
+
+                    # Convertemos todas as colunas de valores para numérico puro
+                    for col in colunas_centros_custo:
+                        df_aud[col] = pd.to_numeric(df_aud[col].astype(str).str.replace('R$', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).str.strip(), errors='coerce').fillna(0)
+
+                    # 3. A MÁGICA DO DATA SCIENCE: Transformar colunas largas em linhas longas
+                    df_long = pd.melt(
+                        df_aud, 
+                        id_vars=['Competência', 'sort_key', 'ose', 'nup'], 
+                        value_vars=colunas_centros_custo,
+                        var_name='Centro de Custo', 
+                        value_name='Valor'
+                    )
+                    
+                    # Filtramos apenas onde houve gasto real (> 0) para não poluir o gráfico
+                    df_long = df_long[df_long['Valor'] > 0].copy()
+
+                    if df_long.empty:
+                        st.warning("Nenhum lançamento financeiro maior que R$ 0,00 encontrado nos centros de custo.")
+                    else:
+                        # --- VISÃO 1: TREEMAP (DISTRIBUIÇÃO MACRO) ---
+                        st.markdown("#### 📊 Distribuição de Gastos por Centro de Custo (Geral)")
+                        
+                        df_tree = df_long.groupby('Centro de Custo')['Valor'].sum().reset_index()
+                        
+                        fig_tree = px.treemap(
+                            df_tree, 
+                            path=['Centro de Custo'], 
+                            values='Valor',
+                            title="Volume Financeiro Alocado por Linha de Serviço (Tamanho do bloco = Gasto)",
+                            color='Valor',
+                            color_continuous_scale=px.colors.sequential.Mint # Paleta elegante verde/militar
+                        )
+                        fig_tree.update_layout(
+                            paper_bgcolor='white',
+                            margin=dict(l=10, r=10, t=40, b=10),
+                            coloraxis_showscale=False # Remove a barra de escala para limpar o visual
+                        )
+                        fig_tree.update_traces(
+                            texttemplate="<b>%{label}</b><br>R$ %{value:,.2f}",
+                            hovertemplate="<b>Center:</b> %{label}<br>Gasto Total: R$ %{value:,.2f}<extra></extra>"
+                        )
+                        st.plotly_chart(fig_tree, use_container_width=True)
+
+                        # --- VISÃO 2: EVOLUÇÃO TEMPORAL (ÁREA EMPILHADA) ---
+                        st.divider()
+                        st.markdown("#### 📈 Evolução Mensal dos Centros de Custo")
+
+                        # Agrupamos por mês e centro de custo, ordenando cronologicamente
+                        df_evol = df_long.groupby(['sort_key', 'Competência', 'Centro de Custo'])['Valor'].sum().reset_index()
+                        df_evol = df_evol.sort_values('sort_key')
+
+                        # Para evitar que o gráfico vire um arco-íris confuso com 40 cores, 
+                        # vamos destacar os 5 maiores e agrupar o resto em "Outros Centros"
+                        top_centros = df_long.groupby('Centro de Custo')['Valor'].sum().nlargest(5).index.tolist()
+                        df_evol['Centro_Exibicao'] = df_evol['Centro de Custo'].apply(lambda x: x if x in top_centros else "Outros Centros de Custo")
+                        
+                        # Reagrupamos após a consolidação do Top 5
+                        df_evol_consolidado = df_evol.groupby(['Competência', 'sort_key', 'Centro_Exibicao'])['Valor'].sum().reset_index()
+                        df_evol_consolidado = df_evol_consolidado.sort_values('sort_key')
+
+                        fig_area = px.area(
+                            df_evol_consolidado, 
+                            x='Competência', 
+                            y='Valor', 
+                            color='Centro_Exibicao',
+                            title="Histórico de Desembolso: Top 5 Linhas de Custo vs Demais Despesas",
+                            color_discrete_sequence=px.colors.qualitative.Safe, # Cores modernas e fáceis de distinguir
+                            template="plotly_white"
+                        )
+                        
+                        fig_area.update_layout(
+                            hovermode="x unified",
+                            paper_bgcolor='white', plot_bgcolor='white',
+                            margin=dict(l=20, r=20, t=50, b=20),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=""),
+                            xaxis=dict(showgrid=False, type='category', linecolor='black'),
+                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)')
+                        )
+                        
+                        fig_area.update_traces(
+                            hovertemplate="<b>%{fullData.name}</b>: R$ %{y:,.2f}<extra></extra>"
+                        )
+                        
+                        st.plotly_chart(fig_area, use_container_width=True)
+
+                        # --- TABELA DE CONFERÊNCIA MATRICIAL ---
+                        with st.expander("📋 Ver Matriz Completa de Centros de Custo por Mês"):
+                            df_matrix = df_long.pivot_table(
+                                index='Centro de Custo', 
+                                columns='Competência', 
+                                values='Valor', 
+                                aggfunc='sum'
+                            ).fillna(0)
+                            
+                            # Adiciona coluna de total geral para ordenação de auditoria
+                            df_matrix['Total Acumulado'] = df_matrix.sum(axis=1)
+                            df_matrix = df_matrix.sort_values('Total Acumulado', ascending=False)
+                            
+                            # Formatação
+                            st.dataframe(df_matrix.style.format("R$ {:,.2f}"), use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Erro ao processar a inteligência de centros de custo: {e}")
         
         
         # =================================================================
