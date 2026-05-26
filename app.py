@@ -4495,12 +4495,22 @@ Cordialmente,
 
                         fig_radar.update_layout(
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(l=0, r=0, t=50, b=0),
+                            margin=dict(l=0, r=0, t=20, b=20),
                             showlegend=False,
                             scene=dict(
-                                xaxis=dict(title="Valor líquido (R$)", titlefont=dict(size=14), color='black'),
-                                yaxis=dict(title="Status", titlefont=dict(size=14), color='black'),
-                                zaxis=dict(title="Período aguardando NF", titlefont=dict(size=14), color='black'),
+                                # A correção: usar title=dict(text="...", font=dict(size=...))
+                                xaxis=dict(
+                                    title=dict(text="Valor líquido (R$)", font=dict(size=14)),
+                                    backgroundcolor="white", gridcolor='lightgray', color='black'
+                                ),
+                                yaxis=dict(
+                                    title=dict(text="Status", font=dict(size=14)),
+                                    backgroundcolor="white", gridcolor='lightgray', color='black'
+                                ),
+                                zaxis=dict(
+                                    title=dict(text="Período aguardando NF", font=dict(size=14)),
+                                    backgroundcolor="white", gridcolor='lightgray', color='black'
+                                ),
                                 bgcolor='white'
                             )
                         )
