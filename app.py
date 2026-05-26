@@ -3997,6 +3997,7 @@ Cordialmente,
                     df_show_st6.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Pendente'}, inplace=True)
                     st.dataframe(df_show_st6, use_container_width=True, hide_index=True)
 
+            
             # =======================================================
             # === SEÇÃO 6: EVOLUÇÃO DOS VALORES AUDITADOS (FINANCEIRO) ===
             # =======================================================
@@ -4004,7 +4005,6 @@ Cordialmente,
             st.subheader("📈 6. Evolução dos valores auditados (Líquido vs Glosa)")
 
             # 1. Filtro de Segurança: Status >= 3 (Já passou pela auditagem)
-            # Garantimos que os valores financeiros estão limpos
             df_sec6 = df.copy()
             df_sec6['status_num'] = pd.to_numeric(df_sec6['status'], errors='coerce').fillna(0).astype(int)
             df_sec6 = df_sec6[df_sec6['status_num'] >= 3].copy()
@@ -4028,71 +4028,124 @@ Cordialmente,
 
                 df_sec6['Categoria_Auditoria'] = df_sec6['ose'].apply(categorizar_ose_auditoria)
 
-                # --- PREPARAÇÃO PARA O GRÁFICO ---
-                # Criamos dois sub-dataframes: um para Líquido (quebrada por categoria) e um para Glosa (Total)
-                
-                # Agrupamento 1: Valores Líquidos por Competência e Categoria
-                df_liq_agrup = df_sec6.groupby(['ano_competencia', 'mes_competencia', 'Categoria_Auditoria'])['v_liq'].sum().reset_index()
-                df_liq_agrup.rename(columns={'v_liq': 'Valor', 'Categoria_Auditoria': 'Legenda'}, inplace=True)
-                df_liq_agrup['Tipo'] = "Valor Líquido"
-
-                # Agrupamento 2: Glosa Total por Competência
-                df_glo_agrup = df_sec6.groupby(['ano_competencia', 'mes_competencia'])['v_glosa'].sum().reset_index()
-                df_glo_agrup['Legenda'] = "Glosa Total"
-                df_glo_agrup.rename(columns={'v_glosa': 'Valor'}, inplace=True)
-                df_glo_agrup['Tipo'] = "Glosa"
-
-                # Une os dois para o gráfico
-                df_final_grafico = pd.concat([df_liq_agrup, df_glo_agrup], ignore_index=True)
-
-                # Tratamento Cronológico (Mesma lógica das seções anteriores)
-                df_final_grafico['Competência'] = df_final_grafico.apply(
+                # --- PREPARAÇÃO DOS DADOS ---
+                # Criação da chave cronológica (Ex: 202601, 202602)
+                df_sec6['sort_key'] = df_sec6['ano_competencia'] * 100 + df_sec6['mes_competencia']
+                df_sec6['Competência'] = df_sec6.apply(
                     lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
                 )
-                df_final_grafico['sort_key'] = df_final_grafico['ano_competencia'] * 100 + df_final_grafico['mes_competencia']
-                df_final_grafico = df_final_grafico.sort_values(['sort_key', 'Tipo'])
 
-                # --- CONSTRUÇÃO DO GRÁFICO AGRUPADO E EMPILHADO ---
-                fig_audit = px.bar(
-                    df_final_grafico, 
-                    x='Competência', 
-                    y='Valor', 
-                    color='Legenda',
-                    barmode='group', # Coloca "Líquido" ao lado de "Glosa"
-                    title="Auditado (Líquido por Categoria) vs Glosado por Competência",
-                    color_discrete_map={
-                        "HFA": "#1e3d33",           # Verde Militar
-                        "OSE Militares": "#2e6b54", # Verde Médio
-                        "Demais OSEs": "#529471",   # Verde Claro
-                        "Glosa Total": "#e74c3c"    # Vermelho Alerta
-                    },
-                    labels={'Valor': 'Valor Financeiro (R$)', 'Legenda': 'Tipo de Valor'}
-                )
+                # Lista cronológica de meses disponíveis
+                df_cronologico = df_sec6[['sort_key', 'Competência']].drop_duplicates().sort_values('sort_key')
+                lista_competencias = df_cronologico['Competência'].tolist()
 
+                import plotly.graph_objects as go
+
+                fig_audit = go.Figure()
+
+                # Paleta de Cores Tática
+                cores_audit = {
+                    "HFA": "#1e3d33",           # Verde Escuro
+                    "OSE Militares": "#2e6b54", # Verde Médio
+                    "Demais OSEs": "#529471",   # Verde Claro
+                    "Glosa Total": "#e74c3c"    # Vermelho Alerta
+                }
+
+                # --- 1ª COLUNA (EMPILHADA): VALORES LÍQUIDOS ---
+                categorias_liq = ["HFA", "OSE Militares", "Demais OSEs"]
+                
+                for cat in categorias_liq:
+                    y_vals = []
+                    for comp in lista_competencias:
+                        # Soma o valor líquido daquela categoria naquele mês específico
+                        val = df_sec6[(df_sec6['Categoria_Auditoria'] == cat) & (df_sec6['Competência'] == comp)]['v_liq'].sum()
+                        y_vals.append(val)
+                    
+                    fig_audit.add_trace(go.Bar(
+                        name=cat,
+                        # O eixo X duplo (multicategory) é o segredo para colocar lado a lado
+                        x=[lista_competencias, ["1. Valor Líquido"] * len(lista_competencias)],
+                        y=y_vals,
+                        marker_color=cores_audit[cat],
+                        marker_line_width=0.5,
+                        marker_line_color='white', # Estilo: separação limpa entre os blocos
+                        hovertemplate="<b>%{x[0]}</b><br>%{data.name}: R$ %{y:,.2f}<extra></extra>"
+                    ))
+
+                # --- 2ª COLUNA (LADO A LADO): GLOSA TOTAL ---
+                y_glosa = []
+                for comp in lista_competencias:
+                    val = df_sec6[df_sec6['Competência'] == comp]['v_glosa'].sum()
+                    y_glosa.append(val)
+
+                fig_audit.add_trace(go.Bar(
+                    name="Glosa Total",
+                    x=[lista_competencias, ["2. Glosa"] * len(lista_competencias)],
+                    y=y_glosa,
+                    marker_color=cores_audit["Glosa Total"],
+                    marker_line_width=1,
+                    marker_line_color='#c0392b', # Borda vermelha mais escura para destaque
+                    hovertemplate="<b>%{x[0]}</b><br>%{data.name}: R$ %{y:,.2f}<extra></extra>"
+                ))
+
+                # --- REFINAMENTO DE ESTILO ---
                 fig_audit.update_layout(
+                    barmode='stack', # Empilha quem tem o mesmo sub-eixo (Valor Líquido)
+                    title=dict(text="Auditoria em Campo: Composição do Líquido vs Glosa Aplicada", font=dict(size=18)),
                     hovermode="x unified",
-                    xaxis_title="Mês de Competência",
-                    yaxis_title="Valor (R$)",
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    yaxis_tickprefix="R$ ",
-                )
-
-                fig_audit.update_traces(
-                    hovertemplate="<b>%{x}</b><br>%{fullData.name}: R$ %{y:,.2f}<extra></extra>"
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=20, t=60, b=40),
+                    legend=dict(
+                        orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5,
+                        bgcolor='rgba(255,255,255,0.8)'
+                    ),
+                    xaxis=dict(
+                        title="",
+                        tickfont=dict(size=12, color="gray"),
+                        showgrid=False
+                    ),
+                    yaxis=dict(
+                        title="Montante Financeiro (R$)",
+                        tickprefix="R$ ",
+                        showgrid=True,
+                        gridcolor='rgba(0,0,0,0.05)'
+                    )
                 )
 
                 st.plotly_chart(fig_audit, use_container_width=True)
 
-                # Tabela de Conferência para o Comandante
-                with st.expander("Ver resumo numérico da auditagem"):
-                    df_pivot_audit = df_final_grafico.pivot_table(
-                        index='Competência', 
-                        columns='Legenda', 
-                        values='Valor', 
-                        aggfunc='sum'
-                    ).fillna(0)
-                    # Formatação de moeda
-                    st.dataframe(df_pivot_audit.style.format("R$ {:,.2f}"), use_container_width=True)
+                # --- TABELA DE CONFERÊNCIA ---
+                with st.expander("📊 Ver resumo contábil detalhado (Competência)"):
+                    # Prepara um dataframe de exibição consolidado
+                    df_resumo_contabil = pd.DataFrame({'Competência': lista_competencias})
+                    df_resumo_contabil['sort_key'] = sorted(df_cronologico['sort_key'].tolist())
+                    
+                    for cat in categorias_liq:
+                        df_resumo_contabil[f'Líquido - {cat}'] = df_resumo_contabil['Competência'].apply(
+                            lambda c: df_sec6[(df_sec6['Categoria_Auditoria'] == cat) & (df_sec6['Competência'] == c)]['v_liq'].sum()
+                        )
+                    
+                    df_resumo_contabil['Líquido Total'] = df_resumo_contabil[[f'Líquido - {c}' for c in categorias_liq]].sum(axis=1)
+                    df_resumo_contabil['Glosa Total'] = df_resumo_contabil['Competência'].apply(
+                        lambda c: df_sec6[df_sec6['Competência'] == c]['v_glosa'].sum()
+                    )
+                    
+                    # Ordena e limpa para exibição
+                    df_resumo_contabil = df_resumo_contabil.sort_values('sort_key').drop(columns=['sort_key'])
+                    
+                    # Aplica estilo contábil
+                    st.dataframe(
+                        df_resumo_contabil.style.format({
+                            'Líquido - HFA': "R$ {:,.2f}",
+                            'Líquido - OSE Militares': "R$ {:,.2f}",
+                            'Líquido - Demais OSEs': "R$ {:,.2f}",
+                            'Líquido Total': "R$ {:,.2f}",
+                            'Glosa Total': "R$ {:,.2f}"
+                        }), 
+                        use_container_width=True, 
+                        hide_index=True
+                    )
 
 
         
