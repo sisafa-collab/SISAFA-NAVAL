@@ -4314,7 +4314,7 @@ Cordialmente,
 
                     fig_pag = px.pie(
                         values=[ideal_p, atencao_p, critico_p],
-                        names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
+                        names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
                         hole=0.6,
                         color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
                         color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Atenção (4-10d)': cor_atencao, 'Crítico (>10d)': cor_critico}
