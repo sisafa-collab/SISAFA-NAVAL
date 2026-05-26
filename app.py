@@ -4099,7 +4099,7 @@ Cordialmente,
                 if df_aud.empty:
                     st.info("Aguardando inserção de dados na aba de Auditoria para carregar os Centros de Custo.")
                 else:
-                    # Padroniza cabeçalhos: remove espaços duplos/triplos soltos (ex: "Consultas   ambulatoriais" vira "Consultas ambulatoriais")
+                    # Padroniza cabeçalhos (remove espaços duplos)
                     df_aud.columns = df_aud.columns.astype(str).str.strip()
                     df_aud.columns = [" ".join(col.split()) for col in df_aud.columns]
                     
@@ -4118,7 +4118,6 @@ Cordialmente,
                             df_aud.rename(columns={col: 'Outros'}, inplace=True)
                     
                     # --- LISTA OFICIAL RESTRITA DO COMANDO ---
-                    # Somente estas colunas entrarão na soma financeira
                     lista_oficial = [
                         "Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE",
                         "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME",
@@ -4134,10 +4133,9 @@ Cordialmente,
                         "Ex. Radiol. e Doc. Orto", "Prótese", "Ortodontia", "Outros"
                     ]
                     
-                    # Interseção: Garante que só pegaremos as que existem no DF para não dar erro
                     colunas_centros_custo = [col for col in lista_oficial if col in df_aud.columns]
 
-                    # Função Blindada (Trata 1.800,00 e 1,800.00 com perfeição)
+                    # Função Blindada Financeira
                     def limpar_custo_auditoria(val):
                         if pd.isna(val) or val == '': return 0.0
                         if isinstance(val, (int, float)): return float(val)
@@ -4157,11 +4155,10 @@ Cordialmente,
                         except:
                             return 0.0
 
-                    # Limpa apenas a lista oficial aprovada
                     for col in colunas_centros_custo:
                         df_aud[col] = df_aud[col].apply(limpar_custo_auditoria)
 
-                    # 3. Transformação Matricial (Melt)
+                    # Transformação Matricial (Melt)
                     df_long = pd.melt(
                         df_aud, 
                         id_vars=['Competência', 'sort_key', 'ose', 'nup'], 
@@ -4170,14 +4167,13 @@ Cordialmente,
                         value_name='Valor'
                     )
                     
-                    # Mantém apenas onde houve gasto real
                     df_long = df_long[df_long['Valor'] > 0].copy()
 
                     if df_long.empty:
                         st.warning("Nenhum lançamento financeiro maior que R$ 0,00 encontrado nos centros de custo oficiais.")
                     else:
                         # =======================================================
-                        # VISÃO 1: GRÁFICO DE PIZZA MODERNO (TODOS OS DADOS)
+                        # VISÃO 1: GRÁFICO DE PIZZA MODERNO (COMPLETA)
                         # =======================================================
                         st.markdown("#### 📊 Distribuição Global de Gastos")
                         
@@ -4198,7 +4194,6 @@ Cordialmente,
                             hovertemplate="<b>%{label}</b><br>Gasto: R$ %{value:,.2f}<br>Representação: %{percent}<extra></extra>"
                         )
                         
-                        # Legenda fica na direita com scroll (padrão do Plotly para muitos itens)
                         fig_pie.update_layout(
                             paper_bgcolor='white', plot_bgcolor='white',
                             margin=dict(l=20, r=20, t=30, b=20),
@@ -4208,38 +4203,49 @@ Cordialmente,
                         st.plotly_chart(fig_pie, use_container_width=True)
 
                         # =======================================================
-                        # VISÃO 2: EVOLUÇÃO TEMPORAL EM ÁREA EMPILHADA (TODOS OS DADOS)
+                        # VISÃO 2: EVOLUÇÃO TEMPORAL INDIVIDUALIZADA (NOVO FORMATO)
                         # =======================================================
                         st.divider()
-                        st.markdown("#### 📈 Histórico de Desembolso: Evolução Mensal")
+                        st.markdown("#### 📈 Análise Individualizada por Centro de Custo")
+                        
+                        # Filtro Inteligente
+                        lista_centros_ativos = sorted(df_long['Centro de Custo'].unique().tolist())
+                        centro_selecionado = st.selectbox(
+                            "🎯 Selecione a linha de serviço para detalhamento histórico:", 
+                            lista_centros_ativos,
+                            index=0 # Seleciona o primeiro da lista por padrão
+                        )
 
-                        df_evol = df_long.groupby(['Competência', 'sort_key', 'Centro de Custo'])['Valor'].sum().reset_index()
-                        df_evol = df_evol.sort_values(['sort_key', 'Valor'], ascending=[True, False])
+                        # Filtra a base apenas para a seleção do usuário
+                        df_evol_individual = df_long[df_long['Centro de Custo'] == centro_selecionado]
+                        df_evol_individual = df_evol_individual.groupby(['Competência', 'sort_key'])['Valor'].sum().reset_index()
+                        df_evol_individual = df_evol_individual.sort_values('sort_key')
 
-                        fig_area = px.area(
-                            df_evol, 
+                        # Gráfico de Barras focado (Precisão Financeira)
+                        fig_bar = px.bar(
+                            df_evol_individual, 
                             x='Competência', 
                             y='Valor', 
-                            color='Centro de Custo',
-                            title="Composição Mensal Completa das Despesas",
-                            color_discrete_sequence=px.colors.qualitative.Prism,
-                            template="plotly_white"
+                            title=f"Histórico de Custos: {centro_selecionado}",
+                            text='Valor', # Imprime o valor exato no topo da coluna
+                            color_discrete_sequence=['#2e6b54'] # Verde Auditoria
                         )
                         
-                        fig_area.update_layout(
+                        fig_bar.update_traces(
+                            texttemplate='R$ %{text:,.2f}', 
+                            textposition='outside', # Valor fica flutuando acima da barra
+                            hovertemplate="<b>%{x}</b><br>Desembolso: R$ %{y:,.2f}<extra></extra>"
+                        )
+                        
+                        fig_bar.update_layout(
                             hovermode="x unified",
                             paper_bgcolor='white', plot_bgcolor='white',
                             margin=dict(l=20, r=20, t=50, b=20),
-                            legend=dict(font=dict(color='black')),
                             xaxis=dict(showgrid=False, type='category', linecolor='black', tickfont=dict(color='black')),
-                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'))
+                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'), range=[0, df_evol_individual['Valor'].max() * 1.2]) # Dá espaço para o texto não cortar no topo
                         )
                         
-                        fig_area.update_traces(
-                            hovertemplate="<b>%{fullData.name}</b>: R$ %{y:,.2f}<extra></extra>"
-                        )
-                        
-                        st.plotly_chart(fig_area, use_container_width=True)
+                        st.plotly_chart(fig_bar, use_container_width=True)
 
                         # =======================================================
                         # TABELA DE CONFERÊNCIA MATRICIAL
