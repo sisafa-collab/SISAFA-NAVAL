@@ -3999,76 +3999,79 @@ Cordialmente,
 
             
             # =======================================================
-            # === SEÇÃO 6: EVOLUÇÃO DOS VALORES AUDITADOS (FINANCEIRO) ===
+            # === SEÇÃO 6: EVOLUÇÃO DOS VALORES AUDITADOS (3D PREMIUM) ===
             # =======================================================
             st.divider()
-            st.subheader("📈 6. Evolução dos valores auditados (Líquido vs Glosa)")
+            st.subheader("📈 6. Evolução Auditada: Estrutura da Dívida vs Glosa")
 
-            # 1. Filtro de Segurança: Status >= 3 (Já passou pela auditagem)
+            # 1. Filtro de Segurança e Preparação
             df_sec6 = df.copy()
             df_sec6['status_num'] = pd.to_numeric(df_sec6['status'], errors='coerce').fillna(0).astype(int)
-            df_sec6 = df_sec6[df_sec6['status_num'] >= 3].copy()
+            df_sec6 = df_sec6[df_sec6['status_num'] >= 3].copy() # Já auditados
 
             if df_sec6.empty:
-                st.info("Aguardando faturas atingirem o status de Auditada (Status >= 3) para gerar este gráfico.")
+                st.info("Aguardando faturas atingirem o status de Auditada (Status >= 3) para gerar o radar.")
             else:
                 # Limpeza financeira
                 df_sec6['v_liq'] = df_sec6['valor_liquido'].apply(limpar_valor)
                 df_sec6['v_glosa'] = df_sec6['glosa'].apply(limpar_valor)
 
-                # --- CLASSIFICAÇÃO TÁTICA DAS OSEs ---
-                def categorizar_ose_auditoria(nome):
-                    nome_upper = str(nome).upper()
-                    if "HFA" in nome_upper or "FORÇAS ARMADAS" in nome_upper:
-                        return "HFA"
-                    elif any(word in nome_upper for word in ["MILITAR", "EXERCITO", "MARINHA", "AERONAUTICA"]):
-                        return "OSE Militares"
-                    else:
-                        return "Demais OSEs"
+                # --- NOVA CATEGORIZAÇÃO RÍGIDA (IGUAL GRÁFICO 1) ---
+                # Definimos categorias locais para garantir o controle aqui
+                local_cats = ["1. OSE Civis", "2. HFA", "3. Base Op. Especiais", "4. BAAN Anápolis", "5. HFAB"]
 
-                df_sec6['Categoria_Auditoria'] = df_sec6['ose'].apply(categorizar_ose_auditoria)
+                def categorizar_rigido(nome):
+                    n = str(nome).upper()
+                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return local_cats[1]
+                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return local_cats[2]
+                    elif "120624" in n or "BASE AÉREA DE ANÁPOLIS" in n: return local_cats[3]
+                    elif "120096" in n or "HFAB" in n: return local_cats[4]
+                    return local_cats[0] # Padrão: Civis
 
-                # --- PREPARAÇÃO DOS DADOS ---
-                # Criação da chave cronológica (Ex: 202601, 202602)
+                df_sec6['Categoria_Audit_Final'] = df_sec6['ose'].apply(categorizar_rigido)
+
+                # --- PREPARAÇÃO CRONOLÓGICA ---
                 df_sec6['sort_key'] = df_sec6['ano_competencia'] * 100 + df_sec6['mes_competencia']
                 df_sec6['Competência'] = df_sec6.apply(
                     lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
                 )
-
-                # Lista cronológica de meses disponíveis
                 df_cronologico = df_sec6[['sort_key', 'Competência']].drop_duplicates().sort_values('sort_key')
                 lista_competencias = df_cronologico['Competência'].tolist()
 
+                # --- CONSTRUÇÃO DO GRÁFICO 3D PREMIUM (go.Bar com Axis Duplo) ---
                 import plotly.graph_objects as go
 
-                fig_audit = go.Figure()
+                fig_3d = go.Figure()
 
-                # Paleta de Cores Tática
+                # Paleta de Cores Tática Moderna (Civis na base, Militares subindo)
                 cores_audit = {
-                    "HFA": "#1e3d33",           # Verde Escuro
-                    "OSE Militares": "#2e6b54", # Verde Médio
-                    "Demais OSEs": "#529471",   # Verde Claro
-                    "Glosa Total": "#e74c3c"    # Vermelho Alerta
+                    "1. OSE Civis": "#1abc9c",           # Turquesa (Base)
+                    "2. HFA": "#1e3d33",                 # Verde Militar Escuro (Topo)
+                    "3. Base Op. Especiais": "#2e6b54",   # Verde Médio
+                    "4. BAAN Anápolis": "#529471",       # Verde Claro
+                    "5. HFAB": "#76b996",                # Verde Pálido
+                    "Glosa Total": "#e74c3c"             # Vermelho Alerta (Lado)
                 }
 
                 # --- 1ª COLUNA (EMPILHADA): VALORES LÍQUIDOS ---
-                categorias_liq = ["HFA", "OSE Militares", "Demais OSEs"]
+                # A ORDEM DE ADIÇÃO DOS TRACES DEFINE O EMPILHAMENTO (BAIXO PARA CIMA)
+                ordem_empilhamento = ["1. OSE Civis", "5. HFAB", "4. BAAN Anápolis", "3. Base Op. Especiais", "2. HFA"]
                 
-                for cat in categorias_liq:
+                for cat in ordem_empilhamento:
                     y_vals = []
                     for comp in lista_competencias:
-                        # Soma o valor líquido daquela categoria naquele mês específico
-                        val = df_sec6[(df_sec6['Categoria_Auditoria'] == cat) & (df_sec6['Competência'] == comp)]['v_liq'].sum()
+                        val = df_sec6[(df_sec6['Categoria_Audit_Final'] == cat) & (df_sec6['Competência'] == comp)]['v_liq'].sum()
                         y_vals.append(val)
                     
-                    fig_audit.add_trace(go.Bar(
+                    fig_3d.add_trace(go.Bar(
                         name=cat,
-                        # O eixo X duplo (multicategory) é o segredo para colocar lado a lado
-                        x=[lista_competencias, ["1. Valor Líquido"] * len(lista_competencias)],
+                        # Eixo X duplo: [Mês, Grupo]
+                        x=[lista_competencias, ["1. Dívida Aprovada (Líquido)"] * len(lista_competencias)],
                         y=y_vals,
                         marker_color=cores_audit[cat],
-                        marker_line_width=0.5,
-                        marker_line_color='white', # Estilo: separação limpa entre os blocos
+                        # Visual Moderno: Fendas brancas entre os blocos
+                        marker_line_width=1,
+                        marker_line_color='white', 
                         hovertemplate="<b>%{x[0]}</b><br>%{data.name}: R$ %{y:,.2f}<extra></extra>"
                     ))
 
@@ -4078,55 +4081,66 @@ Cordialmente,
                     val = df_sec6[df_sec6['Competência'] == comp]['v_glosa'].sum()
                     y_glosa.append(val)
 
-                fig_audit.add_trace(go.Bar(
-                    name="Glosa Total",
-                    x=[lista_competencias, ["2. Glosa"] * len(lista_competencias)],
+                fig_3d.add_trace(go.Bar(
+                    name="Glosa Total (Corte Técnico)",
+                    x=[lista_competencias, ["2. Glosa (Corte)"] * len(lista_competencias)],
                     y=y_glosa,
                     marker_color=cores_audit["Glosa Total"],
                     marker_line_width=1,
-                    marker_line_color='#c0392b', # Borda vermelha mais escura para destaque
+                    marker_line_color='#c0392b',
                     hovertemplate="<b>%{x[0]}</b><br>%{data.name}: R$ %{y:,.2f}<extra></extra>"
                 ))
 
-                # --- REFINAMENTO DE ESTILO ---
-                fig_audit.update_layout(
-                    barmode='stack', # Empilha quem tem o mesmo sub-eixo (Valor Líquido)
-                    title=dict(text="Auditoria em Campo: Composição do Líquido vs Glosa Aplicada", font=dict(size=18)),
+                # --- REFINAMENTO DE ESTILO E EFEITO 3D ---
+                fig_3d.update_layout(
+                    barmode='stack', # Empilha quem tem o mesmo sub-eixo
+                    title=dict(text="Caminho da Auditoria: Composição da Dívida vs Glosa Técnico-Administrativa", font=dict(size=18, color='black')),
                     hovermode="x unified",
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=20, r=20, t=60, b=40),
+                    paper_bgcolor='white', # Fundo Branco Moderno
+                    plot_bgcolor='white',
+                    margin=dict(l=20, r=20, t=80, b=40),
+                    # Legenda tática ordenada
                     legend=dict(
-                        orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5,
-                        bgcolor='rgba(255,255,255,0.8)'
+                        orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5,
+                        bgcolor='rgba(255,255,255,0.9)', bordercolor="lightgray", borderwidth=1,
+                        font=dict(color='black')
                     ),
+                    # Efeito de profundidade sutil (não é true 3D, mas tem sombras)
+                    barnorm='',
+                    bargap=0.15,
+                    bargroupgap=0.1,
                     xaxis=dict(
                         title="",
-                        tickfont=dict(size=12, color="gray"),
-                        showgrid=False
+                        tickfont=dict(size=12, color="black"),
+                        showgrid=False,
+                        linewidth=1, linecolor='lightgray'
                     ),
                     yaxis=dict(
-                        title="Montante Financeiro (R$)",
+                        title="Montante (R$)",
                         tickprefix="R$ ",
                         showgrid=True,
-                        gridcolor='rgba(0,0,0,0.05)'
+                        gridcolor='rgba(0,0,0,0.05)', # Grade cinza muito clara
+                        tickfont=dict(color="black")
                     )
                 )
 
-                st.plotly_chart(fig_audit, use_container_width=True)
+                st.plotly_chart(fig_3d, use_container_width=True)
 
-                # --- TABELA DE CONFERÊNCIA ---
-                with st.expander("📊 Ver resumo contábil detalhado (Competência)"):
+                # --- TABELA DE CONFERÊNCIA DETALHADA ---
+                with st.expander("📊 Ver resumo numérico da auditagem (Por Categoria)"):
                     # Prepara um dataframe de exibição consolidado
                     df_resumo_contabil = pd.DataFrame({'Competência': lista_competencias})
                     df_resumo_contabil['sort_key'] = sorted(df_cronologico['sort_key'].tolist())
                     
-                    for cat in categorias_liq:
-                        df_resumo_contabil[f'Líquido - {cat}'] = df_resumo_contabil['Competência'].apply(
-                            lambda c: df_sec6[(df_sec6['Categoria_Auditoria'] == cat) & (df_sec6['Competência'] == c)]['v_liq'].sum()
+                    # Adiciona as colunas táticas (Civis + as 4 militares)
+                    todas_cats = ["1. OSE Civis", "2. HFA", "3. Base Op. Especiais", "4. BAAN Anápolis", "5. HFAB"]
+                    for cat in todas_cats:
+                        # Pega o nome limpo para a coluna (ex: Demais OSEs)
+                        nome_col_limpo = cat.split('. ')[1] if '. ' in cat else cat
+                        df_resumo_contabil[nome_col_limpo] = df_resumo_contabil['Competência'].apply(
+                            lambda c: df_sec6[(df_sec6['Categoria_Audit_Final'] == cat) & (df_sec6['Competência'] == c)]['v_liq'].sum()
                         )
                     
-                    df_resumo_contabil['Líquido Total'] = df_resumo_contabil[[f'Líquido - {c}' for c in categorias_liq]].sum(axis=1)
                     df_resumo_contabil['Glosa Total'] = df_resumo_contabil['Competência'].apply(
                         lambda c: df_sec6[df_sec6['Competência'] == c]['v_glosa'].sum()
                     )
@@ -4135,14 +4149,11 @@ Cordialmente,
                     df_resumo_contabil = df_resumo_contabil.sort_values('sort_key').drop(columns=['sort_key'])
                     
                     # Aplica estilo contábil
+                    # Criamos um dict de formatação para as colunas
+                    format_dict = {col: "R$ {:,.2f}" for col in df_resumo_contabil.columns if col != 'Competência'}
+                    
                     st.dataframe(
-                        df_resumo_contabil.style.format({
-                            'Líquido - HFA': "R$ {:,.2f}",
-                            'Líquido - OSE Militares': "R$ {:,.2f}",
-                            'Líquido - Demais OSEs': "R$ {:,.2f}",
-                            'Líquido Total': "R$ {:,.2f}",
-                            'Glosa Total': "R$ {:,.2f}"
-                        }), 
+                        df_resumo_contabil.style.format(format_dict), 
                         use_container_width=True, 
                         hide_index=True
                     )
