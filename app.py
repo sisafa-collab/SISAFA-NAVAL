@@ -4085,10 +4085,11 @@ Cordialmente,
             
             
             # =======================================================
+            # =======================================================
             # === SEÇÃO 7: ANÁLISE DE CENTROS DE CUSTO (ORÇAMENTO) ===
             # =======================================================
             st.divider()
-            st.subheader("🏢 7. Inteligência Orçamentária: Análise por Centro de Custo")
+            st.subheader("🏢 7. Análise por Centro de Custo")
 
             try:
                 # 1. Carga Segura dos Dados
@@ -4098,8 +4099,8 @@ Cordialmente,
                 if df_aud.empty:
                     st.info("Aguardando inserção de dados na aba de Auditoria para carregar os Centros de Custo.")
                 else:
-                    # Limpeza padronizada de cabeçalhos
-                    df_aud.columns = df_aud.columns.str.strip()
+                    # Padroniza estritamente os cabeçalhos para string e remove espaços
+                    df_aud.columns = df_aud.columns.astype(str).str.strip()
                     if 'nup' in df_aud.columns:
                         df_aud['nup'] = df_aud['nup'].astype(str).str.strip()
                     
@@ -4109,39 +4110,49 @@ Cordialmente,
                         lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
                     )
                     
-                    # --- A MÁGICA DO "OUTROS" ---
-                    # Transforma a coluna 'Custo total' no centro de custo oficial 'Outros'
-                    if 'Custo total' in df_aud.columns:
-                        df_aud.rename(columns={'Custo total': 'Outros'}, inplace=True)
+                    # --- A MÁGICA DO "OUTROS" (Filtro Dinâmico) ---
+                    # Varre as colunas e renomeia qualquer variação de "Custo total" para "Outros"
+                    for col in df_aud.columns:
+                        if 'custo total' in col.lower():
+                            df_aud.rename(columns={col: 'Outros'}, inplace=True)
                     
-                    # 2. Barreira de Proteção (Blindagem contra NIP e Metadados)
-                    # Tudo que estiver nesta lista NUNCA será somado como dinheiro.
-                    metadados_para_ignorar = [
-                        'timestamp', 'nup', 'cnpj', 'ose', 'Numero_da_fatura', 
-                        'mes_competencia', 'ano_competencia', 'Grupo', 'Descrição', 
-                        'Quantidade', 'nip', 'sort_key', 'Competência'
+                    # 2. Barreira de Proteção Nível Máximo (Anti-Lixo e Anti-NIP)
+                    # Tudo que estiver aqui NUNCA será considerado dinheiro.
+                    metadados_ignorar = [
+                        'timestamp', 'nup', 'cnpj', 'ose', 'numero_da_fatura', 
+                        'mes_competencia', 'ano_competencia', 'grupo', 'descrição', 
+                        'quantidade', 'nip', 'sort_key', 'competência', '0', '', 'nan'
                     ]
                     
-                    # Filtra apenas as colunas que são de fato Centros de Custo
-                    colunas_centros_custo = [col for col in df_aud.columns if col not in metadados_para_ignorar and col.lower() != 'nip']
+                    # Filtra apenas as colunas que são de fato Centros de Custo válidos
+                    colunas_centros_custo = [
+                        col for col in df_aud.columns 
+                        if col.lower() not in metadados_ignorar 
+                        and not col.lower().startswith('unnamed')
+                    ]
 
-                    # Função Blindada para conversão de valores (Lê 707.94 e 1.234,56 perfeitamente)
+                    # Função Blindada (Trata 1.800,00 e 1,800.00 com perfeição)
                     def limpar_custo_auditoria(val):
                         if pd.isna(val) or val == '': return 0.0
                         if isinstance(val, (int, float)): return float(val)
                         v_str = str(val).replace('R$', '').strip()
                         if not v_str: return 0.0
                         
+                        # Tratamento inteligente de decimais e milhares
                         if '.' in v_str and ',' in v_str:
-                            v_str = v_str.replace('.', '').replace(',', '.')
+                            if v_str.rfind(',') > v_str.rfind('.'): # Ex: 1.234,56
+                                v_str = v_str.replace('.', '').replace(',', '.')
+                            else: # Ex: 1,234.56
+                                v_str = v_str.replace(',', '')
                         elif ',' in v_str:
-                            v_str = v_str.replace(',', '.')
+                            v_str = v_str.replace(',', '.') # Ex: 1234,56
+                        
                         try:
                             return float(v_str)
                         except:
                             return 0.0
 
-                    # Aplica a limpeza apenas nas colunas de dinheiro
+                    # Aplica a limpeza apenas nas colunas médicas financeiras
                     for col in colunas_centros_custo:
                         df_aud[col] = df_aud[col].apply(limpar_custo_auditoria)
 
@@ -4165,11 +4176,9 @@ Cordialmente,
                         # =======================================================
                         st.markdown("#### 📊 Distribuição Global de Gastos (Top 10)")
                         
-                        # Soma total por Centro de Custo
                         df_pizza = df_long.groupby('Centro de Custo')['Valor'].sum().reset_index()
                         df_pizza = df_pizza.sort_values('Valor', ascending=False)
                         
-                        # Tática de Agrupamento: Mostra o Top 10 e junta o resto em "Demais Centros"
                         top_n = 10
                         if len(df_pizza) > top_n:
                             top_df = df_pizza.iloc[:top_n].copy()
@@ -4183,8 +4192,8 @@ Cordialmente,
                             df_pizza_final, 
                             names='Centro de Custo', 
                             values='Valor',
-                            hole=0.45, # Furo no meio (Estilo Donut)
-                            color_discrete_sequence=px.colors.qualitative.Prism # Cores modernas e distintas
+                            hole=0.45, 
+                            color_discrete_sequence=px.colors.qualitative.Prism 
                         )
                         
                         fig_pie.update_traces(
@@ -4210,7 +4219,6 @@ Cordialmente,
                         df_evol = df_long.groupby(['sort_key', 'Competência', 'Centro de Custo'])['Valor'].sum().reset_index()
                         df_evol = df_evol.sort_values('sort_key')
 
-                        # Mantém o Top 5 destacado na área temporal para não virar uma bagunça visual
                         top_centros = df_pizza.iloc[:5]['Centro de Custo'].tolist()
                         df_evol['Centro_Exibicao'] = df_evol['Centro de Custo'].apply(lambda x: x if x in top_centros else "Demais Centros de Custo")
                         
@@ -4253,7 +4261,6 @@ Cordialmente,
                                 aggfunc='sum'
                             ).fillna(0)
                             
-                            # Adiciona coluna de total geral para ordenação
                             df_matrix['Total Acumulado'] = df_matrix.sum(axis=1)
                             df_matrix = df_matrix.sort_values('Total Acumulado', ascending=False)
                             
