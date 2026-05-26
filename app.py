@@ -4317,7 +4317,7 @@ Cordialmente,
                         names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
                         hole=0.6,
                         color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Atraso (>10d)'],
-                        color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Alerta (4-10d)': cor_atencao, 'Atraso (>10d)': cor_critico}
+                        color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Atenção (4-10d)': cor_atencao, 'Crítico (>10d)': cor_critico}
                     )
                     fig_pag.update_traces(textposition='inside', textinfo='percent')
                     fig_pag.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
