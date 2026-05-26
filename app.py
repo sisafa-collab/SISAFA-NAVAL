@@ -4089,7 +4089,7 @@ Cordialmente,
             # === SEÇÃO 7: ANÁLISE DE CENTROS DE CUSTO (ORÇAMENTO) ===
             # =======================================================
             st.divider()
-            st.subheader("🏢 7. Análise por Centro de Custo")
+            st.subheader("🏢 7. Inteligência Orçamentária: Análise por Centro de Custo")
 
             try:
                 # 1. Carga Segura dos Dados
@@ -4099,8 +4099,10 @@ Cordialmente,
                 if df_aud.empty:
                     st.info("Aguardando inserção de dados na aba de Auditoria para carregar os Centros de Custo.")
                 else:
-                    # Padroniza estritamente os cabeçalhos para string e remove espaços
+                    # Padroniza cabeçalhos: remove espaços duplos/triplos soltos (ex: "Consultas   ambulatoriais" vira "Consultas ambulatoriais")
                     df_aud.columns = df_aud.columns.astype(str).str.strip()
+                    df_aud.columns = [" ".join(col.split()) for col in df_aud.columns]
+                    
                     if 'nup' in df_aud.columns:
                         df_aud['nup'] = df_aud['nup'].astype(str).str.strip()
                     
@@ -4110,26 +4112,30 @@ Cordialmente,
                         lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
                     )
                     
-                    # --- A MÁGICA DO "OUTROS" (Filtro Dinâmico) ---
-                    # Varre as colunas e renomeia qualquer variação de "Custo total" para "Outros"
+                    # --- A MÁGICA DO "OUTROS" ---
                     for col in df_aud.columns:
                         if 'custo total' in col.lower():
                             df_aud.rename(columns={col: 'Outros'}, inplace=True)
                     
-                    # 2. Barreira de Proteção Nível Máximo (Anti-Lixo e Anti-NIP)
-                    # Tudo que estiver aqui NUNCA será considerado dinheiro.
-                    metadados_ignorar = [
-                        'timestamp', 'nup', 'cnpj', 'ose', 'numero_da_fatura', 
-                        'mes_competencia', 'ano_competencia', 'grupo', 'descrição', 
-                        'quantidade', 'nip', 'sort_key', 'competência', '0', '', 'nan'
+                    # --- LISTA OFICIAL RESTRITA DO COMANDO ---
+                    # Somente estas colunas entrarão na soma financeira
+                    lista_oficial = [
+                        "Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE",
+                        "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME",
+                        "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos",
+                        "Remédio de Alto Custo: Antibióticos", "Análises Clínicas", "RX Convencional", "Tomografias",
+                        "Ressonâncias magnéticas", "Ultrassonografias", "Exames oftalmológicos", "Holter 24h", "Mapa 24h",
+                        "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana",
+                        "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos",
+                        "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica",
+                        "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco", "Hemodiálise", "Fisioterapia",
+                        "Fonoaudiologia", "Psicologia / Psicoterapia", "Avaliação neuropsicológica", "Psicopedagogia",
+                        "Terapia Ocupacional", "Musicoterapia", "Consultas", "Laboratórios Odontológicos",
+                        "Ex. Radiol. e Doc. Orto", "Prótese", "Ortodontia", "Outros"
                     ]
                     
-                    # Filtra apenas as colunas que são de fato Centros de Custo válidos
-                    colunas_centros_custo = [
-                        col for col in df_aud.columns 
-                        if col.lower() not in metadados_ignorar 
-                        and not col.lower().startswith('unnamed')
-                    ]
+                    # Interseção: Garante que só pegaremos as que existem no DF para não dar erro
+                    colunas_centros_custo = [col for col in lista_oficial if col in df_aud.columns]
 
                     # Função Blindada (Trata 1.800,00 e 1,800.00 com perfeição)
                     def limpar_custo_auditoria(val):
@@ -4138,21 +4144,20 @@ Cordialmente,
                         v_str = str(val).replace('R$', '').strip()
                         if not v_str: return 0.0
                         
-                        # Tratamento inteligente de decimais e milhares
                         if '.' in v_str and ',' in v_str:
-                            if v_str.rfind(',') > v_str.rfind('.'): # Ex: 1.234,56
+                            if v_str.rfind(',') > v_str.rfind('.'): 
                                 v_str = v_str.replace('.', '').replace(',', '.')
-                            else: # Ex: 1,234.56
+                            else: 
                                 v_str = v_str.replace(',', '')
                         elif ',' in v_str:
-                            v_str = v_str.replace(',', '.') # Ex: 1234,56
+                            v_str = v_str.replace(',', '.') 
                         
                         try:
                             return float(v_str)
                         except:
                             return 0.0
 
-                    # Aplica a limpeza apenas nas colunas médicas financeiras
+                    # Limpa apenas a lista oficial aprovada
                     for col in colunas_centros_custo:
                         df_aud[col] = df_aud[col].apply(limpar_custo_auditoria)
 
@@ -4169,27 +4174,18 @@ Cordialmente,
                     df_long = df_long[df_long['Valor'] > 0].copy()
 
                     if df_long.empty:
-                        st.warning("Nenhum lançamento financeiro maior que R$ 0,00 encontrado nos centros de custo.")
+                        st.warning("Nenhum lançamento financeiro maior que R$ 0,00 encontrado nos centros de custo oficiais.")
                     else:
                         # =======================================================
-                        # VISÃO 1: GRÁFICO DE PIZZA MODERNO (DONUT)
+                        # VISÃO 1: GRÁFICO DE PIZZA MODERNO (TODOS OS DADOS)
                         # =======================================================
-                        st.markdown("#### 📊 Distribuição Global de Gastos (Top 10)")
+                        st.markdown("#### 📊 Distribuição Global de Gastos")
                         
                         df_pizza = df_long.groupby('Centro de Custo')['Valor'].sum().reset_index()
                         df_pizza = df_pizza.sort_values('Valor', ascending=False)
                         
-                        top_n = 10
-                        if len(df_pizza) > top_n:
-                            top_df = df_pizza.iloc[:top_n].copy()
-                            outros_valor = df_pizza.iloc[top_n:]['Valor'].sum()
-                            outros_df = pd.DataFrame({'Centro de Custo': ['Demais Centros de Custo'], 'Valor': [outros_valor]})
-                            df_pizza_final = pd.concat([top_df, outros_df], ignore_index=True)
-                        else:
-                            df_pizza_final = df_pizza.copy()
-
                         fig_pie = px.pie(
-                            df_pizza_final, 
+                            df_pizza, 
                             names='Centro de Custo', 
                             values='Valor',
                             hole=0.45, 
@@ -4202,36 +4198,31 @@ Cordialmente,
                             hovertemplate="<b>%{label}</b><br>Gasto: R$ %{value:,.2f}<br>Representação: %{percent}<extra></extra>"
                         )
                         
+                        # Legenda fica na direita com scroll (padrão do Plotly para muitos itens)
                         fig_pie.update_layout(
                             paper_bgcolor='white', plot_bgcolor='white',
                             margin=dict(l=20, r=20, t=30, b=20),
-                            legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.0, font=dict(color='black'))
+                            legend=dict(font=dict(color='black'))
                         )
                         
                         st.plotly_chart(fig_pie, use_container_width=True)
 
                         # =======================================================
-                        # VISÃO 2: EVOLUÇÃO TEMPORAL EM ÁREA EMPILHADA
+                        # VISÃO 2: EVOLUÇÃO TEMPORAL EM ÁREA EMPILHADA (TODOS OS DADOS)
                         # =======================================================
                         st.divider()
                         st.markdown("#### 📈 Histórico de Desembolso: Evolução Mensal")
 
-                        df_evol = df_long.groupby(['sort_key', 'Competência', 'Centro de Custo'])['Valor'].sum().reset_index()
-                        df_evol = df_evol.sort_values('sort_key')
-
-                        top_centros = df_pizza.iloc[:5]['Centro de Custo'].tolist()
-                        df_evol['Centro_Exibicao'] = df_evol['Centro de Custo'].apply(lambda x: x if x in top_centros else "Demais Centros de Custo")
-                        
-                        df_evol_consolidado = df_evol.groupby(['Competência', 'sort_key', 'Centro_Exibicao'])['Valor'].sum().reset_index()
-                        df_evol_consolidado = df_evol_consolidado.sort_values('sort_key')
+                        df_evol = df_long.groupby(['Competência', 'sort_key', 'Centro de Custo'])['Valor'].sum().reset_index()
+                        df_evol = df_evol.sort_values(['sort_key', 'Valor'], ascending=[True, False])
 
                         fig_area = px.area(
-                            df_evol_consolidado, 
+                            df_evol, 
                             x='Competência', 
                             y='Valor', 
-                            color='Centro_Exibicao',
-                            title="Top 5 Linhas de Custo vs Demais Despesas",
-                            color_discrete_sequence=px.colors.qualitative.Safe,
+                            color='Centro de Custo',
+                            title="Composição Mensal Completa das Despesas",
+                            color_discrete_sequence=px.colors.qualitative.Prism,
                             template="plotly_white"
                         )
                         
@@ -4239,7 +4230,7 @@ Cordialmente,
                             hovermode="x unified",
                             paper_bgcolor='white', plot_bgcolor='white',
                             margin=dict(l=20, r=20, t=50, b=20),
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title="", font=dict(color='black')),
+                            legend=dict(font=dict(color='black')),
                             xaxis=dict(showgrid=False, type='category', linecolor='black', tickfont=dict(color='black')),
                             yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'))
                         )
