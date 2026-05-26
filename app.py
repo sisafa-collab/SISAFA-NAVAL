@@ -4461,24 +4461,23 @@ Cordialmente,
                             df_radar['Retorno_Exec'] = pd.to_datetime(df_radar['Retorno_Exec'], errors='coerce')
 
                             # ====================================================================
-                            # 2. PUXAR O VALOR FINANCEIRO (CALIBRANDO O SONAR)
+                            # 2. PUXAR O VALOR FINANCEIRO (CALIBRANDO O SONAR NA TABELA CERTA)
                             # ====================================================================
-                            # Vacina contra espaços fantasmas nos cabeçalhos da Tabela A
-                            df_tabela_a.columns = df_tabela_a.columns.str.strip()
+                            # A visão do Auditor estava correta: O valor está na tabela de Processos (df)
+                            df.columns = df.columns.str.strip() # Limpa espaços fantasmas
                             
-                            # ⚠️ AUDITOR: Tente adivinhar o nome correto, se errar, o sistema vai te avisar!
-                            nome_coluna_nup = 'NUP' 
-                            nome_coluna_valor = 'VALOR DA FATURA' 
-
-                            # --- SISTEMA DE DIAGNÓSTICO (O Radar avisa o que encontrou) ---
-                            if nome_coluna_nup not in df_tabela_a.columns or nome_coluna_valor not in df_tabela_a.columns:
-                                st.error(f"🚨 Alvo não identificado! O sistema procurou por '{nome_coluna_nup}' e '{nome_coluna_valor}'.")
-                                st.warning(f"As colunas que realmente existem na sua Tabela A são: {list(df_tabela_a.columns)}")
-                                st.stop() # Trava o painel temporariamente para você poder ler os nomes certos
+                            # ⚠️ AUDITOR: Qual é o nome da coluna de Valor na sua aba de Processos?
+                            nome_coluna_valor = 'VALOR' # <--- Tente colocar o nome exato aqui
+                            
+                            # --- SISTEMA DE DIAGNÓSTICO (Avisa o que encontrou na aba Processos) ---
+                            if nome_coluna_valor not in df.columns:
+                                st.error(f"🚨 Alvo não identificado! O sistema procurou por '{nome_coluna_valor}' na aba de Processos.")
+                                st.warning(f"As colunas que realmente existem na sua aba de PROCESSOS (df) são: {list(df.columns)}")
+                                st.stop() # Trava para o senhor poder ler os nomes
                             # ----------------------------------------------------------------
                             
-                            df_valores = df_tabela_a[[nome_coluna_nup, nome_coluna_valor]].copy()
-                            df_valores.rename(columns={nome_coluna_nup: 'nup'}, inplace=True)
+                            # Puxa o NUP e o Valor da aba de processos
+                            df_valores = df[['nup', nome_coluna_valor]].copy()
                             
                             # Limpeza pesada para transformar o "R$ 1.500,00" em número para o gráfico
                             df_valores['Valor_Limpo'] = df_valores[nome_coluna_valor].astype(str).str.replace('R$', '', regex=False).str.replace(' ', '', regex=False).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
