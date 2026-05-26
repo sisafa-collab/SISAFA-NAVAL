@@ -4472,7 +4472,7 @@ Cordialmente,
                         df_radar['Dias_Fisc'] = (df_radar['Retorno_Exec'] - df_radar['Entrada_Fisc']).dt.total_seconds() / 86400
                         df_radar['Valor_Num'] = df_radar['valor_liquido'].apply(limpar_valor)
                         
-                        ordem_sla = ['Ideal 🙂‍↕️', 'Atenção ⚠️', 'Crítico 🤯']
+                        ordem_sla = ['Ideal👍', 'Atenção⚠️', 'Crítico💀']
                         df_radar['SLA'] = pd.cut(df_radar['Dias_Fisc'], bins=[-1, 20, 30, 9999], labels=ordem_sla)
                         df_radar['Tamanho_Bolha'] = df_radar['Valor_Num'].apply(lambda x: x if x > 1000 else 1000)
                         df_radar['Entrada_Fisc_Str'] = df_radar['Entrada_Fisc'].dt.strftime('%d/%m/%Y')
