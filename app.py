@@ -3997,6 +3997,103 @@ Cordialmente,
                     df_show_st6.rename(columns={'ose': 'Empresa', 'v_liq': 'Volume Pendente'}, inplace=True)
                     st.dataframe(df_show_st6, use_container_width=True, hide_index=True)
 
+            # =======================================================
+            # === SEÇÃO 6: EVOLUÇÃO DOS VALORES AUDITADOS (FINANCEIRO) ===
+            # =======================================================
+            st.divider()
+            st.subheader("📈 6. Evolução dos valores auditados (Líquido vs Glosa)")
+
+            # 1. Filtro de Segurança: Status >= 3 (Já passou pela auditagem)
+            # Garantimos que os valores financeiros estão limpos
+            df_sec6 = df.copy()
+            df_sec6['status_num'] = pd.to_numeric(df_sec6['status'], errors='coerce').fillna(0).astype(int)
+            df_sec6 = df_sec6[df_sec6['status_num'] >= 3].copy()
+
+            if df_sec6.empty:
+                st.info("Aguardando faturas atingirem o status de Auditada (Status >= 3) para gerar este gráfico.")
+            else:
+                # Limpeza financeira
+                df_sec6['v_liq'] = df_sec6['valor_liquido'].apply(limpar_valor)
+                df_sec6['v_glosa'] = df_sec6['glosa'].apply(limpar_valor)
+
+                # --- CLASSIFICAÇÃO TÁTICA DAS OSEs ---
+                def categorizar_ose_auditoria(nome):
+                    nome_upper = str(nome).upper()
+                    if "HFA" in nome_upper or "FORÇAS ARMADAS" in nome_upper:
+                        return "HFA"
+                    elif any(word in nome_upper for word in ["MILITAR", "EXERCITO", "MARINHA", "AERONAUTICA"]):
+                        return "OSE Militares"
+                    else:
+                        return "Demais OSEs"
+
+                df_sec6['Categoria_Auditoria'] = df_sec6['ose'].apply(categorizar_ose_auditoria)
+
+                # --- PREPARAÇÃO PARA O GRÁFICO ---
+                # Criamos dois sub-dataframes: um para Líquido (quebrada por categoria) e um para Glosa (Total)
+                
+                # Agrupamento 1: Valores Líquidos por Competência e Categoria
+                df_liq_agrup = df_sec6.groupby(['ano_competencia', 'mes_competencia', 'Categoria_Auditoria'])['v_liq'].sum().reset_index()
+                df_liq_agrup.rename(columns={'v_liq': 'Valor', 'Categoria_Auditoria': 'Legenda'}, inplace=True)
+                df_liq_agrup['Tipo'] = "Valor Líquido"
+
+                # Agrupamento 2: Glosa Total por Competência
+                df_glo_agrup = df_sec6.groupby(['ano_competencia', 'mes_competencia'])['v_glosa'].sum().reset_index()
+                df_glo_agrup['Legenda'] = "Glosa Total"
+                df_glo_agrup.rename(columns={'v_glosa': 'Valor'}, inplace=True)
+                df_glo_agrup['Tipo'] = "Glosa"
+
+                # Une os dois para o gráfico
+                df_final_grafico = pd.concat([df_liq_agrup, df_glo_agrup], ignore_index=True)
+
+                # Tratamento Cronológico (Mesma lógica das seções anteriores)
+                df_final_grafico['Competência'] = df_final_grafico.apply(
+                    lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
+                )
+                df_final_grafico['sort_key'] = df_final_grafico['ano_competencia'] * 100 + df_final_grafico['mes_competencia']
+                df_final_grafico = df_final_grafico.sort_values(['sort_key', 'Tipo'])
+
+                # --- CONSTRUÇÃO DO GRÁFICO AGRUPADO E EMPILHADO ---
+                fig_audit = px.bar(
+                    df_final_grafico, 
+                    x='Competência', 
+                    y='Valor', 
+                    color='Legenda',
+                    barmode='group', # Coloca "Líquido" ao lado de "Glosa"
+                    title="Auditado (Líquido por Categoria) vs Glosado por Competência",
+                    color_discrete_map={
+                        "HFA": "#1e3d33",           # Verde Militar
+                        "OSE Militares": "#2e6b54", # Verde Médio
+                        "Demais OSEs": "#529471",   # Verde Claro
+                        "Glosa Total": "#e74c3c"    # Vermelho Alerta
+                    },
+                    labels={'Valor': 'Valor Financeiro (R$)', 'Legenda': 'Tipo de Valor'}
+                )
+
+                fig_audit.update_layout(
+                    hovermode="x unified",
+                    xaxis_title="Mês de Competência",
+                    yaxis_title="Valor (R$)",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    yaxis_tickprefix="R$ ",
+                )
+
+                fig_audit.update_traces(
+                    hovertemplate="<b>%{x}</b><br>%{fullData.name}: R$ %{y:,.2f}<extra></extra>"
+                )
+
+                st.plotly_chart(fig_audit, use_container_width=True)
+
+                # Tabela de Conferência para o Comandante
+                with st.expander("Ver resumo numérico da auditagem"):
+                    df_pivot_audit = df_final_grafico.pivot_table(
+                        index='Competência', 
+                        columns='Legenda', 
+                        values='Valor', 
+                        aggfunc='sum'
+                    ).fillna(0)
+                    # Formatação de moeda
+                    st.dataframe(df_pivot_audit.style.format("R$ {:,.2f}"), use_container_width=True)
+
 
         
         
