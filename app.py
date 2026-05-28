@@ -1163,9 +1163,19 @@ else:
                 
                 if nup_para_salvar:
                     with st.spinner("Protegendo dados na nuvem..."):
-                        # 2. Pega os outros dados do baú também
-                        vals = st.session_state.get("valores_detalhados_ativo", {})
-                        just = st.session_state.get("just_glosa_ativo", "")
+                        # --- CAPTURA DINÂMICA DOS CENTROS DE CUSTO DIGITADOS ---
+                        vals = {}
+                        prefixo_input = "inp_"
+                        sufixo_input = f"_{nup_para_salvar}"
+                        
+                        # Varre a memória ativa procurando os valores preenchidos na tela
+                        for chave, valor in st.session_state.items():
+                            if chave.startswith(prefixo_input) and chave.endswith(sufixo_input):
+                                nome_campo = chave[len(prefixo_input):-len(sufixo_input)]
+                                vals[nome_campo] = valor
+                        
+                        # Captura a justificativa direto da área de texto ativa
+                        just = st.session_state.get("txt_just_mesa", "")
                         key_glosas = f"relatorio_glosa_{nup_para_salvar}"
                         
                         sucesso = salvar_rascunho_auditoria(
@@ -1175,7 +1185,7 @@ else:
                             just
                         )
                         if sucesso:
-                            st.sidebar.success("✅ Rascunho salvo com sucesso! ⚓")
+                            st.sidebar.success("✅ Rascunho completo salvo com sucesso! ⚓")
                         else:
                             st.sidebar.error("❌ Falha ao salvar no Google.")
                 else:
@@ -1224,6 +1234,8 @@ else:
                     valores_detalhados = st.session_state.get("valores_detalhados_ativo", {})
                     just_glosa = st.session_state.get("just_glosa_ativo", "")
                     
+                    tabela_ref_glosa = obter_tabela_referencia_glosa()
+
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
@@ -1280,16 +1292,6 @@ else:
                                         st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro na correção: {e}")
-
-
-                    # Sem esse bloco aqui, o Selectbox lá embaixo não sabe o que é 'tabela_ref_glosa'
-                    try:
-                        aba_ref = sh.worksheet("SISAFA-NAVAL-Tabela-de-referencia-de-glosa")
-                        dados_glosa_brutos = aba_ref.get_all_records()
-                        tabela_ref_glosa = {str(row['Cod_glosa']): row['Desc_glosa'] for row in dados_glosa_brutos}
-                    except:
-                        st.error("❌ Erro na leitura da Tabela de Referência de Glosas! Procure o CT Matheus")
-                        tabela_ref_glosa = {}
 
 
                     # --- DETALHAMENTO DO RELATÓRIO DE GLOSA (PADRÃO HOSBRA) ---
