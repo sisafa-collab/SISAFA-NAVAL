@@ -1973,6 +1973,152 @@ else:
             st.write("")
 
             # =======================================================
+            # === ANÁLISE DE CENTROS DE CUSTO (ORÇAMENTO) ===
+            # =======================================================
+            st.divider()
+            st.subheader("🏢 Análise por Centro de Custo")
+            st.write("") 
+
+            try:
+                aba_auditoria = sh.worksheet("SISAFA-NAVAL-Auditoria")
+                df_aud = pd.DataFrame(aba_auditoria.get_all_records())
+                
+                if df_aud.empty:
+                    st.info("Aguardando inserção de dados na aba de Auditoria para carregar os Centros de Custo.")
+                else:
+                    df_aud.columns = df_aud.columns.astype(str).str.strip()
+                    df_aud.columns = [" ".join(col.split()) for col in df_aud.columns]
+                    
+                    if 'nup' in df_aud.columns:
+                        df_aud['nup'] = df_aud['nup'].astype(str).str.strip()
+                    
+                    df_aud['sort_key'] = df_aud['ano_competencia'] * 100 + df_aud['mes_competencia']
+                    
+                    df_aud['Competência'] = df_aud.apply(
+                        lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
+                    )
+                    
+                    for col in df_aud.columns:
+                        if 'custo total' in col.lower():
+                            df_aud.rename(columns={col: 'Outros'}, inplace=True)
+                    
+                    lista_oficial = [
+                        "Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE",
+                        "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME",
+                        "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos",
+                        "Remédio de Alto Custo: Antibióticos", "Análises Clínicas", "RX Convencional", "Tomografias",
+                        "Ressonâncias magnéticas", "Ultrassonografias", "Exames oftalmológicos", "Holter 24h", "Mapa 24h",
+                        "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana",
+                        "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos",
+                        "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica",
+                        "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco", "Hemodiálise", "Fisioterapia",
+                        "Fonoaudiologia", "Psicologia / Psicoterapia", "Avaliação neuropsicológica", "Psicopedagogia",
+                        "Terapia Ocupacional", "Musicoterapia", "Consultas", "Laboratórios Odontológicos",
+                        "Ex. Radiol. e Doc. Orto", "Prótese", "Ortodontia", "Outros"
+                    ]
+                    
+                    colunas_centros_custo = [col for col in lista_oficial if col in df_aud.columns]
+
+                    def limpar_custo_auditoria(val):
+                        if pd.isna(val) or val == '': return 0.0
+                        if isinstance(val, (int, float)): return float(val)
+                        v_str = str(val).replace('R$', '').strip()
+                        if not v_str: return 0.0
+                        
+                        if '.' in v_str and ',' in v_str:
+                            if v_str.rfind(',') > v_str.rfind('.'): 
+                                v_str = v_str.replace('.', '').replace(',', '.')
+                            else: 
+                                v_str = v_str.replace(',', '')
+                        elif ',' in v_str:
+                            v_str = v_str.replace(',', '.') 
+                        
+                        try:
+                            return float(v_str)
+                        except:
+                            return 0.0
+
+                    for col in colunas_centros_custo:
+                        df_aud[col] = df_aud[col].apply(limpar_custo_auditoria)
+
+                    df_long = pd.melt(
+                        df_aud, id_vars=['Competência', 'sort_key', 'ose', 'nup'], 
+                        value_vars=colunas_centros_custo, var_name='Centro de Custo', value_name='Valor'
+                    )
+                    
+                    df_long = df_long[df_long['Valor'] > 0].copy()
+
+                    if df_long.empty:
+                        st.warning("Nenhum lançamento financeiro maior que R$ 0,00 encontrado nos centros de custo oficiais.")
+                    else:
+                        st.markdown("#### 📊 Distribuição Global de Gastos")
+                        
+                        df_pizza = df_long.groupby('Centro de Custo')['Valor'].sum().reset_index()
+                        df_pizza = df_pizza.sort_values('Valor', ascending=False)
+                        
+                        fig_pie = px.pie(
+                            df_pizza, names='Centro de Custo', values='Valor', hole=0.45, 
+                            color_discrete_sequence=px.colors.qualitative.Prism 
+                        )
+                        fig_pie.update_traces(
+                            textposition='inside', textinfo='percent',
+                            hovertemplate="<b>%{label}</b><br>Gasto: R$ %{value:,.2f}<br>Representação: %{percent}<extra></extra>"
+                        )
+                        fig_pie.update_layout(
+                            paper_bgcolor='white', plot_bgcolor='white',
+                            margin=dict(l=20, r=20, t=30, b=20), legend=dict(font=dict(color='black'))
+                        )
+                        st.plotly_chart(fig_pie, use_container_width=True)
+
+                        st.write("")
+                        st.write("")
+
+                        st.markdown("#### 📈 Evolução Individual por Centro de Custo")
+                        
+                        lista_centros_ativos = sorted(df_long['Centro de Custo'].unique().tolist())
+                        centro_selecionado = st.selectbox(
+                            "🎯 Selecione a linha de serviço para visualização técnica:", lista_centros_ativos
+                        )
+
+                        df_evol_individual = df_long[df_long['Centro de Custo'] == centro_selecionado]
+                        df_evol_individual = df_evol_individual.groupby(['Competência', 'sort_key'])['Valor'].sum().reset_index()
+                        df_evol_individual = df_evol_individual.sort_values('sort_key')
+
+                        cor_tatica = '#2c5d71' 
+
+                        fig_area_ind = px.area(
+                            df_evol_individual, x='Competência', y='Valor', 
+                            title=f"Histórico de Desembolso: {centro_selecionado}", markers=True, template="plotly_white"
+                        )
+                        fig_area_ind.update_traces(
+                            line_color=cor_tatica, fillcolor='rgba(44, 93, 113, 0.2)', 
+                            marker=dict(size=8, color=cor_tatica, line=dict(width=2, color="white")),
+                            hovertemplate="<b>%{x}</b><br>Gasto: R$ %{y:,.2f}<extra></extra>"
+                        )
+                        fig_area_ind.update_layout(
+                            hovermode="x unified", paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=20, r=20, t=50, b=20),
+                            xaxis=dict(showgrid=False, type='category', linecolor='black', tickfont=dict(color='black')),
+                            yaxis=dict(title="Total Gasto (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)', tickfont=dict(color='black'))
+                        )
+                        st.plotly_chart(fig_area_ind, use_container_width=True)
+
+                        with st.expander("📋 Ver Matriz Contábil Completa de Centros de Custo por Mês"):
+                            df_matrix = df_long.pivot_table(
+                                index='Centro de Custo', columns='Competência', values='Valor', aggfunc='sum'
+                            ).fillna(0)
+                            df_matrix['Total Acumulado'] = df_matrix.sum(axis=1)
+                            df_matrix = df_matrix.sort_values('Total Acumulado', ascending=False)
+                            st.dataframe(df_matrix.style.format("R$ {:,.2f}"), use_container_width=True)
+
+            st.write("")
+            st.write("")
+
+
+
+
+
+
+            # =======================================================
             # --- 1. SEÇÃO: PIZZAS E VOLUMES (UM EMBAIXO DO OUTRO) ---
             # =======================================================
             st.divider()
