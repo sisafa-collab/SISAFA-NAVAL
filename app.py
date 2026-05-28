@@ -1192,8 +1192,7 @@ else:
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
                     try:
-                        aba_contratos = sh.worksheet(ABA_TABELA_A)
-                        lista_tabela_a = aba_contratos.get_all_records()
+                        lista_tabela_a = carregar_dados_cache(ABA_TABELA_A)
                     except Exception as e:
                         st.error(f"Erro ao acessar a Tabela A: {e}")
                         lista_tabela_a = []
@@ -1858,7 +1857,7 @@ else:
                             st.error("Erro ao carregar logs de ações.")
         
 
-        # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
+        
         # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
         with t_stats:
             st.header("📈 Inteligência de Dados e Produtividade")
