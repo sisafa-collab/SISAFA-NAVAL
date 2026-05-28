@@ -2117,6 +2117,104 @@ else:
             st.write("")
             st.write("")
 
+            # ====== 
+            # =======================================================
+            # === NOVA SEÇÃO: INTELIGÊNCIA E MAPEAMENTO DE GLOSAS ===
+            # =======================================================
+            st.divider()
+            st.subheader("✂️ Análise Estratégica de Glosas")
+            st.write("") 
+
+            try:
+                # Carregando as duas abas
+                aba_glosa = sh.worksheet("SISAFA-NAVAL-Auditoria-glosa")
+                aba_glosa_ref = sh.worksheet("SISAFA-NAVAL-Tabela-de-referencia-de-glosa")
+                
+                df_glosa = pd.DataFrame(aba_glosa.get_all_records())
+                df_glosa_ref = pd.DataFrame(aba_glosa_ref.get_all_records())
+
+                if df_glosa.empty:
+                    st.info("Aguardando inserção de registros de glosa para gerar as métricas de retenção.")
+                else:
+                    # Padronização de colunas
+                    df_glosa.columns = df_glosa.columns.astype(str).str.strip()
+                    df_glosa_ref.columns = df_glosa_ref.columns.astype(str).str.strip()
+
+                    # Aplicação da sua função de limpeza consolidada
+                    if 'Valor_glosa' in df_glosa.columns:
+                        df_glosa['Valor_glosa_num'] = df_glosa['Valor_glosa'].apply(limpar_valor)
+                    else:
+                        df_glosa['Valor_glosa_num'] = 0.0
+
+                    # Filtros Globais (Obedece a seleção de Ano e Mês do cabeçalho)
+                    if 'ano_competencia' in df_glosa.columns and ano_sel != "Todos":
+                        df_glosa = df_glosa[pd.to_numeric(df_glosa['ano_competencia'], errors='coerce') == ano_sel]
+                    
+                    if 'mes_competencia' in df_glosa.columns and mes_sel != "Todos":
+                        mapa_mes_inverso = {1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN', 7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'}
+                        df_glosa['mes_sigla_glosa'] = pd.to_numeric(df_glosa['mes_competencia'], errors='coerce').map(mapa_mes_inverso)
+                        df_glosa = df_glosa[df_glosa['mes_sigla_glosa'] == mes_sel]
+
+                    if df_glosa.empty or df_glosa['Valor_glosa_num'].sum() == 0:
+                        st.warning("Nenhum valor de glosa encontrado para os filtros selecionados.")
+                    else:
+                        # Mapeamento do Código para a Descrição Bonita
+                        df_glosa['Cod_glosa'] = df_glosa['Cod_glosa'].astype(str).str.strip()
+                        df_glosa_ref['Cod_glosa'] = df_glosa_ref['Cod_glosa'].astype(str).str.strip()
+                        
+                        mapa_desc_glosa = dict(zip(df_glosa_ref['Cod_glosa'], df_glosa_ref['Desc_glosa']))
+                        
+                        df_glosa['Motivo_Glosa'] = df_glosa['Cod_glosa'].astype(str) + " - " + df_glosa['Cod_glosa'].map(mapa_desc_glosa).fillna("Descrição não encontrada")
+
+                        # --- GRÁFICO 1: Glosas por Motivo (Pizza Bonitão) ---
+                        st.markdown("#### 🚫 Representatividade Financeira por Motivo de Glosa")
+                        
+                        df_motivos = df_glosa.groupby('Motivo_Glosa')['Valor_glosa_num'].sum().reset_index()
+                        df_motivos = df_motivos[df_motivos['Valor_glosa_num'] > 0].sort_values('Valor_glosa_num', ascending=False)
+                        
+                        fig_glosa_motivo = px.pie(
+                            df_motivos, names='Motivo_Glosa', values='Valor_glosa_num', hole=0.45,
+                            color_discrete_sequence=px.colors.qualitative.Pastel
+                        )
+                        fig_glosa_motivo.update_traces(
+                            textposition='inside', textinfo='percent',
+                            hovertemplate="<b>%{label}</b><br>Valor Retido: R$ %{value:,.2f}<br>Proporção: %{percent}<extra></extra>"
+                        )
+                        fig_glosa_motivo.update_layout(
+                            paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=20, r=20, t=30, b=20),
+                            legend=dict(font=dict(color='black', size=11), orientation="h", yanchor="top", y=-0.1)
+                        )
+                        st.plotly_chart(fig_glosa_motivo, use_container_width=True)
+
+                        # --- GRÁFICO 2: Top 10 OSEs que mais sofrem Glosa ---
+                        st.markdown("#### 🏥 Top 10 OSEs com Maior Retenção Financeira")
+                        
+                        df_ose_glosa = df_glosa.groupby('ose')['Valor_glosa_num'].sum().reset_index()
+                        df_ose_glosa = df_ose_glosa[df_ose_glosa['Valor_glosa_num'] > 0].sort_values('Valor_glosa_num', ascending=True).tail(10)
+                        
+                        fig_glosa_ose = px.bar(
+                            df_ose_glosa, x='Valor_glosa_num', y='ose', orientation='h', text='Valor_glosa_num',
+                            color_discrete_sequence=['#c0392b']
+                        )
+                        fig_glosa_ose.update_traces(
+                            texttemplate='R$ %{text:,.2f}', textposition='outside',
+                            hovertemplate="<b>%{y}</b><br>Glosado: R$ %{x:,.2f}<extra></extra>"
+                        )
+                        fig_glosa_ose.update_layout(
+                            hovermode="y unified", paper_bgcolor='white', plot_bgcolor='white', margin=dict(l=20, r=20, t=30, b=20),
+                            xaxis=dict(title="Montante Glosado (R$)", showgrid=True, gridcolor='rgba(0,0,0,0.05)', tickprefix="R$ "),
+                            yaxis_title=None
+                        )
+                        fig_glosa_ose.update_xaxes(range=[0, df_ose_glosa['Valor_glosa_num'].max() * 1.3]) 
+                        
+                        st.plotly_chart(fig_glosa_ose, use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Erro ao processar os dados de Glosa: {e}")
+
+
+
+
             # =======================================================
             # --- 1. SEÇÃO: PIZZAS E VOLUMES (UM EMBAIXO DO OUTRO) ---
             # =======================================================
