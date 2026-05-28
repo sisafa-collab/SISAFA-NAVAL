@@ -1973,37 +1973,80 @@ else:
             st.write("")
 
             # =======================================================
-            # --- 1. SEÇÃO: PIZZAS E VOLUMES ---
+            # --- 1. SEÇÃO: PIZZAS E VOLUMES (UM EMBAIXO DO OUTRO) ---
             # =======================================================
             st.divider()
             st.subheader("📌 Visão Geral do Volume")
             st.write("") # Respiro visual
             
+            # Mantemos os indicadores numéricos rápidos no topo em colunas
             c1, c2, c3 = st.columns(3)
-            c1.metric("Processos", len(df_p))
+            c1.metric("Processos", f"{len(df_p):,}")
             c2.metric("Total Apresentado", f"R$ {df_p['v_ap_num'].sum():,.2f}")
             c3.metric("Total Glosado", f"R$ {df_p['glosa_num'].sum():,.2f}")
 
-            st.write("") # Separa as métricas dos gráficos
+            st.write("") # Espaço generoso entre blocos
             st.write("")
             
-            cp1, cp2, cp3 = st.columns(3)
-            
-            # Pizza 1: Auditoria vs Auditadas
+            # --- PIZZA 1: SITUAÇÃO DE MESA ---
             st_counts = df_p[df_p['status'].isin([2, 3])]['status'].map({2:'Em Mesa', 3:'Concluídas'}).value_counts().reset_index()
             if not st_counts.empty:
-                cp1.plotly_chart(px.pie(st_counts, values='count', names='status', title="Mesa vs. Concluídas", hole=0.4), use_container_width=True)
+                fig_p1 = px.pie(
+                    st_counts, values='count', names='status', 
+                    title="<b>Produtividade:</b> Faturas em Mesa de Auditoria vs. Concluídas", 
+                    hole=0.45,
+                    color_discrete_sequence=['#3498db', '#2ecc71'] # Azul técnico e Verde sucesso
+                )
+                fig_p1.update_layout(
+                    paper_bgcolor='white', plot_bgcolor='white',
+                    title_x=0.1, # Alinha o título de forma elegante
+                    margin=dict(t=40, b=40),
+                    legend=dict(font=dict(color='black', size=12))
+                )
+                st.plotly_chart(fig_p1, use_container_width=True)
             
-            # Pizza 2: Impacto Financeiro
+            st.write("") # Respiro antes da próxima informação
+            st.write("")
+
+            # --- PIZZA 2: IMPACTO FINANCEIRO ---
             v_t = df_p['v_ap_num'].sum()
             v_g = df_p['glosa_num'].sum()
             if v_t > 0:
-                cp2.plotly_chart(px.pie(values=[v_t - v_g, v_g], names=['Líquido', 'Glosa'], title="Impacto da Glosa", color_discrete_sequence=['#2e6b54', '#d32f2f']), use_container_width=True)
-            
-            # Pizza 3: Top 10 OSEs
+                fig_p2 = px.pie(
+                    values=[v_t - v_g, v_g], names=['Líquido Aprovado', 'Glosa (Corte Técnico)'], 
+                    title="<b>Análise de Impacto:</b> Proporção Financeira Retida por Glosa", 
+                    hole=0.45, 
+                    color_discrete_sequence=['#2e6b54', '#d32f2f'] # Verde tático e Vermelho alerta
+                )
+                fig_p2.update_traces(textposition='inside', textinfo='percent')
+                fig_p2.update_layout(
+                    paper_bgcolor='white', plot_bgcolor='white',
+                    title_x=0.1,
+                    margin=dict(t=40, b=40),
+                    legend=dict(font=dict(color='black', size=12))
+                )
+                st.plotly_chart(fig_p2, use_container_width=True)
+
+            st.write("")
+            st.write("")
+
+            # --- PIZZA 3: TOP 10 OSEs ---
             top_ose = df_p.groupby('ose')['v_ap_num'].sum().sort_values(ascending=False).head(10).reset_index()
             if not top_ose.empty:
-                cp3.plotly_chart(px.pie(top_ose, values='v_ap_num', names='ose', title="Top 10 OSEs (Valor)"), use_container_width=True)
+                fig_p3 = px.pie(
+                    top_ose, values='v_ap_num', names='ose', 
+                    title="<b>Concentração de Risco:</b> Top 10 OSEs por Maior Volume Financeiro Apresentado",
+                    hole=0.45,
+                    color_discrete_sequence=px.colors.qualitative.Prism # Paleta moderna e bem definida
+                )
+                fig_p3.update_traces(textposition='inside', textinfo='percent')
+                fig_p3.update_layout(
+                    paper_bgcolor='white', plot_bgcolor='white',
+                    title_x=0.1,
+                    margin=dict(t=40, b=40),
+                    legend=dict(font=dict(color='black', size=11)) # Tamanho ideal para não cortar os nomes das OSEs
+                )
+                st.plotly_chart(fig_p3, use_container_width=True)
 
             st.write("")
             st.write("")
