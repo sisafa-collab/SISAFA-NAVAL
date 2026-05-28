@@ -1507,22 +1507,6 @@ else:
                     # =======================================================
                     # O GRUPO VI CONTINUA AQUI FORA (SEM ALTERAÇÕES)
                     # =======================================================
-                    # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
-                    mapa_cores_outros = {
-                        "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
-                        "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
-                        "Outros custos não especificados": "#FFCC99", "Outros procedimentos oftalmológicos": "#FFB6C1", 
-                        "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
-                    }
-
-                    header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
-                    
-                    # ... o resto do seu código segue normalmente ...
-
-
-
-
-
 
                     # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
                     mapa_cores_outros = {
@@ -1538,39 +1522,73 @@ else:
                     if key_lista_g6 not in st.session_state:
                         st.session_state[key_lista_g6] = [{"tipo": "", "desc": "", "qtd": 1, "valor": 0.0}]
 
-                    # Renderiza os campos de entrada para cada item
-                    for idx, item in enumerate(st.session_state[key_lista_g6]):
-                        with st.container(border=True):
-                            c1, c2 = st.columns([4, 1])
-                            
-                            tipo = c1.selectbox(
-                                f"Tipo de custo extra {idx+1}:", 
-                                [""] + list(mapa_cores_outros.keys()), 
-                                key=f"tipo_{idx}_{nup_audit}"
-                            )
-                            
-                            # Botão de remoção (ativo se houver mais de um item)
-                            if len(st.session_state[key_lista_g6]) > 1:
-                                if c2.button("🗑️", key=f"del_{idx}_{nup_audit}"):
-                                    st.session_state[key_lista_g6].pop(idx)
-                                    st.rerun()
-                            
-                            if tipo:
-                                cor_viva = mapa_cores_outros[tipo]
-                                st.markdown(f'<div style="background-color:{cor_viva};padding:5px;border-radius:5px;margin-bottom:10px;"><b style="color:black;">Lançamento em: {tipo}</b></div>', unsafe_allow_html=True)
+                    # =======================================================
+                    # TRAVA 4: FORMULÁRIO DO GRUPO VI (Fim da sobrecarga da API)
+                    # =======================================================
+                    with st.form(key=f"form_g6_{nup_audit}"):
+                        st.info("⚠️ Registe os custos adicionais e prima 'CONFIRMAR ITENS' para atualizar o cálculo.")
+                        
+                        novos_dados_g6 = []
+                        
+                        # Renderiza os campos de entrada para cada item
+                        for idx, item in enumerate(st.session_state[key_lista_g6]):
+                            with st.container(border=True):
+                                c1, c2 = st.columns([4, 1])
                                 
-                                desc = st.text_input("Descrição detalhada:", value=item["desc"], key=f"desc_{idx}_{nup_audit}")
+                                # Lógica para manter o tipo selecionado na memória
+                                val_tipo = item.get("tipo", "")
+                                idx_tipo = 0
+                                lista_tipos = [""] + list(mapa_cores_outros.keys())
+                                if val_tipo in lista_tipos:
+                                    idx_tipo = lista_tipos.index(val_tipo)
+                                
+                                temp_tipo = c1.selectbox(f"Tipo de custo extra {idx+1}:", lista_tipos, index=idx_tipo, key=f"t_g6_{idx}_{nup_audit}")
+                                
+                                # A MÁGICA DA EXCLUSÃO DENTRO DO FORMULÁRIO (Igual aos pacientes)
+                                c2.markdown("<br>", unsafe_allow_html=True)
+                                temp_del = c2.checkbox("🗑️ Excluir", key=f"del_g6_{idx}_{nup_audit}")
+                                
+                                if temp_tipo:
+                                    cor_viva = mapa_cores_outros[temp_tipo]
+                                    st.markdown(f'<div style="background-color:{cor_viva};padding:5px;border-radius:5px;margin-bottom:10px;"><b style="color:black;">Lançamento em: {temp_tipo}</b></div>', unsafe_allow_html=True)
+                                
+                                temp_desc = st.text_input("Descrição detalhada:", value=item.get("desc", ""), key=f"desc_g6_{idx}_{nup_audit}")
                                 cq1, cq2 = st.columns(2)
-                                qtd = cq1.number_input("Quantidade:", min_value=1, value=item["qtd"], step=1, key=f"qtd_{idx}_{nup_audit}")
-                                valor = cq2.number_input("Custo Total (R$):", min_value=0.0, value=item["valor"], format="%.2f", key=f"val_{idx}_{nup_audit}")
+                                temp_qtd = cq1.number_input("Quantidade:", min_value=1, value=int(item.get("qtd", 1)), step=1, key=f"qtd_g6_{idx}_{nup_audit}")
+                                temp_val = cq2.number_input("Custo Total (R$):", min_value=0.0, value=float(item.get("valor", 0.0)), format="%.2f", key=f"val_g6_{idx}_{nup_audit}")
                                 
-                                # Sincroniza os dados com o session_state
-                                st.session_state[key_lista_g6][idx] = {"tipo": tipo, "desc": desc, "qtd": qtd, "valor": valor}
+                                # Só grava na lista nova se a caixa de excluir NÃO estiver marcada
+                                if not temp_del:
+                                    novos_dados_g6.append({
+                                        "tipo": temp_tipo, 
+                                        "desc": temp_desc, 
+                                        "qtd": temp_qtd, 
+                                        "valor": temp_val
+                                    })
+                        
+                        col_add_g6, col_salvar_g6 = st.columns(2)
+                        btn_add_g6 = col_add_g6.form_submit_button("➕ ADICIONAR OUTRO ITEM")
+                        btn_salvar_g6 = col_salvar_g6.form_submit_button("💾 CONFIRMAR ITENS (GRUPO VI)", type="primary")
 
-                    # Opção de adicionar nova linha de custo
-                    if st.button("➕ ADICIONAR OUTRO ITEM NO GRUPO VI"):
+                    # =======================================================
+                    # AÇÕES DOS BOTÕES DO FORMULÁRIO GRUPO VI
+                    # =======================================================
+                    if btn_salvar_g6:
+                        # Se o utilizador apagou todos os itens, mantém uma linha vazia por precaução
+                        if not novos_dados_g6:
+                            novos_dados_g6 = [{"tipo": "", "desc": "", "qtd": 1, "valor": 0.0}]
+                            
+                        st.session_state[key_lista_g6] = novos_dados_g6
+                        st.success("✅ Grupo VI calculado com sucesso!")
+                        time.sleep(1)
+                        st.rerun()
+
+                    if btn_add_g6:
+                        # Salva o que já foi digitado e acrescenta uma nova linha vazia
+                        st.session_state[key_lista_g6] = novos_dados_g6
                         st.session_state[key_lista_g6].append({"tipo": "", "desc": "", "qtd": 1, "valor": 0.0})
                         st.rerun()
+
 
 
                     # --- 4. VALIDAÇÃO MATEMÁTICA ---
