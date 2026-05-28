@@ -1151,6 +1151,26 @@ else:
                                 st.error(f"Erro ao salvar: {e}")
 
         # 2. ABA: EM AUDITAGEM
+        # =======================================================
+        # 1. BOTÃO DE RASCUNHO (Sempre visível na Sidebar)
+        # =======================================================
+        with st.sidebar:
+            st.markdown("---")
+            # Este botão agora está fora da lógica do NUP, logo ele não some
+            if st.button("💾 SALVAR RASCUNHO GERAL", type="primary", use_container_width=True):
+                if 'nup_audit' in locals() and nup_audit:
+                    with st.spinner("Protegendo dados na nuvem..."):
+                        sucesso = salvar_rascunho_auditoria(
+                            nup_audit, st.session_state[key_glosas], 
+                            valores_detalhados, just_glosa
+                        )
+                        if sucesso:
+                            st.sidebar.success("✅ Rascunho salvo!")
+                        else:
+                            st.sidebar.error("❌ Falha ao salvar.")
+                else:
+                    st.sidebar.warning("Selecione um NUP antes de salvar.")
+        
         with t_mesa:
             # --- CÁLCULO DOS INDICADORES TÉCNICOS (Status 2) ---
             df_total_auditagem = df[df['status'] == 2].copy()
@@ -1187,6 +1207,7 @@ else:
                 
                 nup_audit = st.selectbox("Selecione o NUP para realizar a análise:", [""] + df_mesa['nup'].tolist(), key="sb_nup_analise_mesa_final")
                 
+
                 if nup_audit:
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
@@ -1651,23 +1672,6 @@ else:
                             registrar_acao(nup_audit, num_fat, "EMAIL_GLOSA_ENVIADO", f"Destino: {email_dest}")
                             st.toast("E-mail enviado!", icon="✅")
 
-                    # =======================================================
-                    # 💾 BOTÃO DE RASCUNHO (SIDEBAR - POSIÇÃO CORRETA)
-                    # =======================================================
-                    st.sidebar.markdown("---")
-                    # O botão aparece na barra lateral, mas o cérebro dele processa aqui embaixo!
-                    if st.sidebar.button("💾 SALVAR RASCUNHO", type="primary", use_container_width=True):
-                        with st.spinner("Protegendo dados na nuvem..."):
-                            sucesso = salvar_rascunho_auditoria(
-                                nup_audit, 
-                                st.session_state[key_glosas], 
-                                valores_detalhados, 
-                                just_glosa
-                            )
-                            if sucesso:
-                                st.sidebar.success("✅ Rascunho salvo! Pode cair a internet que os dados estão seguros. ⚓")
-                            else:
-                                st.sidebar.error("❌ Falha ao salvar rascunho. Verifique a conexão.")
 
                     # --- ÁREA DE AÇÕES FINAIS ---
                     col_fin, col_mail, col_pdf = st.columns(3)
