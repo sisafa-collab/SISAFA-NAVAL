@@ -1250,16 +1250,32 @@ else:
                         st.error(f"Erro ao acessar a Tabela A: {e}")
                         lista_tabela_a = []
 
+
                     # --- CARREGAMENTO AUTOMÁTICO DE RASCUNHO ---
                     key_glosas = f"relatorio_glosa_{nup_audit}"
                     
                     if key_glosas not in st.session_state:
                         dados_salvos = carregar_rascunho(nup_audit)
                         if dados_salvos:
-                            st.session_state[key_glosas] = dados_salvos['glosas']
-                            st.success(f"🔄 Rascunho recuperado! Última alteração: {nup_audit}")
+                            # 1. Recupera as Glosas
+                            st.session_state[key_glosas] = dados_salvos.get('glosas', [])
+                            
+                            # 2. Recupera a Justificativa (Preenche a caixa de texto)
+                            just_salva = dados_salvos.get('justificativa', "")
+                            st.session_state["just_glosa_ativo"] = just_salva
+                            st.session_state["txt_just_mesa"] = just_salva
+                            
+                            # 3. Recupera os Centros de Custo (Injeta os valores salvos de volta nos campos numéricos)
+                            cc_salvos = dados_salvos.get('centro_custo', {})
+                            st.session_state["valores_detalhados_ativo"] = cc_salvos
+                            for campo, valor in cc_salvos.items():
+                                # A mágica acontece aqui: associamos o valor à 'key' do number_input
+                                st.session_state[f"inp_{campo}_{nup_audit}"] = float(valor)
+                            
+                            st.success(f"🔄 Rascunho completo recuperado! Última alteração: {nup_audit}")
                         else:
                             st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
+
 
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
                     
@@ -1438,36 +1454,68 @@ else:
                     def header_audit(texto, cor_fundo, cor_txt="black"):
                         st.markdown(f'<div style="background-color:{cor_fundo};padding:8px;border-radius:5px;margin:15px 0 10px 0;"><b style="color:{cor_txt}">{texto}</b></div>', unsafe_allow_html=True)
 
-                    # Renderização Grupos I ao V
-                    header_audit("🟦 Grupo I: Assistência Médico-Hospitalar", "#ADD8E6")
-                    c_a, c_b = st.columns(2)
-                    for i, campo in enumerate(g1_hosp):
-                        target = c_a if i % 2 == 0 else c_b
-                        valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                    # =======================================================
+                    # TRAVA 3: FORMULÁRIO DE CENTROS DE CUSTO (Fim da lentidão)
+                    # =======================================================
+                    with st.form(key=f"form_cc_{nup_audit}"):
+                        st.warning("⚠️ Preencha todos os valores abaixo e clique em 'CONFIRMAR VALORES' no final da caixa.")
+                        
+                        # Renderização Grupos I ao V
+                        header_audit("🟦 Grupo I: Assistência Médico-Hospitalar", "#ADD8E6")
+                        c_a, c_b = st.columns(2)
+                        for i, campo in enumerate(g1_hosp):
+                            target = c_a if i % 2 == 0 else c_b
+                            valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
-                    header_audit("🟪 Grupo II: Exames laboratoriais e radiológicos", "#4B0082", "white")
-                    c_a, c_b = st.columns(2)
-                    for i, campo in enumerate(g2_lab):
-                        target = c_a if i % 2 == 0 else c_b
-                        valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                        header_audit("🟪 Grupo II: Exames laboratoriais e radiológicos", "#4B0082", "white")
+                        c_a, c_b = st.columns(2)
+                        for i, campo in enumerate(g2_lab):
+                            target = c_a if i % 2 == 0 else c_b
+                            valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
-                    header_audit("🌸 Grupo III: Exames por especialidade", "#FFB6C1")
-                    c_a, c_b = st.columns(2)
-                    for i, campo in enumerate(g3_spec):
-                        target = c_a if i % 2 == 0 else c_b
-                        valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                        header_audit("🌸 Grupo III: Exames por especialidade", "#FFB6C1")
+                        c_a, c_b = st.columns(2)
+                        for i, campo in enumerate(g3_spec):
+                            target = c_a if i % 2 == 0 else c_b
+                            valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
-                    header_audit("🟩 Grupo IV: Procedimentos terapêuticos", "#90EE90")
-                    c_a, c_b = st.columns(2)
-                    for i, campo in enumerate(g4_terap):
-                        target = c_a if i % 2 == 0 else c_b
-                        valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                        header_audit("🟩 Grupo IV: Procedimentos terapêuticos", "#90EE90")
+                        c_a, c_b = st.columns(2)
+                        for i, campo in enumerate(g4_terap):
+                            target = c_a if i % 2 == 0 else c_b
+                            valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
 
-                    header_audit("🟨 Grupo V: Assistência odontológica", "#FFFF00")
-                    c_a, c_b = st.columns(2)
-                    for i, campo in enumerate(g5_odonto):
-                        target = c_a if i % 2 == 0 else c_b
-                        valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                        header_audit("🟨 Grupo V: Assistência odontológica", "#FFFF00")
+                        c_a, c_b = st.columns(2)
+                        for i, campo in enumerate(g5_odonto):
+                            target = c_a if i % 2 == 0 else c_b
+                            valores_detalhados[campo] = target.number_input(campo, min_value=0.0, format="%.2f", key=f"inp_{campo}_{nup_audit}")
+                        
+                        # O Botão que envia os dados de uma só vez
+                        btn_cc = st.form_submit_button("💾 CONFIRMAR VALORES DOS CENTROS DE CUSTO", type="primary")
+                        if btn_cc:
+                            st.session_state["valores_detalhados_ativo"] = valores_detalhados
+                            st.success("✅ Valores registrados na memória!")
+
+                    # =======================================================
+                    # O GRUPO VI CONTINUA AQUI FORA (SEM ALTERAÇÕES)
+                    # =======================================================
+                    # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
+                    mapa_cores_outros = {
+                        "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
+                        "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
+                        "Outros custos não especificados": "#FFCC99", "Outros procedimentos oftalmológicos": "#FFB6C1", 
+                        "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
+                    }
+
+                    header_audit("⬜ Grupo VI: Outros", "#D3D3D3")
+                    
+                    # ... o resto do seu código segue normalmente ...
+
+
+
+
+
 
                     # --- 3. GRUPO VI: OUTROS (LÓGICA CAMALEÃO) ---
                     mapa_cores_outros = {
