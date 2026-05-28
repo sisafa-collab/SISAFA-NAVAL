@@ -1204,6 +1204,7 @@ else:
                 st.divider()
 
             # --- MESA DE TRABALHO (VISÃO COLETIVA) ---
+            # --- MESA DE TRABALHO (VISÃO COLETIVA) ---
             st.subheader("🩺 Mesa de Trabalho da Auditoria 🐆")
             df_mesa = df[df['status'] == 2].copy()
 
@@ -1216,23 +1217,20 @@ else:
                 st.divider()
                 
                 nup_audit = st.selectbox("Selecione o NUP para realizar a análise:", [""] + df_mesa['nup'].tolist(), key="sb_nup_analise_mesa_final")
-                
 
-            
-                    if nup_audit:
-                        # 1. INICIALIZE A VARIÁVEL AQUI (Isso resolve o NameError)
-                        valores_detalhados = st.session_state.get("valores_detalhados_ativo", {})
-                        just_glosa = st.session_state.get("just_glosa_ativo", "")
-                        
-                        
-                        dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
-                        num_fat = dados_nup['Numero_da_fatura']
-                        v_apres = limpar_valor(dados_nup['valor_apresentado'])
-                        
-                        
-                        st.session_state["nup_ativo"] = nup_audit
-                        st.session_state["valores_detalhados_ativo"] = valores_detalhados
-                        st.session_state["just_glosa_ativo"] = just_glosa 
+                # ESTA LINHA ABAIXO DEVE ESTAR ALINHADA COM O SELECTBOX ACIMA
+                if nup_audit:
+                    # 1. INICIALIZE AS VARIÁVEIS AQUI
+                    valores_detalhados = st.session_state.get("valores_detalhados_ativo", {})
+                    just_glosa = st.session_state.get("just_glosa_ativo", "")
+                    
+                    dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
+                    num_fat = dados_nup['Numero_da_fatura']
+                    v_apres = limpar_valor(dados_nup['valor_apresentado'])
+                    
+                    st.session_state["nup_ativo"] = nup_audit
+                    st.session_state["valores_detalhados_ativo"] = valores_detalhados
+                    st.session_state["just_glosa_ativo"] = just_glosa 
                     
                     try:
                         lista_tabela_a = carregar_dados_cache(ABA_TABELA_A)
@@ -1247,10 +1245,8 @@ else:
                         dados_salvos = carregar_rascunho(nup_audit)
                         if dados_salvos:
                             st.session_state[key_glosas] = dados_salvos['glosas']
-                            # Aqui carregamos a justificativa e os valores (se houver lógica para keys dinâmicas)
                             st.success(f"🔄 Rascunho recuperado! Última alteração: {nup_audit}")
                         else:
-                            # Se for a primeira vez abrindo o NUP, inicia vazio
                             st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
 
                     st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
