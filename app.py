@@ -1152,24 +1152,34 @@ else:
 
         # 2. ABA: EM AUDITAGEM
         # =======================================================
-        # 1. BOTÃO DE RASCUNHO (Sempre visível na Sidebar)
+        # 💾 BOTÃO DE RASCUNHO (SIDEBAR - AGORA FUNCIONA)
         # =======================================================
         with st.sidebar:
             st.markdown("---")
-            # Este botão agora está fora da lógica do NUP, logo ele não some
-            if st.button("💾 SALVAR RASCUNHO GERAL", type="primary", use_container_width=True):
-                if 'nup_audit' in locals() and nup_audit:
+            
+            if st.button("💾 SALVAR RASCUNHO", type="primary", use_container_width=True):
+                # 1. Tenta pegar do "baú"
+                nup_para_salvar = st.session_state.get("nup_ativo")
+                
+                if nup_para_salvar:
                     with st.spinner("Protegendo dados na nuvem..."):
+                        # 2. Pega os outros dados do baú também
+                        vals = st.session_state.get("valores_detalhados_ativo", {})
+                        just = st.session_state.get("just_glosa_ativo", "")
+                        key_glosas = f"relatorio_glosa_{nup_para_salvar}"
+                        
                         sucesso = salvar_rascunho_auditoria(
-                            nup_audit, st.session_state[key_glosas], 
-                            valores_detalhados, just_glosa
+                            nup_para_salvar, 
+                            st.session_state[key_glosas], 
+                            vals, 
+                            just
                         )
                         if sucesso:
-                            st.sidebar.success("✅ Rascunho salvo!")
+                            st.sidebar.success("✅ Rascunho salvo com sucesso! ⚓")
                         else:
-                            st.sidebar.error("❌ Falha ao salvar.")
+                            st.sidebar.error("❌ Falha ao salvar no Google.")
                 else:
-                    st.sidebar.warning("Selecione um NUP antes de salvar.")
+                    st.sidebar.warning("⚠️ Selecione um processo na mesa de trabalho primeiro!")
         
         with t_mesa:
             # --- CÁLCULO DOS INDICADORES TÉCNICOS (Status 2) ---
@@ -1212,6 +1222,9 @@ else:
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
+                    st.session_state["nup_ativo"] = nup_audit
+                    st.session_state["valores_detalhados_ativo"] = valores_detalhados
+                    st.session_state["just_glosa_ativo"] = just_glosa
                     try:
                         lista_tabela_a = carregar_dados_cache(ABA_TABELA_A)
                     except Exception as e:
@@ -1540,7 +1553,19 @@ else:
                     
                     # Busca os dados do contrato (Tabela A) para o cabeçalho do PDF
                     cnpj_busca = str(dados_nup.get('cnpj', '')).strip().split('.')[0]
-                    dados_ose_contrato = next((row for row in lista_tabela_a if str(row['CNPJ']).startswith(cnpj_busca)), {})
+                    # --- SUBSTITUA A LINHA DO DADOS_OSE_CONTRATO POR ESTE BLOCO ---
+                    dados_ose_contrato = {}
+
+                    # Garantimos que a lista não está vazia e percorremos com segurança
+                    if lista_tabela_a and isinstance(lista_tabela_a, list):
+                        for row in lista_tabela_a:
+                            # A MÁGICA: Verificamos se 'row' é dicionário E se tem o CNPJ antes de tentar ler
+                            if isinstance(row, dict) and 'CNPJ' in row:
+                                if str(row['CNPJ']).startswith(cnpj_busca):
+                                    dados_ose_contrato = row
+                                    break
+                    else:
+                        st.warning("⚠️ Tabela A vazia ou mal formatada.")
                     
                     # Gera o número do relatório (sequencial automático)
                     num_relatorio = obter_proximo_numero_glosa()
