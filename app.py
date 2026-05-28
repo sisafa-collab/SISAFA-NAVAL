@@ -1859,6 +1859,7 @@ else:
         
 
         # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
+        # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
         with t_stats:
             st.header("📈 Inteligência de Dados e Produtividade")
             st.write("") # Respiro visual
@@ -1913,9 +1914,17 @@ else:
                 df_sec6['Categoria_Audit_Final'] = df_sec6['ose'].apply(categorizar_rigido)
 
                 df_sec6['sort_key'] = df_sec6['ano_competencia'] * 100 + df_sec6['mes_competencia']
+                
+                # --- CORREÇÃO AQUI: O Dicionário Tradutor de Meses ---
+                mapa_meses_abrev = {
+                    1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
+                    7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
+                }
+                
                 df_sec6['Competência'] = df_sec6.apply(
                     lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
                 )
+                
                 df_cronologico = df_sec6[['sort_key', 'Competência']].drop_duplicates().sort_values('sort_key')
                 lista_competencias = df_cronologico['Competência'].tolist()
 
@@ -2034,6 +2043,14 @@ else:
                 
                 fig_saude.update_layout(margin=dict(t=40, b=20))
                 st.plotly_chart(fig_saude, use_container_width=True)
+
+
+
+
+
+
+
+
 
     # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
         with t_rel:
