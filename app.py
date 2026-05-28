@@ -1979,11 +1979,17 @@ else:
             st.subheader("📌 Visão Geral do Volume")
             st.write("") # Respiro visual
             
-            # Mantemos os indicadores numéricos rápidos no topo em colunas
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Processos", f"{len(df_p):,}")
-            c2.metric("Total Apresentado", f"R$ {df_p['v_ap_num'].sum():,.2f}")
-            c3.metric("Total Glosado", f"R$ {df_p['glosa_num'].sum():,.2f}")
+            # --- PLACAR DE COMANDO: MÉTRICAS VERTICAIS ---
+            with st.container():
+                st.metric("Processos Cadastrados", f"{len(df_p):,}")
+                st.write("") # Espaço entre os blocos
+                
+            with st.container():
+                st.metric("Volume Total Apresentado", f"R$ {df_p['v_ap_num'].sum():,.2f}")
+                st.write("")
+                
+            with st.container():
+                st.metric("Volume Total Glosado (Retido)", f"R$ {df_p['glosa_num'].sum():,.2f}")
 
             st.write("") # Espaço generoso entre blocos
             st.write("")
