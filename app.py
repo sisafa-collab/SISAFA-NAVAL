@@ -1220,11 +1220,20 @@ else:
 
                 if nup_audit:
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
+                    if nup_audit:
+                    # 1. INICIALIZE A VARIÁVEL AQUI (Isso resolve o NameError)
+                    valores_detalhados = {} 
+                    
+                    
+                    dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
+                    
+                    
                     st.session_state["nup_ativo"] = nup_audit
                     st.session_state["valores_detalhados_ativo"] = valores_detalhados
-                    st.session_state["just_glosa_ativo"] = just_glosa
+                    st.session_state["just_glosa_ativo"] = just_glosa 
+                    
                     try:
                         lista_tabela_a = carregar_dados_cache(ABA_TABELA_A)
                     except Exception as e:
