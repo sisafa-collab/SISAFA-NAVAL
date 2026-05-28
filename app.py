@@ -1218,11 +1218,11 @@ else:
                 nup_audit = st.selectbox("Selecione o NUP para realizar a análise:", [""] + df_mesa['nup'].tolist(), key="sb_nup_analise_mesa_final")
                 
 
-                if nup_audit:
-                    dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
+            
                     if nup_audit:
                         # 1. INICIALIZE A VARIÁVEL AQUI (Isso resolve o NameError)
-                        valores_detalhados = {} 
+                        valores_detalhados = st.session_state.get("valores_detalhados_ativo", {})
+                        just_glosa = st.session_state.get("just_glosa_ativo", "")
                         
                         
                         dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
