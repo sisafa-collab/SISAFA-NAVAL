@@ -638,8 +638,12 @@ def obter_sh():
             
     return st.session_state.spreadsheet_objeto
 
-def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa):
+def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa, dados_g6=None):
     """Grava o estado atual da auditagem com logs de depuração"""
+    # Garante que, se vier vazio, seja uma lista
+    if dados_g6 is None:
+        dados_g6 = []
+        
     try:
         # 1. Tenta obter o objeto da planilha
         sh_obj = obter_sh()
@@ -647,19 +651,20 @@ def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa):
             st.error("❌ Erro de Conexão: O objeto 'sh' está vazio.")
             return False
             
-        # 2. Verifica se a aba existe (Certifique-se que ABA_RASCUNHO = "SISAFA-NAVAL-Rascunhos")
+        # 2. Verifica se a aba existe
         try:
             aba_rascunho = sh_obj.worksheet(ABA_RASCUNHO)
         except Exception as e:
             st.error(f"❌ Aba '{ABA_RASCUNHO}' não encontrada na planilha!")
             return False
 
-        # 3. Prepara o pacote de dados (Certifique-se de importar o json no topo do arquivo)
+        # 3. Prepara o pacote de dados (AGORA COM O GRUPO VI)
         import json
         pacote = {
             "glosas": dados_glosa,
             "centro_custo": valores_cc,
-            "justificativa": justificativa
+            "justificativa": justificativa,
+            "grupo6": dados_g6 
         }
         json_dados = json.dumps(pacote)
         agora = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -668,12 +673,10 @@ def salvar_rascunho_auditoria(nup, dados_glosa, valores_cc, justificativa):
         try:
             celula = aba_rascunho.find(str(nup))
             if celula:
-                # Atualiza as colunas 2 (JASON_DADOS) e 3 (ULTIMA_ATUALIZACAO)
                 aba_rascunho.update_cell(celula.row, 2, json_dados)
                 aba_rascunho.update_cell(celula.row, 3, agora)
                 st.toast(f"✅ Rascunho do NUP {nup} atualizado!", icon="🔄")
             else:
-                # Se não achou, anexa uma nova linha
                 aba_rascunho.append_row([str(nup), json_dados, agora])
                 st.toast(f"✅ Novo rascunho criado para o NUP {nup}!", icon="💾")
             return True
@@ -1178,11 +1181,15 @@ else:
                         just = st.session_state.get("txt_just_mesa", "")
                         key_glosas = f"relatorio_glosa_{nup_para_salvar}"
                         
+                        key_lista_g6_salvar = f"lista_g6_{nup_para_salvar}"
+                        dados_g6_salvar = st.session_state.get(key_lista_g6_salvar, [{"tipo": "", "desc": "", "qtd": 1, "valor": 0.0}])
+
                         sucesso = salvar_rascunho_auditoria(
                             nup_para_salvar, 
                             st.session_state[key_glosas], 
                             vals, 
-                            just
+                            just,
+                            dados_g6_salvar
                         )
                         if sucesso:
                             st.sidebar.success("✅ Rascunho completo salvo com sucesso! ⚓")
