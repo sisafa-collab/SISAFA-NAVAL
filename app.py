@@ -1915,7 +1915,7 @@ else:
 
                 df_sec6['sort_key'] = df_sec6['ano_competencia'] * 100 + df_sec6['mes_competencia']
                 
-                # --- CORREÇÃO AQUI: O Dicionário Tradutor de Meses ---
+                # --- Dicionário Tradutor de Meses ---
                 mapa_meses_abrev = {
                     1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN',
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
@@ -2110,13 +2110,12 @@ else:
                             df_matrix = df_matrix.sort_values('Total Acumulado', ascending=False)
                             st.dataframe(df_matrix.style.format("R$ {:,.2f}"), use_container_width=True)
 
+            # --- CORREÇÃO AQUI: O fechamento do try dos centros de custo ---
+            except Exception as e:
+                st.error(f"Erro ao processar a inteligência de centros de custo: {e}")
+
             st.write("")
             st.write("")
-
-
-
-
-
 
             # =======================================================
             # --- 1. SEÇÃO: PIZZAS E VOLUMES (UM EMBAIXO DO OUTRO) ---
