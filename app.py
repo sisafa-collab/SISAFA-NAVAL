@@ -1856,12 +1856,12 @@ else:
                                 st.info("Nenhuma ação específica registrada para este NUP.")
                         except:
                             st.error("Erro ao carregar logs de ações.")
+        
 
-
-
-    # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
+        # 5. ABA: PRODUTIVIDADE E ESTATÍSTICAS
         with t_stats:
             st.header("📈 Inteligência de Dados e Produtividade")
+            st.write("") # Respiro visual
 
             # --- FILTROS DE COMPETÊNCIA ---
             col_f1, col_f2 = st.columns(2)
@@ -1879,14 +1879,107 @@ else:
             df_p['v_ap_num'] = df_p['valor_apresentado'].apply(limpar_valor)
             df_p['glosa_num'] = df_p['glosa'].apply(limpar_valor)
 
+            st.write("")
+            st.write("")
+
+            # =======================================================
+            # === SEÇÃO 6 (MOVIDA PARA CIMA): EVOLUÇÃO AUDITADA ===
+            # =======================================================
+            st.divider()
+            st.subheader("📈 Evolução dos Valores Auditados")
+            st.write("") # Respiro visual
+
+            # Usa o dataframe já filtrado pelos selects acima
+            df_sec6 = df_p.copy()
+            df_sec6['status_num'] = pd.to_numeric(df_sec6['status'], errors='coerce').fillna(0).astype(int)
+            df_sec6 = df_sec6[df_sec6['status_num'] >= 3].copy() # Já auditados
+
+            if df_sec6.empty:
+                st.info("Aguardando faturas atingirem o status de Auditada para gerar este gráfico no período selecionado.")
+            else:
+                df_sec6['v_liq'] = df_sec6['valor_liquido'].apply(limpar_valor)
+                df_sec6['v_glosa'] = df_sec6['glosa'].apply(limpar_valor)
+
+                cats_oficiais = ["1. OSE Civis", "2. HFA", "3. Base Op. Especiais (FUSEX)", "4. BAAN", "5. HFAB"]
+
+                def categorizar_rigido(nome):
+                    n = str(nome).upper()
+                    if "HOSPITAL DAS FORÇAS ARMADAS" in n or "HFA" in n: return cats_oficiais[1]
+                    elif "160098" in n or "OPERAÇÕES ESPECIAIS" in n: return cats_oficiais[2]
+                    elif "120624" in n or "BASE AÉREA DE ANÁPOLIS" in n: return cats_oficiais[3]
+                    elif "120096" in n or "HFAB" in n: return cats_oficiais[4]
+                    return cats_oficiais[0]
+
+                df_sec6['Categoria_Audit_Final'] = df_sec6['ose'].apply(categorizar_rigido)
+
+                df_sec6['sort_key'] = df_sec6['ano_competencia'] * 100 + df_sec6['mes_competencia']
+                df_sec6['Competência'] = df_sec6.apply(
+                    lambda x: f"{mapa_meses_abrev[int(x['mes_competencia'])]}/{str(int(x['ano_competencia']))[2:]}", axis=1
+                )
+                df_cronologico = df_sec6[['sort_key', 'Competência']].drop_duplicates().sort_values('sort_key')
+                lista_competencias = df_cronologico['Competência'].tolist()
+
+                import plotly.graph_objects as go
+                fig_audit = go.Figure()
+
+                cores_audit = {
+                    "1. OSE Civis": "#1abc9c", "2. HFA": "#1e3d33", 
+                    "3. Base Op. Especiais (FUSEX)": "#2e6b54", "4. BAAN": "#529471", 
+                    "5. HFAB": "#76b996", "Glosa Total": "#e74c3c"
+                }
+
+                ordem_empilhamento = ["1. OSE Civis", "5. HFAB", "4. BAAN", "3. Base Op. Especiais (FUSEX)", "2. HFA"]
+                
+                for cat in ordem_empilhamento:
+                    y_vals = [df_sec6[(df_sec6['Categoria_Audit_Final'] == cat) & (df_sec6['Competência'] == comp)]['v_liq'].sum() for comp in lista_competencias]
+                    fig_audit.add_trace(go.Bar(
+                        name=cat, x=lista_competencias, y=y_vals, marker_color=cores_audit[cat], 
+                        offsetgroup="Liquido", hovertemplate="<b>%{x}</b><br>%{data.name}: R$ %{y:,.2f}<extra></extra>"
+                    ))
+
+                y_glosa = [df_sec6[df_sec6['Competência'] == comp]['v_glosa'].sum() for comp in lista_competencias]
+                fig_audit.add_trace(go.Bar(
+                    name="Glosa Total", x=lista_competencias, y=y_glosa, marker_color=cores_audit["Glosa Total"], 
+                    offsetgroup="Glosa", hovertemplate="<b>%{x}</b><br>Glosa Total: R$ %{y:,.2f}<extra></extra>"
+                ))
+
+                total_liq_mensal = [df_sec6[df_sec6['Competência'] == comp]['v_liq'].sum() for comp in lista_competencias]
+                fig_audit.add_trace(go.Scatter(
+                    x=lista_competencias, y=total_liq_mensal, name="Tendência", mode='lines+markers',
+                    line=dict(color='black', width=3, dash='dot'), marker=dict(size=8, color='black')
+                ))
+
+                fig_audit.update_layout(
+                    barmode='stack',
+                    hovermode="x unified", paper_bgcolor='white', plot_bgcolor='white',
+                    margin=dict(t=30, b=30), # Margens ajustadas para dar fôlego
+                    legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+                    xaxis=dict(showgrid=False, linecolor='black', linewidth=1),
+                    yaxis=dict(title="Montante (R$)", tickprefix="R$ ", gridcolor='rgba(0,0,0,0.05)')
+                )
+
+                st.plotly_chart(fig_audit, use_container_width=True)
+
+            st.write("")
+            st.write("")
+
+            # =======================================================
             # --- 1. SEÇÃO: PIZZAS E VOLUMES ---
+            # =======================================================
+            st.divider()
             st.subheader("📌 Visão Geral do Volume")
+            st.write("") # Respiro visual
+            
             c1, c2, c3 = st.columns(3)
             c1.metric("Processos", len(df_p))
             c2.metric("Total Apresentado", f"R$ {df_p['v_ap_num'].sum():,.2f}")
             c3.metric("Total Glosado", f"R$ {df_p['glosa_num'].sum():,.2f}")
 
+            st.write("") # Separa as métricas dos gráficos
+            st.write("")
+            
             cp1, cp2, cp3 = st.columns(3)
+            
             # Pizza 1: Auditoria vs Auditadas
             st_counts = df_p[df_p['status'].isin([2, 3])]['status'].map({2:'Em Mesa', 3:'Concluídas'}).value_counts().reset_index()
             if not st_counts.empty:
@@ -1903,28 +1996,43 @@ else:
             if not top_ose.empty:
                 cp3.plotly_chart(px.pie(top_ose, values='v_ap_num', names='ose', title="Top 10 OSEs (Valor)"), use_container_width=True)
 
+            st.write("")
+            st.write("")
+
+            # =======================================================
             # --- 2. SEÇÃO: TERMÔMETRO E SAÚDE ---
+            # =======================================================
             st.divider()
             st.subheader("🌡️ Termômetro de Saúde do Processo (Global)")
+            st.write("") # Respiro visual
             
             hoje = datetime.now()
             df_p['dt_ent'] = pd.to_datetime(df_p['data_entrada'], dayfirst=True, errors='coerce')
             df_p['dias_hoje'] = (hoje - df_p['dt_ent']).dt.days
 
+            # FUNÇÃO CORRIGIDA: Blinda contra dados vazios
             def classificar_global(d):
-                if pd.isna(d): return "Desconhecido"
+                if pd.isna(d): return None # Ignora processos sem data de entrada cadastrada
                 if d <= 15: return "🟢 Aceitável"
                 if d <= 25: return "🟡 Atenção"
                 return "🔴 Em Atraso"
 
             df_p['situacao'] = df_p['dias_hoje'].apply(classificar_global)
             
-            # Gráfico de barras de saúde
-            saude_counts = df_p['situacao'].value_counts().reset_index()
+            # Remove os vazios antes de contar
+            df_saude_limpo = df_p.dropna(subset=['situacao'])
+            saude_counts = df_saude_limpo['situacao'].value_counts().reset_index()
+            
             if not saude_counts.empty:
+                # Ordena o eixo X para fazer sentido tático: Aceitável -> Atenção -> Atraso
+                ordem_saude = ["🟢 Aceitável", "🟡 Atenção", "🔴 Em Atraso"]
+                
                 fig_saude = px.bar(saude_counts, x='situacao', y='count', color='situacao', 
-                                   title="Saúde do Passivo (Desde o Cadastro)",
-                                   color_discrete_map={"🟢 Aceitável": "#2e6b54", "🟡 Atenção": "#f1c40f", "🔴 Em Atraso": "#e74c3c"})
+                                   title="Saúde do Passivo (Tempo desde o Cadastro na SECOM)",
+                                   color_discrete_map={"🟢 Aceitável": "#2e6b54", "🟡 Atenção": "#f1c40f", "🔴 Em Atraso": "#e74c3c"},
+                                   category_orders={"situacao": ordem_saude}) # Trava a ordem visual
+                
+                fig_saude.update_layout(margin=dict(t=40, b=20))
                 st.plotly_chart(fig_saude, use_container_width=True)
 
     # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
