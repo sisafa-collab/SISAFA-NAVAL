@@ -1558,19 +1558,25 @@ else:
                     
                     # Busca os dados do contrato (Tabela A) para o cabeçalho do PDF
                     cnpj_busca = str(dados_nup.get('cnpj', '')).strip().split('.')[0]
-                    # --- SUBSTITUA A LINHA DO DADOS_OSE_CONTRATO POR ESTE BLOCO ---
+                    
+                    # --- SUBSTITUA O BLOCO ANTIGO POR ESTA VERSÃO PANDAS ---
                     dados_ose_contrato = {}
 
-                    # Garantimos que a lista não está vazia e percorremos com segurança
-                    if lista_tabela_a and isinstance(lista_tabela_a, list):
-                        for row in lista_tabela_a:
-                            # A MÁGICA: Verificamos se 'row' é dicionário E se tem o CNPJ antes de tentar ler
-                            if isinstance(row, dict) and 'CNPJ' in row:
-                                if str(row['CNPJ']).startswith(cnpj_busca):
-                                    dados_ose_contrato = row
-                                    break
+                    # 1. Verifica se é DataFrame e não está vazio
+                    if isinstance(lista_tabela_a, pd.DataFrame) and not lista_tabela_a.empty:
+                        
+                        # 2. Converte a coluna CNPJ para string e filtra usando o cnpj_busca
+                        # Isso é muito mais rápido e seguro que um loop 'for'
+                        mask = lista_tabela_a['CNPJ'].astype(str).str.startswith(cnpj_busca)
+                        df_filtrado = lista_tabela_a[mask]
+                        
+                        # 3. Se encontrar algo, pega a primeira linha e transforma em dicionário
+                        if not df_filtrado.empty:
+                            dados_ose_contrato = df_filtrado.iloc[0].to_dict()
+                        else:
+                            st.warning(f"⚠️ Nenhuma OSE encontrada para o CNPJ: {cnpj_busca}")
                     else:
-                        st.warning("⚠️ Tabela A vazia ou mal formatada.")
+                        st.error("⚠️ A Tabela A está vazia ou não foi carregada corretamente.")
                     
                     # Gera o número do relatório (sequencial automático)
                     num_relatorio = obter_proximo_numero_glosa()
