@@ -2296,7 +2296,14 @@ else:
                 st.dataframe(df_fila_fiscal[cols_nf].rename(columns={'nf': 'Número da NF'}), use_container_width=True)
                 
                 # Seleção por NOTA FISCAL
-                lista_nfs = sorted(df_fila_fiscal['nf'].unique().tolist())
+                # Seleção por NOTA FISCAL (Blindado contra tipos mistos)
+                # 1. Transforma tudo em texto limpo e remove vazios (NaN)
+                df_fila_fiscal['nf'] = df_fila_fiscal['nf'].fillna("").astype(str).str.strip()
+                
+                # 2. Pega os valores únicos, ignorando linhas onde não há NF, e ordena
+                nfs_unicas = [nf for nf in df_fila_fiscal['nf'].unique() if nf != ""]
+                lista_nfs = sorted(nfs_unicas)
+                
                 nfs_sel = st.multiselect("Selecione a(s) Nota(s) Fiscal(is) para aceitar:", options=lista_nfs, key="ms_nf_recep")
                 
                 if st.button("🚀 Aceitar e Liquidar Notas Fiscais", key="btn_nf_recep"):
