@@ -1107,15 +1107,40 @@ else:
                 if st.button("📥 RECEBER PROCESSOS SELECIONADOS", use_container_width=True):
                     if nups_sel:
                         with st.spinner("Movimentando para auditagem..."):
-                            for n in nups_sel:
-                                mover_status(n, 2, auditor_nip=st.session_state.user_id)
-                                try:
-                                    fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                    registrar_acao(n, fat_n, "RECEBIMENTO", f"Auditor {st.session_state.user_id} recebeu.")
-                                except: pass
-                        st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
-                        time.sleep(1)
-                        st.rerun()
+                            try:
+                                for n in nups_sel:
+                                    # 1. Move fisicamente o status na planilha de processos
+                                    mover_status(n, 2, auditor_nip=st.session_state.user_id)
+                                    
+                                    # 2. Captura cirúrgica dos dados da fatura para evitar NameError
+                                    linha_fatura = df[df['nup'] == n].iloc[0]
+                                    fat_n = str(linha_fatura['Numero_da_fatura'])
+                                    v_apres = limpar_valor(linha_fatura['valor_apresentado'])
+                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+                                    
+                                    # 3. Log rápido na memória de ações
+                                    registrar_acao(n, fat_n, "RECEBIMENTO", f"Auditor {auditor_nip} recebeu o processo.")
+                                    
+                                    # 4. IMPLEMENTAÇÃO DA SUA FUNÇÃO NATIVA DE HISTÓRICO
+                                    # Parâmetros: nup, fatura, origem (1), destino (2), valor, observação
+                                    registrar_historico(
+                                        nup=str(n),
+                                        fatura=fat_n,
+                                        origem="1",
+                                        destino="2",
+                                        valor=v_apres,
+                                        obs=f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
+                                    )
+                                
+                                # 5. Limpeza estratégica de cache para atualizar a fila e os KPIs na hora
+                                st.cache_data.clear()
+                                
+                                st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
+                                time.sleep(1)
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"Erro ao processar recebimento na Auditoria: {e}")
                     else:
                         st.warning("⚠️ Selecione ao menos um NUP.")
 
@@ -1863,7 +1888,7 @@ else:
                                     registrar_acao(n, fat_n, "ENCAMINHADO_PARA_FINANCEIRO", "Processo enviado para a Execução Financeira.")
                                     
                                     # 3. Registra na aba SISAFA-NAVAL-historico (Macro)
-                                    # Status Origem: 3 | Status Destino: 4
+                                    # Status Origem: 3 | Status Destino: 3, pois só vai para o 4 quando a Execução aceita
                                     registrar_historico(n, fat_n, "3", "3", v_liq, "ENVIADO PARA O FINANCEIRO")
                             
                             st.success(f"✅ {len(lote_selecionado)} faturas encaminhadas com sucesso!")
@@ -1876,27 +1901,49 @@ else:
                     if st.button("⏪ DEVOLVER PARA AJUSTE", use_container_width=True):
                         if lote_selecionado:
                             with st.spinner("Limpando registros e devolvendo para auditagem..."):
-                                aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
-                                
-                                for n in lote_selecionado:
-                                    # 1. Volta o status para 2 (Em Auditagem)
-                                    mover_status(n, 2)
+                                try:
+                                    aba_audit = sh.worksheet("SISAFA-NAVAL-Auditoria")
+                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
                                     
-                                    # 2. Busca e DELETA o registro antigo na aba de Auditoria (Evita duplicidade)
-                                    try:
-                                        celula = aba_audit.find(str(n))
-                                        if celula:
-                                            aba_audit.delete_rows(celula.row)
-                                    except:
-                                        pass # Se não encontrar, apenas segue (pode não ter sido salvo ainda)
+                                    for n in lote_selecionado:
+                                        # 1. Volta o status para 2 (Em Auditagem)
+                                        mover_status(n, 2)
+                                        
+                                        # 2. Busca e DELETA o registro analítico antigo (Evita duplicidade de custos)
+                                        try:
+                                            celula = aba_audit.find(str(n))
+                                            if celula:
+                                                aba_audit.delete_rows(celula.row)
+                                        except:
+                                            pass 
 
-                                    # 3. Log da Devolução
-                                    fat_n = df_auditadas[df_auditadas['nup'] == n]['Numero_da_fatura'].values[0]
-                                    registrar_acao(n, fat_n, "DEVOLUCAO_PARA_AJUSTE", f"Processo retornado ao Status 2 pelo usuário {st.session_state.user_id}")
-                            
-                            st.warning(f"⏪ {len(lote_selecionado)} processos retornados para Auditagem.")
-                            time.sleep(1.2)
-                            st.rerun()
+                                        # 3. Captura cirúrgica dos dados da fatura para evitar quebra de NameError
+                                        linha_fatura = df_auditadas[df_auditadas['nup'] == n].iloc[0]
+                                        fat_n = str(linha_fatura['Numero_da_fatura'])
+                                        v_apres = limpar_valor(linha_fatura['valor_apresentado'])
+                                        
+                                        # 4. Log rápido na memória de ações
+                                        registrar_acao(n, fat_n, "DEVOLUCAO_PARA_AJUSTE", f"Processo retornado ao Status 2 pelo usuário {auditor_nip}")
+                                        
+                                        # 5. IMPLEMENTAÇÃO DA SUA FUNÇÃO NATIVA DE HISTÓRICO
+                                        # Parâmetros: nup, fatura, origem (3), destino (2), valor, observação
+                                        registrar_historico(
+                                            nup=str(n),
+                                            fatura=fat_n,
+                                            origem="3",
+                                            destino="2",
+                                            valor=v_apres,
+                                            obs=f"Processo devolvido para reanálise/ajuste técnico na Auditoria por decisão da Execução Financeira."
+                                        )
+                                    
+                                    # --- LINHA DE LIMPEZA DE CACHE REMOVIDA DAQUI ---
+                                    
+                                    st.warning(f"⏪ {len(lote_selecionado)} processos retornados para Auditagem.")
+                                    time.sleep(1.2)
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"Erro geral ao reverter processos e gravar o histórico: {e}")
                         else:
                             st.warning("Selecione ao menos um processo para devolver.")
 
@@ -2558,9 +2605,6 @@ else:
                 st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
 
 
-
-        
-
     elif "EXECUÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
         st.header("💰 Execução Financeira")
 
@@ -2619,14 +2663,41 @@ else:
                 with c_rec:
                     if st.button("✅ Receber Faturas", key="btn_aud_recep", use_container_width=True):
                         if nups_aud_sel:
-                            with st.spinner("Recebendo..."):
-                                for n in nups_aud_sel:
-                                    mover_status(n, 4) # Evolui para Aguard. NE
-                                    fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                    registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura recebida pela Execução.")
-                            st.success(f"✅ {len(nups_aud_sel)} recebidas!")
-                            time.sleep(1)
-                            st.rerun()
+                            with st.spinner("Recebendo e registrando no histórico..."):
+                                try:
+                                    # O laço varre as faturas selecionadas no lote
+                                    for n in nups_aud_sel:
+                                        # 1. Evolui o processo para Status 4 (Aguard. NE)
+                                        mover_status(n, 4) 
+                                        
+                                        # 2. Captura cirúrgica dos dados da fatura para evitar NameError
+                                        linha_fatura = df[df['nup'] == n].iloc[0]
+                                        fat_n = str(linha_fatura['Numero_da_fatura'])
+                                        v_apres = limpar_valor(linha_fatura['valor_apresentado'])
+                                        
+                                        # 3. Log rápido na memória de ações
+                                        registrar_acao(n, fat_n, "RECEBIMENTO_FINANCEIRO", "Fatura recebida pela Execução Financeira.")
+                                        
+                                        # 4. CHAMADA DA SUA FUNÇÃO NATIVA DE HISTÓRICO (Perfeita!)
+                                        # Parâmetros: nup, fatura, origem (3), destino (4), valor, observação
+                                        registrar_historico(
+                                            nup=str(n), 
+                                            fatura=fat_n, 
+                                            origem="3", 
+                                            destino="4", 
+                                            valor=v_apres, 
+                                            obs="Fatura aceita e recebida pelo setor de Execução Financeira."
+                                        )
+                                    
+                                    # 5. Limpa o cache para atualizar o Painel Tático no mesmo instante
+                                    st.cache_data.clear()
+                                    
+                                    st.success(f"✅ {len(nups_aud_sel)} faturas recebidas com sucesso!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"Erro geral no recebimento das faturas: {e}")
                         else:
                             st.warning("Selecione faturas.")
 
@@ -2643,13 +2714,46 @@ else:
                     if st.button("⏪ Devolver p/ Auditoria", key="btn_aud_dev", use_container_width=True, type="secondary"):
                         if nups_aud_sel:
                             with st.spinner("Devolvendo..."):
-                                for n in nups_aud_sel:
-                                    mover_status(n, 2) # Retorna para Status 2 (Em Auditagem)
-                                    fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                    registrar_acao(n, fat_n, "DEVOLUCAO_AUDITORIA", "Fatura devolvida pela Execução para reanálise.")
-                            st.warning(f"⏪ {len(nups_aud_sel)} faturas devolvidas para a Auditoria!")
-                            time.sleep(1)
-                            st.rerun()
+                                try:
+                                    # 1. Abre a conexão com a aba de histórico fora do loop (economiza cota)
+                                    aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
+                                    agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+                                    
+                                    for n in nups_aud_sel:
+                                        # Move fisicamente o processo de volta para "Em Auditagem"
+                                        mover_status(n, 2) 
+                                        
+                                        # Captura cirúrgica dos dados reais da fatura no DataFrame
+                                        linha_fatura = df[df['nup'] == n].iloc[0]
+                                        fat_n = str(linha_fatura['Numero_da_fatura'])
+                                        v_apres = limpar_valor(linha_fatura['valor_apresentado'])
+                                        
+                                        # Log Rápido
+                                        registrar_acao(n, fat_n, "DEVOLUCAO_AUDITORIA", "Fatura devolvida pela Execução para reanálise.")
+                                        
+                                        # --- RESTAURAÇÃO DO HISTÓRICO MILITAR ---
+                                        # Registra a retroação do Status 3 (Fila Execução) -> Status 2 (Em Auditagem)
+                                        aba_hist.append_row([
+                                            agora, 
+                                            str(n), 
+                                            fat_n, 
+                                            3, # Status Antigo
+                                            2, # Status Novo
+                                            auditor_nip, 
+                                            v_apres, 
+                                            "Fatura devolvida pela Execução para reanálise técnica na Auditoria."
+                                        ])
+                                    
+                                    # Limpa o cache para atualizar as estatísticas na hora
+                                    st.cache_data.clear()
+                                    
+                                    st.warning(f"⏪ {len(nups_aud_sel)} faturas devolvidas para a Auditoria!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"Erro ao registrar devolução no histórico: {e}")
                         else:
                             st.warning("Selecione faturas para devolver.")
 
@@ -2784,21 +2888,49 @@ else:
                 
                 nfs_sel = st.multiselect("Selecione a(s) Nota(s) Fiscal(is) para aceitar:", options=lista_nfs, key="ms_nf_recep")
                 
-                if st.button("🚀 Aceitar e Liquidar Notas Fiscais", key="btn_nf_recep"):
+                if st.button("🚀 Aceitar e Liquidar Notas Fiscais", key="btn_nf_recep", use_container_width=True):
                     if nfs_sel:
                         # Buscamos todos os NUPs vinculados a essas NFs
                         nups_da_nf = df_fila_fiscal[df_fila_fiscal['nf'].isin(nfs_sel)]['nup'].tolist()
                         
                         with st.spinner(f"Processando {len(nups_da_nf)} faturas..."):
-                            for n in nups_da_nf:
-                                mover_status(n, 7) # Evolui de 6 para 7 (Liquidando/Retorno do Fiscal)
-                                fat_n = df[df['nup'] == n]['Numero_da_fatura'].values[0]
-                                nf_n = df_fila_fiscal[df_fila_fiscal['nup'] == n]['nf'].values[0]
-                                registrar_acao(n, fat_n, "NF_ACEITA_FINANCEIRO", f"NF {nf_n} conferida e aceita pela Execução.")
-                        
-                        st.success(f"✅ {len(nfs_sel)} Notas Fiscais aceitas! Processos movidos para liquidação.")
-                        time.sleep(1.5)
-                        st.rerun()
+                            try:
+                                for n in nups_da_nf:
+                                    # 1. Evolui de 6 para 7 (Em Liquidação)
+                                    mover_status(n, 7) 
+                                    
+                                    # 2. Capturas cirúrgicas no DataFrame para evitar NameError
+                                    linha_fatura = df[df['nup'] == n].iloc[0]
+                                    fat_n = str(linha_fatura['Numero_da_fatura'])
+                                    v_apres = limpar_valor(linha_fatura['valor_apresentado'])
+                                    
+                                    # Tenta pescar o número da NF correspondente a este processo específico
+                                    df_match_nf = df_fila_fiscal[df_fila_fiscal['nup'] == n]
+                                    nf_n = str(df_match_nf['nf'].values[0]) if not df_match_nf.empty else "S/N"
+                                    
+                                    # 3. Registro rápido na memória de ações
+                                    registrar_acao(n, fat_n, "NF_ACEITA_FINANCEIRO", f"NF {nf_n} conferida e aceita pela Execução.")
+                                    
+                                    # 4. IMPLEMENTAÇÃO DA SUA FUNÇÃO NATIVA DE HISTÓRICO
+                                    # Parâmetros: nup, fatura, origem (6), destino (7), valor, observação
+                                    registrar_historico(
+                                        nup=str(n),
+                                        fatura=fat_n,
+                                        origem="6",
+                                        destino="7",
+                                        valor=v_apres,
+                                        obs=f"Nota Fiscal nº {nf_n} aceita e homologada pelo financeiro. Processo enviado para liquidação no SIAFI."
+                                    )
+                                
+                                # 5. Limpeza estratégica de cache para acender o painel tático na hora
+                                st.cache_data.clear()
+                                
+                                st.success(f"✅ {len(nfs_sel)} Notas Fiscais aceitas! Processos movidos para liquidação.")
+                                time.sleep(1.5)
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"Erro ao processar e registrar o histórico das NFs: {e}")
                     else:
                         st.warning("⚠️ Selecione ao menos uma NF para aceitar.")
 
@@ -2863,7 +2995,9 @@ else:
                             try:
                                 # --- AQUI ESTÁ A CORREÇÃO: DEFININDO A ABA ---
                                 aba_p = sh.worksheet("SISAFA-NAVAL-processos") 
-                                
+                                aba_hist = sh.worksheet("SISAFA-NAVAL-historico")
+                                agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                                 for nup in nups_sel:
                                     cell = aba_p.find(str(nup)) # str() garante a busca correta
                                     if cell:
@@ -2873,10 +3007,28 @@ else:
                                         # Move para Status 5 (Empenhado)
                                         mover_status(nup, 5)
                                         
-                                        # Busca a fatura para o log
-                                        fatura_n = df[df['nup'] == nup]['Numero_da_fatura'].values[0]
+                                        # --- CAPTURA CIRÚRGICA DOS DADOS DA FATURA NO DF ---
+                                        linha_fatura = df[df['nup'] == nup].iloc[0]
+                                        fatura_n = str(linha_fatura['Numero_da_fatura'])
+                                        v_liq_num = limpar_valor(linha_fatura['valor_liquido'])
+                                        auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+                                        
+                                        # Logs e Registros Oficiais
                                         registrar_acao(nup, fatura_n, "NE_CADASTRADA", f"NE {ne_completa} vinculada ao CNPJ {cnpj_alvo}")
-                                
+                                        
+                                        # --- SEU REGISTRAR HISTÓRICO COM AS VARIÁVEIS VACINADAS ---
+                                        # Ajustado para usar a estrutura correta sem dar NameError
+                                        aba_hist.append_row([
+                                            agora, 
+                                            str(nup), 
+                                            fatura_n, 
+                                            4, 
+                                            5, 
+                                            auditor_nip, 
+                                            v_liq_num, 
+                                            f"NE {ne_completa} cadastrada para o CNPJ {cnpj_alvo}"
+                                        ])
+
                                 st.success(f"✅ Sucesso! NE {ne_completa} cadastrada para {len(nups_sel)} faturas.")
                                 time.sleep(1)
                                 st.rerun()
@@ -3257,7 +3409,7 @@ else:
             c1.markdown(f"""
             <div class="neon-card card-cyan">
                 <div class="nc-title">1. Na Porta da Execução (Auditados)</div>
-                <div class="nc-value">{len(df_s3)} procs</div>
+                <div class="nc-value">{len(df_s3)} Faturas</div>
                 <div class="nc-sub">Volume: R$ {v_s3:,.2f}</div>
                 <div class="nc-sub">⏳ Média de {t_s3:.0f} dias aguardando envio</div>
             </div>
@@ -3270,7 +3422,7 @@ else:
             c2.markdown(f"""
             <div class="neon-card card-purple">
                 <div class="nc-title">2. Aguardando Emissão de NE</div>
-                <div class="nc-value">{len(df_s4)} procs</div>
+                <div class="nc-value">{len(df_s4)} Faturas</div>
                 <div class="nc-sub">Volume: R$ {v_s4:,.2f}</div>
                 <div class="nc-sub">Prontos para empenho</div>
             </div>
@@ -3283,7 +3435,7 @@ else:
             c3.markdown(f"""
             <div class="neon-card card-alert">
                 <div class="nc-title">⚠️ 3. Empenhados e não encaminhados à fiscalização de contratos</div>
-                <div class="nc-value">{len(df_s5)} procs</div>
+                <div class="nc-value">{len(df_s5)} Faturas</div>
                 <div class="nc-sub">Falta encaminhar para fiscalização</div>
                 <div class="nc-sub" style="color:#d50000; font-weight:bold;">🔥 Processo mais antigo: {max_dias_s5:.0f} dias parado</div>
             </div>
@@ -3300,7 +3452,7 @@ else:
             c4.markdown(f"""
             <div class="neon-card card-orange">
                 <div class="nc-title">4. Pendente Aceite Fiscais</div>
-                <div class="nc-value">{len(df_s6)} procs</div>
+                <div class="nc-value">{len(df_s6)} Faturas</div>
                 <div class="nc-sub">Caixa de entrada da fiscalização</div>
             </div>
             """, unsafe_allow_html=True)
@@ -3311,7 +3463,7 @@ else:
             c5.markdown(f"""
             <div class="neon-card card-cyan">
                 <div class="nc-title">5. Em Liquidação</div>
-                <div class="nc-value">{len(df_s7)} procs</div>
+                <div class="nc-value">{len(df_s7)} Faturas</div>
                 <div class="nc-sub">⏳ Média de {t_s7:.0f} dias nesta fase</div>
             </div>
             """, unsafe_allow_html=True)
@@ -3322,7 +3474,7 @@ else:
             c6.markdown(f"""
             <div class="neon-card card-green">
                 <div class="nc-title">6. Pronto para Pagar</div>
-                <div class="nc-value">{len(df_s8)} procs</div>
+                <div class="nc-value">{len(df_s8)} Faturas</div>
                 <div class="nc-sub">Volume a liquidar: R$ {v_s8:,.2f}</div>
             </div>
             """, unsafe_allow_html=True)
@@ -3331,72 +3483,51 @@ else:
 
 
             # ==========================================
-            # ==========================================
-            # 📈 GRÁFICOS ANALÍTICOS GERAIS
+            # 📈 GRÁFICO ANALÍTICO GERAL (Foco em NE)
             # ==========================================
             import plotly.express as px
 
-            cg1, cg2 = st.columns(2)
+            # Status 4 (Aguard. NE) por Competência COM VALOR FINANCEIRO
+            if not df_s4.empty:
+                # Agrupa contando a quantidade E somando o valor líquido
+                df_ne = df_s4.groupby(['ano_competencia', col_mes, 'competencia_grafico']).agg(
+                    Qtd=('nup', 'count'),
+                    Valor=('v_liq_num', 'sum')
+                ).reset_index()
+                
+                # Converte para numérico temporariamente para ordenar a linha do tempo (de baixo para cima)
+                df_ne['ano_num'] = pd.to_numeric(df_ne['ano_competencia'], errors='coerce')
+                df_ne['mes_num'] = pd.to_numeric(df_ne[col_mes], errors='coerce')
+                df_ne = df_ne.sort_values(by=['ano_num', 'mes_num'], ascending=True)
 
-            with cg1:
-                # 1. Volume Financeiro por Competência (Status 3 a 8)
-                df_grafico = df_e[df_e['status'].isin([3,4,5,6,7,8])].copy()
-                if not df_grafico.empty:
-                    df_vol = df_grafico.groupby('competencia_grafico')['v_liq_num'].sum().reset_index()
-                    fig1 = px.bar(
-                        df_vol, x='competencia_grafico', y='v_liq_num', 
-                        title="💰 Volume Financeiro na Execução por Competência",
-                        labels={'v_liq_num': 'Valor Líquido (R$)', 'competencia_grafico': 'Competência'},
-                        color_discrete_sequence=['#00e5ff'],
-                        template="plotly_white"
-                    )
-                    fig1.update_traces(marker_line_color='#00b8d4', marker_line_width=1.5, opacity=0.8)
-                    fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
-                    st.plotly_chart(fig1, use_container_width=True)
-                else:
-                    st.info("Sem dados suficientes para o gráfico de Volume.")
+                # Cria o texto tecnológico para mostrar dentro da barra (Qtd + Valor)
+                df_ne['texto_barra'] = df_ne.apply(lambda row: f"{row['Qtd']} faturas | R$ {row['Valor']:,.2f}", axis=1)
 
-            with cg2:
-                # 2. Status 4 (Aguard. NE) por Competência COM VALOR FINANCEIRO
-                if not df_s4.empty:
-                    # Agrupa contando a quantidade E somando o valor líquido
-                    df_ne = df_s4.groupby(['ano_competencia', col_mes, 'competencia_grafico']).agg(
-                        Qtd=('nup', 'count'),
-                        Valor=('v_liq_num', 'sum')
-                    ).reset_index()
-                    
-                    # Converte para numérico temporariamente para ordenar a linha do tempo (de baixo para cima)
-                    df_ne['ano_num'] = pd.to_numeric(df_ne['ano_competencia'], errors='coerce')
-                    df_ne['mes_num'] = pd.to_numeric(df_ne[col_mes], errors='coerce')
-                    df_ne = df_ne.sort_values(by=['ano_num', 'mes_num'], ascending=True)
+                fig2 = px.bar(
+                    df_ne, x='Qtd', y='competencia_grafico', orientation='h',
+                    title="📄 Aguard. Emissão de NE (Qtd e Valor Total)",
+                    labels={'Qtd': 'Quantidade', 'competencia_grafico': 'Competência', 'texto_barra': 'Resumo'},
+                    color_discrete_sequence=['#d500f9'],
+                    template="plotly_white",
+                    text='texto_barra',
+                    hover_data={'Valor': ':,.2f'}
+                )
+                
+                fig2.update_traces(
+                    marker_line_color='#aa00ff', marker_line_width=1.5, opacity=0.8, 
+                    textposition='inside',
+                    textfont=dict(color='white', size=13, family='Arial')
+                )
+                
+                fig2.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10),
+                    yaxis={'categoryorder': 'array', 'categoryarray': df_ne['competencia_grafico']}
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.success("🎉 Não há processos aguardando Nota de Empenho!")
 
-                    # Cria o texto tecnológico para mostrar dentro da barra (Qtd + Valor)
-                    df_ne['texto_barra'] = df_ne.apply(lambda row: f"{row['Qtd']} faturas | R$ {row['Valor']:,.2f}", axis=1)
-
-                    fig2 = px.bar(
-                        df_ne, x='Qtd', y='competencia_grafico', orientation='h',
-                        title="📄 Aguard. Emissão de NE (Qtd e Valor Total)",
-                        labels={'Qtd': 'Quantidade', 'competencia_grafico': 'Competência', 'texto_barra': 'Resumo'},
-                        color_discrete_sequence=['#d500f9'],
-                        template="plotly_white",
-                        text='texto_barra',
-                        hover_data={'Valor': ':,.2f'}
-                    )
-                    
-                    fig2.update_traces(
-                        marker_line_color='#aa00ff', marker_line_width=1.5, opacity=0.8, 
-                        textposition='inside',
-                        textfont=dict(color='white', size=13, family='Arial')
-                    )
-                    
-                    fig2.update_layout(
-                        plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10),
-                        yaxis={'categoryorder': 'array', 'categoryarray': df_ne['competencia_grafico']}
-                    )
-                    st.plotly_chart(fig2, use_container_width=True)
-                else:
-                    st.success("🎉 Não há processos aguardando Nota de Empenho!")
-
+            # =================================================================
             # =================================================================
             # 🏢 PAINEL DE ANÁLISE FINANCEIRA POR EMPRESA (TÁTICO)
             # =================================================================
@@ -3420,32 +3551,35 @@ else:
                 df_ose_exec['etapa_nome'] = df_ose_exec['status'].map(mapa_status_nomes)
 
                 c_metric1, c_metric2 = st.columns(2)
-                tramito_ose = df_ose_exec[df_ose_exec['status'] < 9]['v_liq_num'].sum()
-                qtd_ativos_ose = len(df_ose_exec[df_ose_exec['status'] < 9])
+                
+                # --- CORREÇÃO: TOTAL GLOBAL SEM FILTRO DE STATUS ---
+                volume_total_ose = df_ose_exec['v_liq_num'].sum()
+                qtd_total_ose = len(df_ose_exec)
                 
                 c_metric1.markdown(f"""
                 <div class="neon-card card-cyan" style="padding:15px; margin-top:10px;">
-                    <div class="nc-title">Volume Financeiro em Trâmite</div>
-                    <div class="nc-value" style="font-size:1.8rem;">R$ {tramito_ose:,.2f}</div>
+                    <div class="nc-title">Volume Financeiro Total</div>
+                    <div class="nc-value" style="font-size:1.8rem;">R$ {volume_total_ose:,.2f}</div>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 c_metric2.markdown(f"""
                 <div class="neon-card card-purple" style="padding:15px; margin-top:10px;">
-                    <div class="nc-title">Processos Ativos</div>
-                    <div class="nc-value" style="font-size:1.8rem;">{qtd_ativos_ose} faturas</div>
+                    <div class="nc-title">Faturas Cadastradas</div>
+                    <div class="nc-value" style="font-size:1.8rem;">{qtd_total_ose} faturas</div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                # --- GRÁFICO DE PIZZA (Montante Financeiro por Etapa) ---
+                # --- GRÁFICO DE PIZZA (Montante Financeiro por Etapa - TODOS OS STATUS) ---
                 st.markdown("#### 🍩 Distribuição do Montante Financeiro por Etapa")
-                df_pizza = df_ose_exec[df_ose_exec['status'] < 9].groupby('etapa_nome')['v_liq_num'].sum().reset_index()
+                df_pizza = df_ose_exec.groupby('etapa_nome')['v_liq_num'].sum().reset_index()
                 
                 if not df_pizza.empty:
                     fig_pie = px.pie(
                         df_pizza, values='v_liq_num', names='etapa_nome',
                         hole=0.4,
-                        color_discrete_sequence=['#00e5ff', '#d500f9', '#00e676', '#ff9100', '#ff1744', '#2979ff'],
+                        # Adicionadas mais cores à paleta para acomodar todos os 9 status sem repetir
+                        color_discrete_sequence=['#00e5ff', '#d500f9', '#00e676', '#ff9100', '#ff1744', '#2979ff', '#00bfa5', '#ffd600', '#c51162'],
                         template="plotly_white"
                     )
                     # Formata para aparecer o valor em R$ no gráfico
@@ -3490,7 +3624,7 @@ else:
                         etapas_ativas = sorted(df_ose_exec['status'].unique())
                         
                         for st_id in etapas_ativas:
-                            if st_id >= 9: continue # Ignora os já pagos
+                            if st_id >= 9: continue # Ignora os já pagos no E-MAIL (Mantido como o senhor instruiu)
                             
                             df_etapa = df_ose_exec[df_ose_exec['status'] == st_id].copy()
                             
