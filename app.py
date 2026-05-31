@@ -2653,46 +2653,97 @@ else:
                         else:
                             st.warning("Selecione faturas para devolver.")
 
-                # --- FORMULÁRIO DE CORREÇÃO (Com campo CNPJ) ---
+                # --- FORMULÁRIO DE CORREÇÃO 
+                # --- FORMULÁRIO DE CORREÇÃO  ---
                 if 'modo_correcao' in st.session_state and st.session_state['modo_correcao']:
                     nup_alvo = st.session_state['modo_correcao']
                     dados_originais = df[df['nup'] == nup_alvo].iloc[0]
                     
                     with st.expander(f"🛠️ Editando Processo: {nup_alvo}", expanded=True):
                         with st.form("form_correcao_auditoria"):
+                            
+                            # 1. PUXA A TABELA A DO CACHE (Economia de cota garantida)
+                            try:
+                                df_tabela_a = carregar_dados_cache(ABA_TABELA_A)
+                            except Exception as e:
+                                st.error(f"Erro ao carregar dados de referência das OSEs: {e}")
+                                df_tabela_a = pd.DataFrame()
+
+                            # Prepara a lista para o Selectbox: "CNPJ - Razão Social"
+                            if not df_tabela_a.empty:
+                                # Cria uma coluna combinada para o usuário escolher visualmente com facilidade
+                                df_tabela_a['combo_ose'] = df_tabela_a['CNPJ'].astype(str) + " - " + df_tabela_a['Razão Social'].astype(str)
+                                lista_combos = df_tabela_a['combo_ose'].tolist()
+                                
+                                # Tenta descobrir qual é o índice do CNPJ atual do processo para já vir selecionado
+                                cnpj_atual = str(dados_originais['cnpj']).strip()
+                                index_padrao = 0
+                                for idx, item in enumerate(lista_combos):
+                                    if item.startswith(cnpj_atual):
+                                        index_padrao = idx
+                                        break
+                            else:
+                                lista_combos = [""]
+                                index_padrao = 0
+
                             c1, c2 = st.columns(2)
                             novo_nup = c1.text_input("Corrigir NUP:", value=str(dados_originais['nup']))
-                            novo_cnpj = c2.text_input("Corrigir CNPJ:", value=str(dados_originais['cnpj'])) # NOVO CAMPO
                             
+                            # 2. O SELECTBOX INTELIGENTE (Substitui o text_input antigo)
+                            escolha_ose = c2.selectbox(
+                                "Selecionar Novo CNPJ/OSE:", 
+                                options=lista_combos, 
+                                index=index_padrao,
+                                help="Selecione a OSE correta. O sistema mapeará o CNPJ (Col 3) e o Nome (Col 4) automaticamente."
+                            )
+                            
+                            # 3. EXTRAÇÃO DOS DADOS DA SELEÇÃO (Sem bater no Google Sheets)
+                            if escolha_ose and " - " in escolha_ose:
+                                novo_cnpj = escolha_ose.split(" - ")[0].strip()
+                                novo_nome_ose = escolha_ose.split(" - ")[1].strip()
+                            else:
+                                novo_cnpj = str(dados_originais['cnpj'])
+                                novo_nome_ose = str(dados_originais['ose'])
+
+                            # Exibe um campo informativo desabilitado para o usuário ver o nome da OSE mudando em tempo real
+                            st.text_input("Nome da OSE Vinculada (Coluna 4):", value=novo_nome_ose, disabled=True)
+
+                            st.divider()
+                            
+                            c1, c2 = st.columns(2)
                             nova_fat = c1.text_input("Corrigir Nº Fatura:", value=str(dados_originais['Numero_da_fatura']))
-                            
-                            # Edição Numérica
                             v_apres_edit = c2.number_input("Valor Apresentado (R$):", value=float(limpar_valor(dados_originais['valor_apresentado'])))
-                            v_liq_edit = c1.number_input("Valor Líquido (R$):", value=float(limpar_valor(dados_originais['valor_liquido'])))
+                            v_liquido_edit = c1.number_input("Valor Líquido (R$):", value=float(limpar_valor(dados_originais['valor_liquido'])))
                             
                             nova_obs = st.text_area("Justificativa da alteração:", placeholder="Descreva o que foi corrigido.")
 
                             btn_save, btn_cancel = st.columns(2)
+                            
                             if btn_save.form_submit_button("💾 Aplicar Correções", use_container_width=True):
                                 try:
-                                    aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
-                                    row = aba_proc.find(nup_alvo).row
-                                    
-                                    # Atualização das células (Alinhado com a estrutura da sua planilha)
-                                    aba_proc.update_cell(row, 2, novo_nup)  # Coluna B: NUP
-                                    aba_proc.update_cell(row, 3, novo_cnpj) # Coluna C: CNPJ (ADICIONADO)
-                                    aba_proc.update_cell(row, 5, nova_fat)  # Coluna E: Numero_da_fatura
-                                    aba_proc.update_cell(row, 6, f"R${v_apres_edit:,.2f}") # Coluna F: Valor Apresentado
-                                    aba_proc.update_cell(row, 8, f"R${v_liq_edit:,.2f}")   # Coluna H: Valor Líquido
-                                    
-                                    registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"CNPJ/Dados alterados: {nova_obs}")
-                                    
-                                    st.success("✅ Processo atualizado com sucesso!")
-                                    st.session_state['modo_correcao'] = None
-                                    time.sleep(1)
-                                    st.rerun()
+                                    with st.spinner("Atualizando base de dados..."):
+                                        aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                                        row = aba_proc.find(str(nup_alvo)).row
+                                        
+                                        # Atualização em lote ou célula a célula (Mantendo a segurança de colunas)
+                                        aba_proc.update_cell(row, 2, str(novo_nup))       # Coluna B (2): NUP
+                                        aba_proc.update_cell(row, 3, str(novo_cnpj))      # Coluna C (3): CNPJ
+                                        aba_proc.update_cell(row, 4, str(novo_nome_ose))  # Coluna D (4): Nome da OSE (Mapeamento automático realizado!)
+                                        aba_proc.update_cell(row, 5, str(nova_fat))       # Coluna E (5): Numero_da_fatura
+                                        aba_proc.update_cell(row, 6, f"R${v_apres_edit:,.2f}") # Coluna F (6): Valor Apresentado
+                                        aba_proc.update_cell(row, 8, f"R${v_liquido_edit:,.2f}") # Coluna H (8): Valor Líquido
+                                        
+                                        registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"CNPJ alterado para {novo_cnpj} ({novo_nome_ose}) | Justificativa: {nova_obs}")
+                                        
+                                        # Limpa o cache do dataframe de processos para a alteração refletir na tela imediatamente
+                                        st.cache_data.clear()
+                                        
+                                        st.success("✅ Processo e OSE vinculada atualizados com sucesso!")
+                                        st.session_state['modo_correcao'] = None
+                                        time.sleep(1)
+                                        st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro na atualização: {e}")
+                                    st.error(f"Erro na atualização da planilha: {e}")
                             
                             if btn_cancel.form_submit_button("❌ Sair"):
                                 st.session_state['modo_correcao'] = None
