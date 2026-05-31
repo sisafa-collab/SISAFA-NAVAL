@@ -3370,9 +3370,13 @@ else:
             df_e['v_ap_num'] = df_e['valor_apresentado'].apply(limpar_valor)
             df_e['v_liq_num'] = df_e['valor_liquido'].apply(limpar_valor)
             
-            # Preparação de Datas para cálculo de tempo nas fases
-            # Usando a coluna 13 que no seu histórico é a data de atualização
-            df_e['dt_mov'] = pd.to_datetime(df_e.iloc[:, 14], dayfirst=True, errors='coerce')
+            # Preparação de Datas (Uso explícito do nome da coluna para evitar erros de índice)
+            # Garantimos que, mesmo se a ordem das colunas mudar na planilha, o cálculo permanece correto
+            df_e['dt_mov'] = pd.to_datetime(df_e['data_ultimo_status'], dayfirst=False, errors='coerce')
+
+            # Ajuste fino: o 'dayfirst' depende de como o Google Sheets formata. 
+            # Se a data estiver vindo como '2026-05-07' (padrão ISO), o dayfirst=False é o mais seguro.
+
             hoje = datetime.now()
             df_e['dias_na_fase'] = (hoje - df_e['dt_mov']).dt.days.fillna(0).astype(int)
             
