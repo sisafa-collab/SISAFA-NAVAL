@@ -3225,7 +3225,15 @@ else:
             df_e['dias_na_fase'] = (hoje - df_e['dt_mov']).dt.days.fillna(0).astype(int)
             
             # Criação do campo "Competência Unificada" para os gráficos
-            df_e['competencia_grafico'] = df_e['mes_sigla'].astype(str) + "/" + df_e['ano_competencia'].astype(str)
+            
+            # Criação do campo "Competência Unificada" para os gráficos (com blindagem de colunas)
+            col_mes = 'mes_sigla' if 'mes_sigla' in df_e.columns else 'mes_competencia'
+            
+            if col_mes in df_e.columns and 'ano_competencia' in df_e.columns:
+                df_e['competencia_grafico'] = df_e[col_mes].astype(str) + "/" + df_e['ano_competencia'].astype(str)
+            else:
+                # Fallback de segurança caso as colunas tenham nomes diferentes na planilha
+                df_e['competencia_grafico'] = "Sem Data"
 
             # --- FILTROS RÁPIDOS ---
             c_f1, c_f2 = st.columns(2)
@@ -3274,7 +3282,7 @@ else:
             
             c3.markdown(f"""
             <div class="neon-card card-alert">
-                <div class="nc-title">⚠️ 3. Empenhados (Travados s/ Fiscais)</div>
+                <div class="nc-title">⚠️ 3. Empenhados e não encaminhados à fiscalização de contratos</div>
                 <div class="nc-value">{len(df_s5)} procs</div>
                 <div class="nc-sub">Falta encaminhar para fiscalização</div>
                 <div class="nc-sub" style="color:#d50000; font-weight:bold;">🔥 Processo mais antigo: {max_dias_s5:.0f} dias parado</div>
