@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from google.oauth2 import service_account 
 import os
+from PIL import Image
 import shutil  
 import base64
 import pandas as pd
