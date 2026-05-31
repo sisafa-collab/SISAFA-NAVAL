@@ -3372,12 +3372,21 @@ else:
             
             # Preparação de Datas (Uso explícito do nome da coluna para evitar erros de índice)
             # Garantimos que, mesmo se a ordem das colunas mudar na planilha, o cálculo permanece correto
-            df_e['dt_mov'] = pd.to_datetime(df_e['data_ultimo_status'], dayfirst=False, errors='coerce')
+            # --- MOTOR DE NORMALIZAÇÃO DE DATAS ---
+            def normalizar_data(valor):
+                v_str = str(valor).strip()
+                if not v_str or v_str.lower() == 'nan' or v_str == 'None':
+                    return pd.NaT
+                
+                # Tenta converter formatos mistos (ISO e BR)
+                # dayfirst=True ajuda no formato 12/03/2026, mas o formato ISO (2026-05-26) é autodetectado
+                return pd.to_datetime(v_str, dayfirst=True, errors='coerce')
 
-            # Ajuste fino: o 'dayfirst' depende de como o Google Sheets formata. 
-            # Se a data estiver vindo como '2026-05-07' (padrão ISO), o dayfirst=False é o mais seguro.
+            # Aplica a normalização na coluna 14 (índice 13)
+            df_e['dt_mov'] = df_e.iloc[:, 13].apply(normalizar_data)
 
-            hoje = datetime.now()
+            # Cálculo de dias com tratamento para NaT (evita erro se a data ainda estiver inválida)
+            hoje = pd.Timestamp.now()
             df_e['dias_na_fase'] = (hoje - df_e['dt_mov']).dt.days.fillna(0).astype(int)
             
             
