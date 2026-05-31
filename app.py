@@ -66,7 +66,7 @@ caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
 icone = Image.open(caminho_favicon)
 
 st.set_page_config(
-    page_title="Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília (SISAFA NAVAL)", 
+    page_title="SISAFA NAVAL ⚓", 
     layout="centered", 
     page_icon=icone,
     initial_sidebar_state="expanded" 
@@ -3168,47 +3168,202 @@ else:
 
         # --- ABA 4: ESTATÍSTICAS E INDICADORES (KPIs Financeiros) ---
         with tab4:
-            st.header("📊 Estatística e Indicadores")
+        
+            # ==========================================
+            # 🎨 ESTILIZAÇÃO CSS (Neon no Fundo Branco)
+            # ==========================================
+            st.markdown("""
+            <style>
+            /* Cards base (Efeito Neon Suave no Branco) */
+            .neon-card {
+                background: #ffffff;
+                border-radius: 12px;
+                padding: 20px;
+                margin-bottom: 20px;
+                text-align: center;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+                transition: transform 0.2s;
+                border-bottom: 4px solid #eee;
+            }
+            .neon-card:hover { transform: translateY(-3px); }
             
-            # Filtros Rápidos
-            col_f1, col_f2 = st.columns(2)
-            anos_disp = sorted(df['ano_competencia'].unique(), reverse=True)
-            ano_sel = col_f1.selectbox("Filtrar por Ano:", ["Todos"] + list(anos_disp), key="f_ano_exec")
+            /* Títulos dos Cards */
+            .nc-title { font-size: 0.9rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+            .nc-value { font-size: 2.2rem; font-weight: 900; margin-bottom: 5px; }
+            .nc-sub { font-size: 0.85rem; font-weight: 600; color: #777; }
             
+            /* Cores Neon / Futuristas Específicas */
+            .card-cyan { border-bottom-color: #00e5ff; box-shadow: 0 10px 20px rgba(0, 229, 255, 0.15); }
+            .card-cyan .nc-value { color: #00b8d4; text-shadow: 0 0 10px rgba(0, 229, 255, 0.3); }
+            
+            .card-purple { border-bottom-color: #d500f9; box-shadow: 0 10px 20px rgba(213, 0, 249, 0.15); }
+            .card-purple .nc-value { color: #aa00ff; text-shadow: 0 0 10px rgba(213, 0, 249, 0.3); }
+            
+            .card-alert { border-bottom-color: #ff1744; box-shadow: 0 10px 20px rgba(255, 23, 68, 0.15); background: #fffcfc;}
+            .card-alert .nc-value { color: #d50000; text-shadow: 0 0 10px rgba(255, 23, 68, 0.3); }
+            
+            .card-green { border-bottom-color: #00e676; box-shadow: 0 10px 20px rgba(0, 230, 118, 0.15); }
+            .card-green .nc-value { color: #00c853; text-shadow: 0 0 10px rgba(0, 230, 118, 0.3); }
+            
+            .card-orange { border-bottom-color: #ff9100; box-shadow: 0 10px 20px rgba(255, 145, 0, 0.15); }
+            .card-orange .nc-value { color: #ff6d00; text-shadow: 0 0 10px rgba(255, 145, 0, 0.3); }
+            </style>
+            """, unsafe_allow_html=True)
+
+            st.header("⚡ Painel Tático de Execução Financeira")
+            st.info("Monitoramento em tempo real do fluxo de empenho, liquidação e pagamento.")
+
+            # --- 1. PREPARAÇÃO DOS DADOS GERAIS ---
             df_e = df.copy()
-            if ano_sel != "Todos": df_e = df_e[df_e['ano_competencia'] == ano_sel]
-            
             df_e['v_ap_num'] = df_e['valor_apresentado'].apply(limpar_valor)
             df_e['v_liq_num'] = df_e['valor_liquido'].apply(limpar_valor)
-            df_e['glosa_num'] = df_e['glosa'].apply(limpar_valor)
+            
+            # Preparação de Datas para cálculo de tempo nas fases
+            # Usando a coluna 13 que no seu histórico é a data de atualização
+            df_e['dt_mov'] = pd.to_datetime(df_e.iloc[:, 13], dayfirst=True, errors='coerce')
+            hoje = datetime.now()
+            df_e['dias_na_fase'] = (hoje - df_e['dt_mov']).dt.days.fillna(0).astype(int)
+            
+            # Criação do campo "Competência Unificada" para os gráficos
+            df_e['competencia_grafico'] = df_e['mes_sigla'].astype(str) + "/" + df_e['ano_competencia'].astype(str)
 
-            # --- 1. MÉTRICAS GLOBAIS ---
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Processos no Ciclo", len(df_e))
-            c2.metric("Apresentado", f"R$ {df_e['v_ap_num'].sum():,.2f}")
-            c3.metric("Economia (Glosa)", f"R$ {df_e['glosa_num'].sum():,.2f}")
-            c4.metric("Líquido a Pagar", f"R$ {df_e['v_liq_num'].sum():,.2f}")
+            # --- FILTROS RÁPIDOS ---
+            c_f1, c_f2 = st.columns(2)
+            anos_disp = sorted(df_e['ano_competencia'].unique(), reverse=True)
+            ano_sel = c_f1.selectbox("Filtrar Painel por Ano:", ["Todos"] + list(anos_disp), key="f_ano_exec_tatico")
+            if ano_sel != "Todos": 
+                df_e = df_e[df_e['ano_competencia'] == ano_sel]
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # ==========================================
+            # 🚀 LINHA 1: A ENTRADA E O ALERTA MÁXIMO
+            # ==========================================
+            c1, c2, c3 = st.columns(3)
+            
+            # STATUS 3: Aguardando Recebimento na Execução
+            df_s3 = df_e[df_e['status'] == 3]
+            v_s3 = df_s3['v_liq_num'].sum()
+            t_s3 = df_s3['dias_na_fase'].mean() if not df_s3.empty else 0
+            
+            c1.markdown(f"""
+            <div class="neon-card card-cyan">
+                <div class="nc-title">1. Na Porta da Execução (Auditados)</div>
+                <div class="nc-value">{len(df_s3)} procs</div>
+                <div class="nc-sub">Volume: R$ {v_s3:,.2f}</div>
+                <div class="nc-sub">⏳ Média de {t_s3:.0f} dias aguardando envio</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # STATUS 4: Aguardando Emissão de NE
+            df_s4 = df_e[df_e['status'] == 4]
+            v_s4 = df_s4['v_liq_num'].sum()
+            
+            c2.markdown(f"""
+            <div class="neon-card card-purple">
+                <div class="nc-title">2. Aguardando Emissão de NE</div>
+                <div class="nc-value">{len(df_s4)} procs</div>
+                <div class="nc-sub">Volume: R$ {v_s4:,.2f}</div>
+                <div class="nc-sub">Prontos para empenho</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # STATUS 5: Empenhados SEM Fiscalização (PONTO DE ATENÇÃO)
+            df_s5 = df_e[df_e['status'] == 5]
+            max_dias_s5 = df_s5['dias_na_fase'].max() if not df_s5.empty else 0
+            
+            c3.markdown(f"""
+            <div class="neon-card card-alert">
+                <div class="nc-title">⚠️ 3. Empenhados (Travados s/ Fiscais)</div>
+                <div class="nc-value">{len(df_s5)} procs</div>
+                <div class="nc-sub">Falta encaminhar para fiscalização</div>
+                <div class="nc-sub" style="color:#d50000; font-weight:bold;">🔥 Processo mais antigo: {max_dias_s5:.0f} dias parado</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+            # ==========================================
+            # 🚀 LINHA 2: O FLUXO FINAL
+            # ==========================================
+            c4, c5, c6 = st.columns(3)
+
+            # STATUS 6: Aguardando Recebimento pelos Fiscais
+            df_s6 = df_e[df_e['status'] == 6]
+            c4.markdown(f"""
+            <div class="neon-card card-orange">
+                <div class="nc-title">4. Pendente Aceite Fiscais</div>
+                <div class="nc-value">{len(df_s6)} procs</div>
+                <div class="nc-sub">Caixa de entrada da fiscalização</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # STATUS 7: Em Liquidação
+            df_s7 = df_e[df_e['status'] == 7]
+            t_s7 = df_s7['dias_na_fase'].mean() if not df_s7.empty else 0
+            c5.markdown(f"""
+            <div class="neon-card card-cyan">
+                <div class="nc-title">5. Em Liquidação</div>
+                <div class="nc-value">{len(df_s7)} procs</div>
+                <div class="nc-sub">⏳ Média de {t_s7:.0f} dias nesta fase</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # STATUS 8: Liquidado, Não Pago
+            df_s8 = df_e[df_e['status'] == 8]
+            v_s8 = df_s8['v_liq_num'].sum()
+            c6.markdown(f"""
+            <div class="neon-card card-green">
+                <div class="nc-title">6. Pronto para Pagar</div>
+                <div class="nc-value">{len(df_s8)} procs</div>
+                <div class="nc-sub">Volume a liquidar: R$ {v_s8:,.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
             st.divider()
-            
-            # --- 2. GRÁFICOS DE DESEMPENHO ---
-            cg1, cg2 = st.columns(2)
-            
-            with cg1:
-                # Distribuição por Fase do Ciclo
-                status_map = {
-                    1: "Fila Auditoria", 2: "Em Auditoria", 3: "Fila Execução",
-                    4: "Aguard. NE", 5: "Empenhado", 6: "Fiscalização",
-                    7: "Liquidando", 8: "Pronto Pagar", 9: "Pago/Encerrado"
-                }
-                status_counts = df_e['status'].map(status_map).value_counts().reset_index()
-                st.plotly_chart(px.pie(status_counts, values='count', names='status', title="Distribuição por Fase", hole=0.4), use_container_width=True)
-            
-            with cg2:
-                # Top 10 OSEs por Valor Líquido
-                top_ose_exec = df_e.groupby('ose')['v_liq_num'].sum().sort_values(ascending=False).head(10).reset_index()
-                st.plotly_chart(px.bar(top_ose_exec, x='v_liq_num', y='ose', orientation='h', title="Top 10 OSEs (Valor Líquido)", color_discrete_sequence=['#2e6b54']), use_container_width=True)
 
+            # ==========================================
+            # 📈 GRÁFICOS ANALÍTICOS (Estilo clean tecnológico)
+            # ==========================================
+            import plotly.express as px
+
+            cg1, cg2 = st.columns(2)
+
+            with cg1:
+                # 1. Volume Financeiro por Competência (Status 3 a 8)
+                df_grafico = df_e[df_e['status'].isin([3,4,5,6,7,8])].copy()
+                if not df_grafico.empty:
+                    df_vol = df_grafico.groupby('competencia_grafico')['v_liq_num'].sum().reset_index()
+                    fig1 = px.bar(
+                        df_vol, x='competencia_grafico', y='v_liq_num', 
+                        title="💰 Volume Financeiro na Execução por Competência",
+                        labels={'v_liq_num': 'Valor Líquido (R$)', 'competencia_grafico': 'Competência'},
+                        color_discrete_sequence=['#00e5ff'],
+                        template="plotly_white"
+                    )
+                    fig1.update_traces(marker_line_color='#00b8d4', marker_line_width=1.5, opacity=0.8)
+                    fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
+                    st.plotly_chart(fig1, use_container_width=True)
+                else:
+                    st.info("Sem dados suficientes para o gráfico de Volume.")
+
+            with cg2:
+                # 2. Status 4 (Aguard. NE) por Competência
+                if not df_s4.empty:
+                    df_ne = df_s4.groupby('competencia_grafico').size().reset_index(name='Qtd')
+                    fig2 = px.bar(
+                        df_ne, x='Qtd', y='competencia_grafico', orientation='h',
+                        title="📄 Aguardando Emissão de NE (Por Competência)",
+                        labels={'Qtd': 'Quantidade de Processos', 'competencia_grafico': 'Competência'},
+                        color_discrete_sequence=['#d500f9'],
+                        template="plotly_white"
+                    )
+                    fig2.update_traces(marker_line_color='#aa00ff', marker_line_width=1.5, opacity=0.8)
+                    fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.success("🎉 Não há processos aguardando Nota de Empenho!")        
+        
+        
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
             st.subheader("🔍 Consultas")
