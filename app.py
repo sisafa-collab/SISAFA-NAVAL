@@ -62,7 +62,7 @@ caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
-caminho_escudo-dsm = os.path.join(pasta_projeto, "Simbolo-DSM-SISAFA.png")
+caminho_escudo_dsm = os.path.join(pasta_projeto, "Simbolo-DSM-SISAFA.png")
 
 icone = Image.open(caminho_favicon)
 
