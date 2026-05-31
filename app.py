@@ -3362,6 +3362,28 @@ else:
             </style>
             """, unsafe_allow_html=True)
 
+            # --- CARTÃO DE ENCERRAMENTO (Verde Sisafa Neon) ---
+            st.markdown("""
+            <style>
+            .card-sisafa { 
+                border-bottom-color: #2e6b54; 
+                background: #f0f7f4;
+                box-shadow: 0 10px 20px rgba(46, 107, 84, 0.15);
+            }
+            .card-sisafa .nc-value { 
+                color: #2e6b54; 
+                text-shadow: 0 0 15px rgba(46, 107, 84, 0.3);
+                font-size: 1.6rem;
+                font-family: 'Courier New', Courier, monospace;
+            }
+            </style>
+            
+            <div class="neon-card card-sisafa">
+                <div class="nc-value">"RESTARÁ SEMPRE MUITO O QUE FAZER"</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
             st.header("⚡ Painel de Execução Financeira")
             st.info("Monitoramento em tempo real do fluxo de empenho, liquidação e pagamento.")
 
