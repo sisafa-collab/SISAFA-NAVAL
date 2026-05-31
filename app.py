@@ -2514,70 +2514,72 @@ else:
             with col_dsm2:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
-            # 1. Padronização Robusta das colunas antes de qualquer cálculo
+            # Padronização de nomes de colunas para evitar KeyError
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
-            # Renomeia se existir variação de 'Custo total' ou 'Outros' para padronizar
-            cols_rename = {c: 'Outros' for c in df_aud.columns if 'custo total' in c.lower()}
-            df_aud.rename(columns=cols_rename, inplace=True)
+            df_aud.rename(columns={'Custo total': 'Outros'}, inplace=True) # Garante o nome padronizado
 
             # Filtro de Período
             comp_unicas = sorted(df_aud['Competência'].unique().tolist())
-            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação DSM:", comp_unicas, default=comp_unicas[-1:])
+            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação:", comp_unicas, default=comp_unicas[-1:])
 
             if not periodo_sel:
                 st.warning("Selecione pelo menos uma competência para visualizar os dados DSM.")
             else:
                 df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
                 
-                # Função de Card Estilizado
-                def gerar_card_custo(titulo, valor_total, detalhamento_dict):
-                    # Transforma o dict em lista formatada
-                    breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(detalhamento_dict.items())])
+                # --- FUNÇÃO DO CARTÃO PADRÃO (Visual Sisafa) ---
+                def card_centro_custo(titulo, dados_centro):
+                    # Cálculos de performance
+                    total_apres = dados_centro['valor_apresentado'].apply(limpar_valor).sum() if 'valor_apresentado' in dados_centro else 0
+                    total_glosa = dados_centro['glosa'].apply(limpar_valor).sum() if 'glosa' in dados_centro else 0
+                    total_liq = dados_centro['valor_liquido'].apply(limpar_valor).sum() if 'valor_liquido' in dados_centro else 0
+                    
+                    # Breakdown por competência (Somente das colunas de valor deste centro)
+                    # Assumindo que o título é o nome da coluna de custo
+                    breakdown = dados_centro.groupby('Competência')[titulo].sum()
+                    breakdown_html = "".join([f"• <b>{comp}:</b> R$ {val:,.2f}<br>" for comp, val in breakdown.items() if val > 0])
+
                     st.markdown(f"""
-                    <div class="neon-card" style="border-bottom-color: #2e6b54; background: #f8faf9;">
-                        <div class="nc-title" style="color: #2e6b54;">{titulo}</div>
-                        <div class="nc-value" style="color: #2e6b54; font-size: 1.6rem;">R$ {valor_total:,.2f}</div>
-                        <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.8rem;">
+                    <div class="neon-card" style="border-bottom-color: #2e6b54; background: #ffffff;">
+                        <div class="nc-title" style="color: #2e6b54; margin-bottom:10px;">{titulo}</div>
+                        <div class="nc-value" style="color: #2e6b54; font-size: 1.4rem; margin-bottom:5px;">R$ {total_liq:,.2f} (Líquido)</div>
+                        <div class="nc-sub" style="color: #666; margin-bottom:10px;">
+                            Apres: R$ {total_apres:,.2f} | Glosa: R$ {total_glosa:,.2f}
+                        </div>
+                        <hr style="margin: 10px 0;">
+                        <div class="nc-sub" style="text-align: left; font-size: 0.85rem;">
+                            <span style="font-weight:bold; color: #2e6b54;">Detalhamento por competência:</span><br>
                             {breakdown_html}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
 
-                # --- 1. PROCESSAMENTO CENTROS DE CUSTO (Colunas) ---
+                # --- RENDERIZAÇÃO ---
                 st.markdown("### 📋 Centros de Custo Oficiais")
-                # Usa a lista_oficial para garantir a ordem
-                for centro in [c for c in lista_oficial if c in df_dsm.columns]:
-                    if centro == "Outros": continue 
-                    
-                    # Filtra apenas onde houve valor
+                
+                # Filtra colunas que são centros de custo (excluindo colunas meta-dados)
+                colunas_validas = [c for c in colunas_centros_custo if c in df_dsm.columns and c != "Outros"]
+                
+                for centro in colunas_validas:
                     df_centro = df_dsm[df_dsm[centro] > 0]
                     if not df_centro.empty:
-                        total_geral = df_centro[centro].sum()
-                        breakdown = df_centro.groupby('Competência')[centro].sum().to_dict()
-                        gerar_card_custo(centro, total_geral, breakdown)
+                        card_centro_custo(centro, df_centro)
 
-                # --- 2. PROCESSAMENTO GRUPO VI (Linhas de "Outros") ---
+                # --- GRUPO VI (OUTROS) ---
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
-                df_outros = df_dsm[df_dsm['Grupo'].notna() & df_dsm['Grupo'].str.contains("Outros", na=False)]
-                
+                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outros", na=False)]
                 if not df_outros.empty:
-                    # Agrupa pelo que é dinâmico (Grupo/Descrição) + Competência
-                    grupos_outros = df_outros.groupby(['Grupo', 'Descrição'])
-                    
-                    for (grupo, desc), dados in grupos_outros:
-                        total_g = dados['Outros'].sum() # Referência padronizada
-                        qtd_g = dados['Quantidade'].sum()
-                        
-                        # Breakdown por competência para este grupo específico
-                        breakdown = dados.groupby('Competência')['Outros'].sum().to_dict()
+                    for (grupo, desc), dados in df_outros.groupby(['Grupo', 'Descrição']):
+                        total_g = dados['Outros'].sum()
+                        breakdown = dados.groupby('Competência')['Outros'].sum()
                         
                         st.markdown(f"""
                         <div class="neon-card" style="border-bottom-color: #ff9100; background: #fffcf8;">
                             <div class="nc-title" style="color: #ff9100;">{grupo} - {desc}</div>
-                            <div class="nc-value" style="color: #ff6d00; font-size: 1.6rem;">R$ {total_g:,.2f}</div>
-                            <div class="nc-sub">Quantidade Total: {qtd_g}</div>
-                            <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.8rem;">
-                                {"".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown.items())])}
+                            <div class="nc-value" style="color: #ff6d00; font-size: 1.4rem;">R$ {total_g:,.2f}</div>
+                            <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.85rem;">
+                                <span style="font-weight:bold;">Distribuição:</span><br>
+                                {"".join([f"• <b>{k}:</b> R$ {v:,.2f}<br>" for k, v in breakdown.items()])}
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
