@@ -62,6 +62,7 @@ caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
+caminho_escudo-dsm = os.path.join(pasta_projeto, "Simbolo-DSM-SISAFA.png")
 
 icone = Image.open(caminho_favicon)
 
@@ -2501,8 +2502,85 @@ else:
                 fig_saude.update_layout(margin=dict(t=40, b=20))
                 st.plotly_chart(fig_saude, use_container_width=True)
 
+            # =======================================================
+            # === APOIO À DIRETORIA DE SAÚDE DA MARINHA (DSM) ===
+            # =======================================================
+            st.divider()
+            col_dsm1, col_dsm2 = st.columns([1, 4])
+            with col_dsm1:
+                # Carregando o escudo que o senhor mencionou
+                if os.path.exists(caminho_escudo_dsm):
+                    st.image(caminho_escudo_dsm, width=100)
+            with col_dsm2:
+                st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM))")
+            
+            # Filtro de Período (Multiselect para DSM)
+            comp_unicas = sorted(df_aud['Competência'].unique().tolist())
+            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação DSM:", comp_unicas, default=comp_unicas[-1:])
 
+            if not periodo_sel:
+                st.warning("Selecione pelo menos uma competência para visualizar os dados DSM.")
+            else:
+                df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
+                
+                # Definindo cores Neon Sisafa
+                cor_card = "#2e6b54" 
+                
+                # Função para gerar os cards de cada centro de custo
+                def gerar_card_custo(titulo, valor_total, detalhamento_dict):
+                    breakdown_str = "".join([f"• {k}: R$ {v:,.2f}<br>" for k, v in detalhamento_dict.items() if v > 0])
+                    st.markdown(f"""
+                    <div class="neon-card" style="border-bottom-color: {cor_card};">
+                        <div class="nc-title" style="color: {cor_card};">{titulo}</div>
+                        <div class="nc-value" style="color: {cor_card}; font-size: 1.5rem;">R$ {valor_total:,.2f}</div>
+                        <div class="nc-sub" style="text-align: left; margin-top: 10px;">
+                            <span style="font-weight:bold;">Composição por competência:</span><br>{breakdown_str}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
+                st.markdown("### 📋 Centros de Custo Oficiais")
+                
+                # --- 1. PROCESSAMENTO DOS CENTROS OFICIAIS ---
+                for centro in colunas_centros_custo:
+                    if centro == "Outros": continue # Tratamos outros separadamente
+                    
+                    df_centro = df_dsm[df_dsm[centro] > 0]
+                    if not df_centro.empty:
+                        total_geral = df_centro[centro].sum()
+                        
+                        # Breakdown por competência
+                        breakdown = df_centro.groupby('Competência')[centro].sum().to_dict()
+                        
+                        gerar_card_custo(centro, total_geral, breakdown)
+
+                # --- 2. PROCESSAMENTO DOS "OUTROS" (GRUPO VI) ---
+                st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
+                
+                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outros", na=False)]
+                if not df_outros.empty:
+                    # Agrupa pelo "Grupo" ou "Descrição" que o senhor definiu
+                    grupos_outros = df_outros.groupby(['Grupo', 'Descrição'])
+                    
+                    for (grupo, desc), dados in grupos_outros:
+                        total_g = dados['Custo total'].sum()
+                        qtd_g = dados['Quantidade'].sum()
+                        
+                        # Breakdown por competência para este subgrupo
+                        breakdown = dados.groupby('Competência')['Custo total'].sum().to_dict()
+                        
+                        # Card especial para outros
+                        st.markdown(f"""
+                        <div class="neon-card" style="border-bottom-color: #ff9100;">
+                            <div class="nc-title" style="color: #ff9100;">{grupo} - {desc}</div>
+                            <div class="nc-value" style="color: #ff6d00; font-size: 1.5rem;">R$ {total_g:,.2f}</div>
+                            <div class="nc-sub">Quantidade Total: {qtd_g}</div>
+                            <div class="nc-sub" style="text-align: left; margin-top: 10px;">
+                                <span style="font-weight:bold;">Distribuição:</span><br>
+                                {"".join([f"• {k}: R$ {v:,.2f}<br>" for k, v in breakdown.items()])}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 
 
