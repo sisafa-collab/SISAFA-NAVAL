@@ -3210,7 +3210,7 @@ else:
             </style>
             """, unsafe_allow_html=True)
 
-            st.header("⚡ Painel Tático de Execução Financeira")
+            st.header("⚡ Painel de Execução Financeira")
             st.info("Monitoramento em tempo real do fluxo de empenho, liquidação e pagamento.")
 
             # --- 1. PREPARAÇÃO DOS DADOS GERAIS ---
@@ -3329,56 +3329,231 @@ else:
 
             st.divider()
 
-            st.divider()
 
             # ==========================================
-            # 📈 GRÁFICO ANALÍTICO: AGUARDANDO NE
+            # ==========================================
+            # 📈 GRÁFICOS ANALÍTICOS GERAIS
             # ==========================================
             import plotly.express as px
 
-            # Garante que as variáveis col_mes e df_s4 existam neste ponto
-            if not df_s4.empty:
-                # Agrupa pelos valores de ano e mês para preparar a ordenação
-                df_ne = df_s4.groupby(['ano_competencia', col_mes, 'competencia_grafico']).size().reset_index(name='Qtd')
-                
-                # Converte para numérico temporariamente para ordenar perfeitamente a linha do tempo
-                df_ne['ano_num'] = pd.to_numeric(df_ne['ano_competencia'], errors='coerce')
-                df_ne['mes_num'] = pd.to_numeric(df_ne[col_mes], errors='coerce')
-                
-                # Ordena ascendente. No Plotly (barras horizontais), o 1º item fica na parte de baixo do gráfico.
-                df_ne = df_ne.sort_values(by=['ano_num', 'mes_num'], ascending=True)
+            cg1, cg2 = st.columns(2)
 
-                fig2 = px.bar(
-                    df_ne, x='Qtd', y='competencia_grafico', orientation='h',
-                    title="📄 Aguardando Emissão de NE (Por Competência)",
-                    labels={'Qtd': 'Quantidade de Processos', 'competencia_grafico': 'Competência'},
-                    color_discrete_sequence=['#d500f9'],
-                    template="plotly_white",
-                    text='Qtd' # Insere o número dentro da barra (estilo tecnológico)
-                )
+            with cg1:
+                # 1. Volume Financeiro por Competência (Status 3 a 8)
+                df_grafico = df_e[df_e['status'].isin([3,4,5,6,7,8])].copy()
+                if not df_grafico.empty:
+                    df_vol = df_grafico.groupby('competencia_grafico')['v_liq_num'].sum().reset_index()
+                    fig1 = px.bar(
+                        df_vol, x='competencia_grafico', y='v_liq_num', 
+                        title="💰 Volume Financeiro na Execução por Competência",
+                        labels={'v_liq_num': 'Valor Líquido (R$)', 'competencia_grafico': 'Competência'},
+                        color_discrete_sequence=['#00e5ff'],
+                        template="plotly_white"
+                    )
+                    fig1.update_traces(marker_line_color='#00b8d4', marker_line_width=1.5, opacity=0.8)
+                    fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
+                    st.plotly_chart(fig1, use_container_width=True)
+                else:
+                    st.info("Sem dados suficientes para o gráfico de Volume.")
+
+            with cg2:
+                # 2. Status 4 (Aguard. NE) por Competência COM VALOR FINANCEIRO
+                if not df_s4.empty:
+                    # Agrupa contando a quantidade E somando o valor líquido
+                    df_ne = df_s4.groupby(['ano_competencia', col_mes, 'competencia_grafico']).agg(
+                        Qtd=('nup', 'count'),
+                        Valor=('v_liq_num', 'sum')
+                    ).reset_index()
+                    
+                    # Converte para numérico temporariamente para ordenar a linha do tempo (de baixo para cima)
+                    df_ne['ano_num'] = pd.to_numeric(df_ne['ano_competencia'], errors='coerce')
+                    df_ne['mes_num'] = pd.to_numeric(df_ne[col_mes], errors='coerce')
+                    df_ne = df_ne.sort_values(by=['ano_num', 'mes_num'], ascending=True)
+
+                    # Cria o texto tecnológico para mostrar dentro da barra (Qtd + Valor)
+                    df_ne['texto_barra'] = df_ne.apply(lambda row: f"{row['Qtd']} faturas | R$ {row['Valor']:,.2f}", axis=1)
+
+                    fig2 = px.bar(
+                        df_ne, x='Qtd', y='competencia_grafico', orientation='h',
+                        title="📄 Aguard. Emissão de NE (Qtd e Valor Total)",
+                        labels={'Qtd': 'Quantidade', 'competencia_grafico': 'Competência', 'texto_barra': 'Resumo'},
+                        color_discrete_sequence=['#d500f9'],
+                        template="plotly_white",
+                        text='texto_barra',
+                        hover_data={'Valor': ':,.2f'}
+                    )
+                    
+                    fig2.update_traces(
+                        marker_line_color='#aa00ff', marker_line_width=1.5, opacity=0.8, 
+                        textposition='inside',
+                        textfont=dict(color='white', size=13, family='Arial')
+                    )
+                    
+                    fig2.update_layout(
+                        plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10),
+                        yaxis={'categoryorder': 'array', 'categoryarray': df_ne['competencia_grafico']}
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.success("🎉 Não há processos aguardando Nota de Empenho!")
+
+            # =================================================================
+            # 🏢 PAINEL DE ANÁLISE FINANCEIRA POR EMPRESA (TÁTICO)
+            # =================================================================
+            st.divider()
+            st.header("🏢 Painel de Análise Financeira por Empresa (OSE)")
+            
+            # Pega a lista de todas as empresas únicas no radar da execução
+            lista_empresas = sorted(df_e['ose'].dropna().unique())
+            ose_sel = st.selectbox("Selecione a Organização para gerar o Dossiê:", [""] + lista_empresas, key="sel_ose_execucao")
+
+            if ose_sel:
+                # Filtra o dataframe apenas para a OSE selecionada
+                df_ose_exec = df_e[df_e['ose'] == ose_sel].copy()
                 
-                # Estilização da borda e texto
-                fig2.update_traces(
-                    marker_line_color='#aa00ff', 
-                    marker_line_width=1.5, 
-                    opacity=0.8, 
-                    textposition='inside',
-                    textfont=dict(color='white', size=14, family='Arial Black')
-                )
+                # Mapeamento oficial dos status
+                mapa_status_nomes = {                
+                    1: "1. 📥 Cadastrada", 2: "2. 🩺 Em Auditagem", 3: "3. ✅ Auditada (Aguard. Execução)",
+                    4: "4. 💰 Aguardando NE", 5: "5. 🏦 Empenhada", 6: "6. 📝 Aguardando Fiscal",
+                    7: "7. ⏳ Em liquidação", 8: "8. 🖥️ Liquidada", 9: "9. 💸 Paga"
+                }
+                df_ose_exec['etapa_nome'] = df_ose_exec['status'].map(mapa_status_nomes)
+
+                c_metric1, c_metric2 = st.columns(2)
+                tramito_ose = df_ose_exec[df_ose_exec['status'] < 9]['v_liq_num'].sum()
+                qtd_ativos_ose = len(df_ose_exec[df_ose_exec['status'] < 9])
                 
-                # Trava a ordem do eixo Y para respeitar exatamente o nosso dataframe
-                fig2.update_layout(
-                    plot_bgcolor="rgba(0,0,0,0)", 
-                    margin=dict(t=50, l=10, r=10, b=10),
-                    yaxis={'categoryorder': 'array', 'categoryarray': df_ne['competencia_grafico']}
-                )
+                c_metric1.markdown(f"""
+                <div class="neon-card card-cyan" style="padding:15px; margin-top:10px;">
+                    <div class="nc-title">Volume Financeiro em Trâmite</div>
+                    <div class="nc-value" style="font-size:1.8rem;">R$ {tramito_ose:,.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Exibe o gráfico ocupando toda a largura disponível
-                st.plotly_chart(fig2, use_container_width=True)
-            else:
-                st.success("🎉 Não há processos aguardando Nota de Empenho!")        
+                c_metric2.markdown(f"""
+                <div class="neon-card card-purple" style="padding:15px; margin-top:10px;">
+                    <div class="nc-title">Processos Ativos</div>
+                    <div class="nc-value" style="font-size:1.8rem;">{qtd_ativos_ose} faturas</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # --- GRÁFICO DE PIZZA (Montante Financeiro por Etapa) ---
+                st.markdown("#### 🍩 Distribuição do Montante Financeiro por Etapa")
+                df_pizza = df_ose_exec[df_ose_exec['status'] < 9].groupby('etapa_nome')['v_liq_num'].sum().reset_index()
+                
+                if not df_pizza.empty:
+                    fig_pie = px.pie(
+                        df_pizza, values='v_liq_num', names='etapa_nome',
+                        hole=0.4,
+                        color_discrete_sequence=['#00e5ff', '#d500f9', '#00e676', '#ff9100', '#ff1744', '#2979ff'],
+                        template="plotly_white"
+                    )
+                    # Formata para aparecer o valor em R$ no gráfico
+                    fig_pie.update_traces(
+                        textposition='outside', 
+                        texttemplate='<b>%{label}</b><br>R$ %{value:,.2f} (%{percent})',
+                        marker=dict(line=dict(color='#ffffff', width=2))
+                    )
+                    fig_pie.update_layout(height=450, showlegend=False, margin=dict(l=10, r=10, t=30, b=10))
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.info("Não há volume financeiro pendente para esta OSE.")
+
+                # =================================================================
+                # 📧 GERADOR DE PANORAMA OFICIAL PARA O FORNECEDOR
+                # =================================================================
+                st.markdown("#### ✉️ Comunicação com a OSE")
+                st.info("Gere o texto padrão atualizado para responder a questionamentos da empresa.")
+
+                if st.button(f"📑 Gerar Panorama de Pagamento para {ose_sel}", use_container_width=True, type="primary"):
+                    with st.spinner("Sincronizando dados e formatando panorama oficial..."):
+                        
+                        # Definição das explicações didáticas
+                        explica_etapa = {
+                            1: "Registro e conferência inicial da documentação em nossa Secretaria.",
+                            2: "Divisão de Auditoria recebeu as faturas e iniciou a análise técnica detalhada dos serviços e materiais cobrados.",
+                            3: "Auditoria técnica concluída com sucesso e aguardando o recebimento no setor financeiro.",
+                            4: "Aguardando a reserva orçamentária, com vistas à emissão da Nota de Empenho.",
+                            5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
+                            6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão dos documentos fiscais pertinentes.",
+                            7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo gestor e, posteriormente, encaminhada para a Seção de Execução Financeira.",
+                            8: "Liquidação da Nota Fiscal no Sistema Integrado de Administração Financeira do Governo Federal (SIAFI) 🖥️, conforme o estabelecido no artigo 63 da Lei 4.320/64.",
+                            9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil após a aprovação para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários devidos."
+                        }
+
+                        meses_map = {1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN", 7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"}
+
+                        # Garante a coluna de data para ordenação
+                        df_ose_exec['dt_ordem'] = pd.to_datetime(df_ose_exec['dt_mov'], errors='coerce')
+                        
+                        resumo_corpo = ""
+                        etapas_ativas = sorted(df_ose_exec['status'].unique())
+                        
+                        for st_id in etapas_ativas:
+                            if st_id >= 9: continue # Ignora os já pagos
+                            
+                            df_etapa = df_ose_exec[df_ose_exec['status'] == st_id].copy()
+                            
+                            if not df_etapa.empty:
+                                nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                total_etapa = df_etapa['v_liq_num'].sum()
+                                descricao = explica_etapa.get(st_id, "")
+                                
+                                resumo_corpo += f"\n🔹 **{nome_da_etapa.upper()}**\n"
+                                resumo_corpo += f"   - {descricao}\n"
+                                resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
+                                
+                                # Quebra por competência dentro da etapa
+                                competencias = df_etapa['competencia_grafico'].unique()
+                                for comp in competencias:
+                                    df_comp = df_etapa[df_etapa['competencia_grafico'] == comp]
+                                    lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                    subtotal_comp = df_comp['v_liq_num'].sum()
+                                    
+                                    # Ajusta o rótulo (Ex: 5/2026 -> MAI/2026)
+                                    try:
+                                        mes_num, ano_str = comp.split('/')
+                                        mes_sigla = meses_map.get(int(mes_num), mes_num)
+                                        rotulo_entrada = f"{mes_sigla}/{ano_str}"
+                                    except:
+                                        rotulo_entrada = comp
+
+                                    resumo_corpo += f"     ➔ Competência {rotulo_entrada}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                
+                                resumo_corpo += "───────────────────────────────────────\n"
+
+                        msg_final = f"""Prezado (a) representante da empresa {ose_sel},
+
+Cumprimentando-o (a) cordialmente, seguem abaixo algumas orientações, bem como um panorama atualizado de seus processos ora em trâmite no Hospital Naval de Brasília (HNBra):
+
+📌 (i) DO CRITÉRIO DE PAGAMENTO
+Este hospital realiza a emissão das Notas de Empenho em estrita ordem cronológica, mediante disponibilidade orçamentária, a partir da data da entrada da(s) fatura(s) em nossa Secretaria. Nesse contexto, é útil uma análise literal da Lei 14.133/21 (Art. 141): 
+                        
+"No dever de pagamento pela Administração, será observada a ordem cronológica para cada fonte diferenciada de recursos [...]"
+
+📊 (ii) COMPOSIÇÃO ATUAL DOS PROCESSOS
+{resumo_corpo}
+🚀 (iii) PRÓXIMOS PASSOS
+As faturas supracitadas seguem em fluxo contínuo de processamento. Assim que concluídas as etapas de conferência e reserva orçamentária, as Notas de Empenho correspondentes a cada fatura serão encaminhadas para a respectiva emissão de Nota Fiscal e posterior liquidação.
+
+Reitera-se nosso compromisso com a transparência e eficiência em nossos atos administrativos. 
+
+Estamos à disposição para eventuais esclarecimentos. Gratos pela distinta parceria! 🤝⚓🇧🇷 
+
+Cordialmente,
+"""
+                        st.session_state['panorama_gerado_exec'] = msg_final
+
+                # Exibe o panorama pronto para cópia
+                if 'panorama_gerado_exec' in st.session_state:
+                    st.success("✅ **Panorama Gerencial pronto para cópia!** Basta clicar no ícone de 'Copy' no canto superior direito do bloco abaixo. 🫡🇧🇷")
+                    st.code(st.session_state['panorama_gerado_exec'], language="text")
         
         
+
+
+
+
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
             st.subheader("🔍 Consultas")
