@@ -3372,9 +3372,10 @@ else:
             
             # Preparação de Datas para cálculo de tempo nas fases
             # Usando a coluna 13 que no seu histórico é a data de atualização
-            df_e['dt_mov'] = pd.to_datetime(df_e.iloc[:, 13], dayfirst=True, errors='coerce')
+            df_e['dt_mov'] = pd.to_datetime(df_e.iloc[:, 14], dayfirst=True, errors='coerce')
             hoje = datetime.now()
             df_e['dias_na_fase'] = (hoje - df_e['dt_mov']).dt.days.fillna(0).astype(int)
+            
             
             # Criação do campo "Competência Unificada" para os gráficos
             
@@ -3421,7 +3422,7 @@ else:
             
             c2.markdown(f"""
             <div class="neon-card card-purple">
-                <div class="nc-title">2. Aguardando Emissão de NE</div>
+                <div class="nc-title">2. Aguardando Emissão de NE ⌛</div>
                 <div class="nc-value">{len(df_s4)} Faturas</div>
                 <div class="nc-sub">Volume: R$ {v_s4:,.2f}</div>
                 <div class="nc-sub">Prontos para empenho</div>
@@ -3451,7 +3452,7 @@ else:
             df_s6 = df_e[df_e['status'] == 6]
             c4.markdown(f"""
             <div class="neon-card card-orange">
-                <div class="nc-title">4. Pendente Aceite Fiscais</div>
+                <div class="nc-title">4. Pendente de entrega dos Fiscais</div>
                 <div class="nc-value">{len(df_s6)} Faturas</div>
                 <div class="nc-sub">Caixa de entrada da fiscalização</div>
             </div>
@@ -3462,7 +3463,7 @@ else:
             t_s7 = df_s7['dias_na_fase'].mean() if not df_s7.empty else 0
             c5.markdown(f"""
             <div class="neon-card card-cyan">
-                <div class="nc-title">5. Em Liquidação</div>
+                <div class="nc-title">5. Em Liquidação (NF entregue, mas não liquidada!)</div>
                 <div class="nc-value">{len(df_s7)} Faturas</div>
                 <div class="nc-sub">⏳ Média de {t_s7:.0f} dias nesta fase</div>
             </div>
@@ -3475,7 +3476,7 @@ else:
             <div class="neon-card card-green">
                 <div class="nc-title">6. Pronto para Pagar</div>
                 <div class="nc-value">{len(df_s8)} Faturas</div>
-                <div class="nc-sub">Volume a liquidar: R$ {v_s8:,.2f}</div>
+                <div class="nc-sub">Volume a pagar bruto: R$ {v_s8:,.2f}</div>
             </div>
             """, unsafe_allow_html=True)
 
