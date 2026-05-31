@@ -60,11 +60,14 @@ caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
+caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
+
+icone = Image.open(caminho_favicon)
 
 st.set_page_config(
-    page_title="SISAFA-NAVAL (HNBra)", 
+    page_title="Sistema de Acompanhamento de Faturas do Hospital Naval de Brasília (SISAFA NAVAL)", 
     layout="centered", 
-    page_icon="⚓",
+    page_icon=icone,
     initial_sidebar_state="expanded" 
 )
 
