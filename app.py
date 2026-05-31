@@ -3329,47 +3329,54 @@ else:
 
             st.divider()
 
+            st.divider()
+
             # ==========================================
-            # 📈 GRÁFICOS ANALÍTICOS (Estilo clean tecnológico)
+            # 📈 GRÁFICO ANALÍTICO: AGUARDANDO NE
             # ==========================================
             import plotly.express as px
 
-            cg1, cg2 = st.columns(2)
+            # Garante que as variáveis col_mes e df_s4 existam neste ponto
+            if not df_s4.empty:
+                # Agrupa pelos valores de ano e mês para preparar a ordenação
+                df_ne = df_s4.groupby(['ano_competencia', col_mes, 'competencia_grafico']).size().reset_index(name='Qtd')
+                
+                # Converte para numérico temporariamente para ordenar perfeitamente a linha do tempo
+                df_ne['ano_num'] = pd.to_numeric(df_ne['ano_competencia'], errors='coerce')
+                df_ne['mes_num'] = pd.to_numeric(df_ne[col_mes], errors='coerce')
+                
+                # Ordena ascendente. No Plotly (barras horizontais), o 1º item fica na parte de baixo do gráfico.
+                df_ne = df_ne.sort_values(by=['ano_num', 'mes_num'], ascending=True)
 
-            with cg1:
-                # 1. Volume Financeiro por Competência (Status 3 a 8)
-                df_grafico = df_e[df_e['status'].isin([3,4,5,6,7,8])].copy()
-                if not df_grafico.empty:
-                    df_vol = df_grafico.groupby('competencia_grafico')['v_liq_num'].sum().reset_index()
-                    fig1 = px.bar(
-                        df_vol, x='competencia_grafico', y='v_liq_num', 
-                        title="💰 Volume Financeiro na Execução por Competência",
-                        labels={'v_liq_num': 'Valor Líquido (R$)', 'competencia_grafico': 'Competência'},
-                        color_discrete_sequence=['#00e5ff'],
-                        template="plotly_white"
-                    )
-                    fig1.update_traces(marker_line_color='#00b8d4', marker_line_width=1.5, opacity=0.8)
-                    fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
-                    st.plotly_chart(fig1, use_container_width=True)
-                else:
-                    st.info("Sem dados suficientes para o gráfico de Volume.")
-
-            with cg2:
-                # 2. Status 4 (Aguard. NE) por Competência
-                if not df_s4.empty:
-                    df_ne = df_s4.groupby('competencia_grafico').size().reset_index(name='Qtd')
-                    fig2 = px.bar(
-                        df_ne, x='Qtd', y='competencia_grafico', orientation='h',
-                        title="📄 Aguardando Emissão de NE (Por Competência)",
-                        labels={'Qtd': 'Quantidade de Processos', 'competencia_grafico': 'Competência'},
-                        color_discrete_sequence=['#d500f9'],
-                        template="plotly_white"
-                    )
-                    fig2.update_traces(marker_line_color='#aa00ff', marker_line_width=1.5, opacity=0.8)
-                    fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", margin=dict(t=50, l=10, r=10, b=10))
-                    st.plotly_chart(fig2, use_container_width=True)
-                else:
-                    st.success("🎉 Não há processos aguardando Nota de Empenho!")        
+                fig2 = px.bar(
+                    df_ne, x='Qtd', y='competencia_grafico', orientation='h',
+                    title="📄 Aguardando Emissão de NE (Por Competência)",
+                    labels={'Qtd': 'Quantidade de Processos', 'competencia_grafico': 'Competência'},
+                    color_discrete_sequence=['#d500f9'],
+                    template="plotly_white",
+                    text='Qtd' # Insere o número dentro da barra (estilo tecnológico)
+                )
+                
+                # Estilização da borda e texto
+                fig2.update_traces(
+                    marker_line_color='#aa00ff', 
+                    marker_line_width=1.5, 
+                    opacity=0.8, 
+                    textposition='inside',
+                    textfont=dict(color='white', size=14, family='Arial Black')
+                )
+                
+                # Trava a ordem do eixo Y para respeitar exatamente o nosso dataframe
+                fig2.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)", 
+                    margin=dict(t=50, l=10, r=10, b=10),
+                    yaxis={'categoryorder': 'array', 'categoryarray': df_ne['competencia_grafico']}
+                )
+                
+                # Exibe o gráfico ocupando toda a largura disponível
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.success("🎉 Não há processos aguardando Nota de Empenho!")        
         
         
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
