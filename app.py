@@ -2503,18 +2503,24 @@ else:
                 st.plotly_chart(fig_saude, use_container_width=True)
 
             # =======================================================
+            # =======================================================
             # === APOIO À DIRETORIA DE SAÚDE DA MARINHA (DSM) ===
             # =======================================================
             st.divider()
             col_dsm1, col_dsm2 = st.columns([1, 4])
             with col_dsm1:
-                # Carregando o escudo que o senhor mencionou
                 if os.path.exists(caminho_escudo_dsm):
                     st.image(caminho_escudo_dsm, width=100)
             with col_dsm2:
-                st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM))")
-            
-            # Filtro de Período (Multiselect para DSM)
+                st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
+
+            # 1. Padronização Robusta das colunas antes de qualquer cálculo
+            df_aud.columns = [str(c).strip() for c in df_aud.columns]
+            # Renomeia se existir variação de 'Custo total' ou 'Outros' para padronizar
+            cols_rename = {c: 'Outros' for c in df_aud.columns if 'custo total' in c.lower()}
+            df_aud.rename(columns=cols_rename, inplace=True)
+
+            # Filtro de Período
             comp_unicas = sorted(df_aud['Competência'].unique().tolist())
             periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação DSM:", comp_unicas, default=comp_unicas[-1:])
 
@@ -2523,61 +2529,55 @@ else:
             else:
                 df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
                 
-                # Definindo cores Neon Sisafa
-                cor_card = "#2e6b54" 
-                
-                # Função para gerar os cards de cada centro de custo
+                # Função de Card Estilizado
                 def gerar_card_custo(titulo, valor_total, detalhamento_dict):
-                    breakdown_str = "".join([f"• {k}: R$ {v:,.2f}<br>" for k, v in detalhamento_dict.items() if v > 0])
+                    # Transforma o dict em lista formatada
+                    breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(detalhamento_dict.items())])
                     st.markdown(f"""
-                    <div class="neon-card" style="border-bottom-color: {cor_card};">
-                        <div class="nc-title" style="color: {cor_card};">{titulo}</div>
-                        <div class="nc-value" style="color: {cor_card}; font-size: 1.5rem;">R$ {valor_total:,.2f}</div>
-                        <div class="nc-sub" style="text-align: left; margin-top: 10px;">
-                            <span style="font-weight:bold;">Composição por competência:</span><br>{breakdown_str}
+                    <div class="neon-card" style="border-bottom-color: #2e6b54; background: #f8faf9;">
+                        <div class="nc-title" style="color: #2e6b54;">{titulo}</div>
+                        <div class="nc-value" style="color: #2e6b54; font-size: 1.6rem;">R$ {valor_total:,.2f}</div>
+                        <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.8rem;">
+                            {breakdown_html}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
 
+                # --- 1. PROCESSAMENTO CENTROS DE CUSTO (Colunas) ---
                 st.markdown("### 📋 Centros de Custo Oficiais")
-                
-                # --- 1. PROCESSAMENTO DOS CENTROS OFICIAIS ---
-                for centro in colunas_centros_custo:
-                    if centro == "Outros": continue # Tratamos outros separadamente
+                # Usa a lista_oficial para garantir a ordem
+                for centro in [c for c in lista_oficial if c in df_dsm.columns]:
+                    if centro == "Outros": continue 
                     
+                    # Filtra apenas onde houve valor
                     df_centro = df_dsm[df_dsm[centro] > 0]
                     if not df_centro.empty:
                         total_geral = df_centro[centro].sum()
-                        
-                        # Breakdown por competência
                         breakdown = df_centro.groupby('Competência')[centro].sum().to_dict()
-                        
                         gerar_card_custo(centro, total_geral, breakdown)
 
-                # --- 2. PROCESSAMENTO DOS "OUTROS" (GRUPO VI) ---
+                # --- 2. PROCESSAMENTO GRUPO VI (Linhas de "Outros") ---
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
+                df_outros = df_dsm[df_dsm['Grupo'].notna() & df_dsm['Grupo'].str.contains("Outros", na=False)]
                 
-                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outros", na=False)]
                 if not df_outros.empty:
-                    # Agrupa pelo "Grupo" ou "Descrição" que o senhor definiu
+                    # Agrupa pelo que é dinâmico (Grupo/Descrição) + Competência
                     grupos_outros = df_outros.groupby(['Grupo', 'Descrição'])
                     
                     for (grupo, desc), dados in grupos_outros:
-                        total_g = dados['Custo total'].sum()
+                        total_g = dados['Outros'].sum() # Referência padronizada
                         qtd_g = dados['Quantidade'].sum()
                         
-                        # Breakdown por competência para este subgrupo
-                        breakdown = dados.groupby('Competência')['Custo total'].sum().to_dict()
+                        # Breakdown por competência para este grupo específico
+                        breakdown = dados.groupby('Competência')['Outros'].sum().to_dict()
                         
-                        # Card especial para outros
                         st.markdown(f"""
-                        <div class="neon-card" style="border-bottom-color: #ff9100;">
+                        <div class="neon-card" style="border-bottom-color: #ff9100; background: #fffcf8;">
                             <div class="nc-title" style="color: #ff9100;">{grupo} - {desc}</div>
-                            <div class="nc-value" style="color: #ff6d00; font-size: 1.5rem;">R$ {total_g:,.2f}</div>
+                            <div class="nc-value" style="color: #ff6d00; font-size: 1.6rem;">R$ {total_g:,.2f}</div>
                             <div class="nc-sub">Quantidade Total: {qtd_g}</div>
-                            <div class="nc-sub" style="text-align: left; margin-top: 10px;">
-                                <span style="font-weight:bold;">Distribuição:</span><br>
-                                {"".join([f"• {k}: R$ {v:,.2f}<br>" for k, v in breakdown.items()])}
+                            <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.8rem;">
+                                {"".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown.items())])}
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
