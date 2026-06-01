@@ -2676,57 +2676,44 @@ else:
                 st.write("")
                 
                 # =======================================================
-                # 2. RENDERIZAÇÃO DOS 8 GRUPOS (Agregador Inteligente)
+                # =======================================================
+                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS" (VERSÃO À PROVA DE ERRO)
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
                 
-                # Filtra qualquer linha que contenha "Outro" na coluna Grupo, ignorando nulos
-                df_outros = df_dsm[df_dsm['Grupo'].notna() & df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
-
-                if df_outros.empty:
-                    st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
+                # Identifica a coluna de custo dinamicamente
+                # Busca qualquer coluna que contenha "custo" ou "total" no nome
+                cols_financeiras = [c for c in df_outros.columns if 'custo' in c.lower() or 'total' in c.lower()]
+                col_custo = cols_financeiras[0] if cols_financeiras else None
+                
+                if not col_custo:
+                    st.error("Não foi possível localizar a coluna de custos na planilha.")
                 else:
-                    # Função para categorizar dinamicamente (Blindada contra erros de texto)
-                    def categorizar_grupo(texto):
-                        if pd.isna(texto): return "Outros custos não especificados"
-                        t = str(texto).lower()
-                        if "medicamento" in t: return "Outros medicamentos"
-                        if "exame" in t and "cardi" not in t and "oftal" not in t: return "Outros exames"
-                        if "sadt" in t or ("procedimento" in t and "odont" not in t and "oftal" not in t and "card" not in t): return "Outros procedimentos (SADT)"
-                        if "odontol" in t: return "Outros procedimentos (assistência odontológica)"
-                        if "oftal" in t: return "Outros procedimentos oftalmológicos"
-                        if "cardi" in t and "procedimento" in t: return "Outros procedimentos cardiológicos"
-                        if "cardi" in t and "exame" in t: return "Outros exames cardiológicos"
-                        return "Outros custos não especificados"
-
-                    # Aplica a categoria e garante que o custo seja numérico
-                    df_outros['Grupo_Consolidado'] = df_outros['Grupo'].apply(categorizar_grupo)
-                    df_outros['Custo_Total_Calc'] = pd.to_numeric(df_outros['Custo_Total_Calc'], errors='coerce').fillna(0)
+                    # Limpeza forçada na coluna identificada
+                    df_outros[col_custo] = df_outros[col_custo].apply(limpar_valor)
                     
-                    grupos_unicos = sorted(df_outros['Grupo_Consolidado'].unique().tolist())
+                    grupos_presentes = df_outros['Grupo'].unique().tolist()
                     
-                    # Renderiza em Grid de 3 colunas
-                    for i in range(0, len(grupos_unicos), 3):
+                    for i in range(0, len(grupos_presentes), 3):
                         cols_outros = st.columns(3)
-                        for j, g_nome in enumerate(grupos_unicos[i:i+3]):
-                            df_g = df_outros[df_outros['Grupo_Consolidado'] == g_nome]
-                            cor_hex = mapa_cores_outros.get(g_nome, "#cccccc")
+                        for j, g_nome in enumerate(grupos_presentes[i:i+3]):
+                            df_g = df_outros[df_outros['Grupo'] == g_nome]
+                            cor_hex = obter_cor_outros(g_nome)
                             
-                            # Soma total do grupo
-                            total_grupo = df_g['Custo_Total_Calc'].sum()
+                            # Uso da coluna dinâmica 'col_custo'
+                            total_grupo = df_g[col_custo].sum()
                             
-                            # Agregação por Descrição
+                            # Agregação por Descrição usando a coluna dinâmica
                             agg_desc = df_g.groupby('Descrição').agg({
                                 'Quantidade': 'sum', 
-                                'Custo_Total_Calc': 'sum'
+                                col_custo: 'sum'
                             }).reset_index()
                             
-                            # HTML das descrições compiladas
-                            desc_html = "".join([f"• {row['Descrição']} ({int(row['Quantidade'])} un): R$ {row['Custo_Total_Calc']:,.2f}<br>" 
+                            desc_html = "".join([f"• {row['Descrição']} ({int(row['Quantidade'])} un): R$ {row[col_custo]:,.2f}<br>" 
                                                 for _, row in agg_desc.iterrows()])
                             
-                            # Breakdown por competência
-                            brk = df_g.groupby('Competência')['Custo_Total_Calc'].sum()
+                            # Breakdown por competência usando a coluna dinâmica
+                            brk = df_g.groupby('Competência')[col_custo].sum()
                             breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" 
                                                     for k, v in brk.items()])
 
