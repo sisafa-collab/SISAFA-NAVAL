@@ -2676,55 +2676,67 @@ else:
                 st.write("")
                 
                 # =======================================================
-                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS" (TOTALMENTE BLINDADO)
+                # 2. RENDERIZAÇÃO DOS 8 GRUPOS (Agregador Inteligente)
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
                 
-                # Agora caça de forma maleável (Qualquer linha que contenha "Outro")
-                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)]
+                # Filtra qualquer linha que contenha "Outro" na coluna Grupo
+                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
 
-                if df_outros.empty or 'Custo_Total_Calc' not in df_outros.columns:
-                    st.info("Nenhum lançamento no Grupo VI para o mês da auditoria selecionado.")
+                if df_outros.empty:
+                    st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
                 else:
-                    grupos_presentes = df_outros['Grupo'].unique().tolist()
+                    # Função para categorizar dinamicamente o grupo baseada no texto da planilha
+                    def categorizar_grupo(texto):
+                        texto = str(texto).lower()
+                        if "medicamento" in texto: return "Outros medicamentos"
+                        if "exame" in texto and "cardi" not in texto and "oftal" not in texto: return "Outros exames"
+                        if "sadt" in texto or "procedimento" in texto and "odont" not in texto and "oftal" not in texto and "card" not in texto: return "Outros procedimentos (SADT)"
+                        if "odontol" in texto: return "Outros procedimentos (assistência odontológica)"
+                        if "não especificado" in texto: return "Outros custos não especificados"
+                        if "oftal" in texto: return "Outros procedimentos oftalmológicos"
+                        if "cardi" in texto and "procedimento" in texto: return "Outros procedimentos cardiológicos"
+                        if "cardi" in texto and "exame" in texto: return "Outros exames cardiológicos"
+                        return "Outros custos não especificados"
+
+                    # Aplica a categoria padrão
+                    df_outros['Grupo_Consolidado'] = df_outros['Grupo'].apply(categorizar_grupo)
                     
-                    for i in range(0, len(grupos_presentes), 3):
+                    grupos_unicos = sorted(df_outros['Grupo_Consolidado'].unique().tolist())
+                    
+                    # Renderiza em Grid de 3 colunas
+                    for i in range(0, len(grupos_unicos), 3):
                         cols_outros = st.columns(3)
-                        
-                        for j, grupo in enumerate(grupos_presentes[i:i+3]):
-                            df_g = df_outros[df_outros['Grupo'] == grupo]
-                            cor_hex = obter_cor_outros(grupo)
+                        for j, g_nome in enumerate(grupos_unicos[i:i+3]):
+                            df_g = df_outros[df_outros['Grupo_Consolidado'] == g_nome]
+                            cor_hex = mapa_cores_outros.get(g_nome, "#cccccc")
                             
-                            valor_grupo = df_g['Custo_Total_Calc'].sum()
+                            # Soma total do grupo
+                            total_grupo = df_g['Custo_Total_Calc'].sum()
                             
-                            # Agrupamento cronológico correto da competência para Outros
-                            brk_df = df_g.groupby(['sort_comp', 'Competência'])['Custo_Total_Calc'].sum().reset_index()
-                            brk_df = brk_df[brk_df['Custo_Total_Calc'] > 0].sort_values('sort_comp')
-                            breakdown_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row['Custo_Total_Calc']:,.2f}</b><br>" for _, row in brk_df.iterrows()])
+                            # Agregação por Descrição (Soma tudo o que tem a mesma descrição)
+                            agg_desc = df_g.groupby('Descrição').agg({
+                                'Quantidade': 'sum', 
+                                'Custo_Total_Calc': 'sum'
+                            }).reset_index()
                             
-                            # Compilação e formatação visual dos Itens Descritos
-                            agg_desc = df_g.groupby('Descrição').agg({'Quantidade': 'sum', 'Custo_Total_Calc': 'sum'}).reset_index()
-                            desc_html = "".join([f"• {row['Descrição']} (Qtd: {row['Quantidade']}): R$ {row['Custo_Total_Calc']:,.2f}<br>" for _, row in agg_desc.iterrows()])
+                            # HTML das descrições compiladas
+                            desc_html = "".join([f"• {row['Descrição']} ({row['Quantidade']} un): R$ {row['Custo_Total_Calc']:,.2f}<br>" 
+                                                for _, row in agg_desc.iterrows()])
                             
-                            nups_relacionados = df_g['nup'].unique()
-                            df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
-                            
-                            v_ap = df_rel['valor_apresentado'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_apresentado' in df_rel.columns else 0
-                            v_gl = df_rel['glosa'].apply(limpar_valor).sum() if not df_rel.empty and 'glosa' in df_rel.columns else 0
-                            v_lq = df_rel['valor_liquido'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_liquido' in df_rel.columns else 0
-                            
+                            # Breakdown por competência
+                            brk = df_g.groupby('Competência')['Custo_Total_Calc'].sum()
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" 
+                                                    for k, v in brk.items()])
+
                             with cols_outros[j]:
                                 st.markdown(f"""
                                 <div class="neon-card" style="border-bottom-color: {cor_hex}; box-shadow: 0 10px 20px {cor_hex}33;">
-                                    <div class="nc-title" style="color: {cor_hex}; text-shadow: 0 0 5px {cor_hex}80; min-height: 40px;">{grupo}</div>
-                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {valor_grupo:,.2f}</div>
-                                    <div class="nc-sub" style="font-size: 0.75rem; margin-bottom: 10px;">
-                                        <b style="color:#333;">Total nas Faturas do Lote:</b><br>
-                                        Apres: R$ {v_ap:,.2f} | Glosa: R$ {v_gl:,.2f}<br>Líquido Faturas: R$ {v_lq:,.2f}
-                                    </div>
+                                    <div class="nc-title" style="color: {cor_hex}; min-height: 40px;">{g_nome}</div>
+                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {total_grupo:,.2f}</div>
                                     <hr style="margin: 8px 0; border: 0.5px solid #eee;">
-                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 150px; overflow-y: auto;">
-                                        <span style="font-weight:bold; color:#444;">Itens Lançados (Auditoria):</span><br>
+                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                        <span style="font-weight:bold; color:#444;">Itens Compilados:</span><br>
                                         {desc_html}
                                         <br><span style="font-weight:bold; color:#444;">Por Competência:</span><br>
                                         {breakdown_html}
