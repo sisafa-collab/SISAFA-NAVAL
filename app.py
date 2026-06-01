@@ -2504,6 +2504,7 @@ else:
 
             # =======================================================
             # =======================================================
+            # =======================================================
             # === APOIO À DIRETORIA DE SAÚDE DA MARINHA (DSM) ===
             # =======================================================
             st.divider()
@@ -2511,16 +2512,7 @@ else:
             # 🎨 INJEÇÃO DO CSS NEON AQUI (Garante o visual)
             st.markdown("""
             <style>
-            .neon-card {
-                background: #ffffff;
-                border-radius: 12px;
-                padding: 20px;
-                margin-bottom: 20px;
-                text-align: center;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-                transition: transform 0.2s;
-                border-bottom: 4px solid #eee;
-            }
+            .neon-card { background: #ffffff; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); transition: transform 0.2s; border-bottom: 4px solid #eee; }
             .neon-card:hover { transform: translateY(-3px); }
             .nc-title { font-size: 0.9rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
             .nc-value { font-size: 2.2rem; font-weight: 900; margin-bottom: 5px; }
@@ -2543,45 +2535,58 @@ else:
             # ==========================================
             # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA
             # ==========================================
+            # 1. Limpeza brutal de colunas
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
             
-            # 1. Renomeia e limpa espaços
+            # Caça qualquer coluna que signifique "Custo Total" ignorando espaços duplos
             for col in df_aud.columns:
-                if 'custo total' in col.lower() and col != "Outros":
+                col_lower = col.lower()
+                if 'custo' in col_lower and 'total' in col_lower and col != "Outros":
                     df_aud.rename(columns={col: 'Custo_Total_Calc'}, inplace=True)
             
+            # Limpeza das Strings vitais
             if 'Grupo' in df_aud.columns: df_aud['Grupo'] = df_aud['Grupo'].astype(str).str.strip()
             if 'Descrição' in df_aud.columns: df_aud['Descrição'] = df_aud['Descrição'].astype(str).str.strip()
             if 'Quantidade' in df_aud.columns: df_aud['Quantidade'] = pd.to_numeric(df_aud['Quantidade'], errors='coerce').fillna(0).astype(int)
 
-            # 2. Tratamento Blindado de Datas Mistas (DD/MM/YYYY vs YYYY-MM-DD)
-            def parse_timestamp(val):
+            # 2. Motor Blindado de Datas (Entende DD/MM e YYYY-MM)
+            def parse_timestamp_blindado(val):
                 v_str = str(val).strip()
                 if not v_str or v_str.lower() in ['nan', 'none', 'nat']: return pd.NaT
-                return pd.to_datetime(v_str, dayfirst=True, errors='coerce')
+                try:
+                    # Se tem traço na 4ª posição, é Padrão ISO (2026-05-06)
+                    if '-' in v_str and v_str.find('-') == 4:
+                        return pd.to_datetime(v_str, errors='coerce')
+                    # Caso contrário, assume o padrão BR (DD/MM/YYYY)
+                    return pd.to_datetime(v_str, dayfirst=True, errors='coerce')
+                except:
+                    return pd.to_datetime(v_str, errors='coerce')
 
-            df_aud['Data_Auditoria'] = df_aud['timestamp'].apply(parse_timestamp)
+            df_aud['Data_Auditoria'] = df_aud['timestamp'].apply(parse_timestamp_blindado)
             
-            # 3. Criação do Filtro pelo "Mês da Auditoria" e formatação da Competência
+            # 3. Criação do Filtro Mês da Auditoria & Tradução da Competência
             mapa_meses = {1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN', 7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'}
             
             df_aud['Mês_Auditoria'] = df_aud['Data_Auditoria'].apply(lambda d: f"{mapa_meses[d.month]}/{d.year}" if pd.notna(d) else "Desconhecido")
             
             df_aud['mes_competencia'] = pd.to_numeric(df_aud['mes_competencia'], errors='coerce')
             df_aud['ano_competencia'] = pd.to_numeric(df_aud['ano_competencia'], errors='coerce')
+            
+            # A mágica da tradução (Ex: 4 -> ABR/26)
             df_aud['Competência'] = df_aud.apply(lambda r: f"{mapa_meses[int(r['mes_competencia'])]}/{str(int(r['ano_competencia']))[2:]}" if pd.notna(r['mes_competencia']) else "S/C", axis=1)
-            df_aud['sort_comp'] = df_aud['ano_competencia'].fillna(0) * 100 + df_aud['mes_competencia'].fillna(0) # Chave para ordenar meses cronologicamente
+            # Chave secreta para ordenar os meses perfeitamente (Ex: 202604)
+            df_aud['sort_comp'] = df_aud['ano_competencia'].fillna(0) * 100 + df_aud['mes_competencia'].fillna(0) 
 
-            # Limpeza Numérica Segura das colunas financeiras da Auditoria
+            # Limpeza Numérica Segura das colunas financeiras
             colunas_validas = [c for c in lista_oficial if c in df_aud.columns and c != "Outros"]
             for c in colunas_validas + ['Custo_Total_Calc']:
                 if c in df_aud.columns:
-                    df_aud[c] = df_aud[c].apply(limpar_valor) # Usa a sua função nativa de limpeza
+                    df_aud[c] = df_aud[c].apply(limpar_valor)
 
             # ==========================================
             # 🎛️ FILTROS E PREPARAÇÃO
             # ==========================================
-            # Pega meses únicos ordenados cronologicamente
+            # Filtro com meses de auditoria detectados na planilha
             df_datas_validas = df_aud.dropna(subset=['Data_Auditoria']).sort_values('Data_Auditoria')
             meses_audit_unicos = df_datas_validas['Mês_Auditoria'].unique().tolist()
             if "Desconhecido" in df_aud['Mês_Auditoria'].unique(): meses_audit_unicos.append("Desconhecido")
@@ -2614,6 +2619,13 @@ else:
                     "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
                 }
 
+                # Função tolerante para buscar cor (Ignora se faltou uma letra)
+                def obter_cor_outros(nome_grupo):
+                    nome_limpo = str(nome_grupo).lower().strip()
+                    for k, v in mapa_cores_outros.items():
+                        if k.lower() in nome_limpo: return v
+                    return "#ff9100" # Cor de alerta padrão SISAFA
+
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
@@ -2628,7 +2640,6 @@ else:
                         cols = st.columns(3)
                         for j, centro in enumerate(centros_ativos[i:i+3]):
                             df_centro = df_dsm[df_dsm[centro] > 0]
-                            
                             valor_cc = df_centro[centro].sum()
                             
                             # Agrupamento cronológico correto da competência
@@ -2656,7 +2667,7 @@ else:
                                     </div>
                                     <hr style="margin: 8px 0; border: 0.5px solid #eee;">
                                     <div class="nc-sub" style="text-align: left; font-size: 0.8rem;">
-                                        <span style="font-weight:bold; color:#444;">Discriminação da Fatura (Por Competência):</span><br>
+                                        <span style="font-weight:bold; color:#444;">Discriminação do Centro (Por Competência):</span><br>
                                         {breakdown_html}
                                     </div>
                                 </div>
@@ -2665,14 +2676,15 @@ else:
                 st.write("")
                 
                 # =======================================================
-                # 2. RENDERIZAÇÃO DOS 8 GRUPOS DE "OUTROS"
+                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS" (TOTALMENTE BLINDADO)
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
                 
-                df_outros = df_dsm[df_dsm['Grupo'].isin(mapa_cores_outros.keys())]
+                # Agora caça de forma maleável (Qualquer linha que contenha "Outro")
+                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)]
 
                 if df_outros.empty or 'Custo_Total_Calc' not in df_outros.columns:
-                    st.info("Nenhum lançamento no Grupo VI para o mês selecionado.")
+                    st.info("Nenhum lançamento no Grupo VI para o mês da auditoria selecionado.")
                 else:
                     grupos_presentes = df_outros['Grupo'].unique().tolist()
                     
@@ -2681,7 +2693,7 @@ else:
                         
                         for j, grupo in enumerate(grupos_presentes[i:i+3]):
                             df_g = df_outros[df_outros['Grupo'] == grupo]
-                            cor_hex = mapa_cores_outros.get(grupo, "#cccccc")
+                            cor_hex = obter_cor_outros(grupo)
                             
                             valor_grupo = df_g['Custo_Total_Calc'].sum()
                             
@@ -2690,6 +2702,7 @@ else:
                             brk_df = brk_df[brk_df['Custo_Total_Calc'] > 0].sort_values('sort_comp')
                             breakdown_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row['Custo_Total_Calc']:,.2f}</b><br>" for _, row in brk_df.iterrows()])
                             
+                            # Compilação e formatação visual dos Itens Descritos
                             agg_desc = df_g.groupby('Descrição').agg({'Quantidade': 'sum', 'Custo_Total_Calc': 'sum'}).reset_index()
                             desc_html = "".join([f"• {row['Descrição']} (Qtd: {row['Quantidade']}): R$ {row['Custo_Total_Calc']:,.2f}<br>" for _, row in agg_desc.iterrows()])
                             
