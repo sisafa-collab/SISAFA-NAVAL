@@ -2680,27 +2680,28 @@ else:
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
                 
-                # Filtra qualquer linha que contenha "Outro" na coluna Grupo
-                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
+                # Filtra qualquer linha que contenha "Outro" na coluna Grupo, ignorando nulos
+                df_outros = df_dsm[df_dsm['Grupo'].notna() & df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
 
                 if df_outros.empty:
                     st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
                 else:
-                    # Função para categorizar dinamicamente o grupo baseada no texto da planilha
+                    # Função para categorizar dinamicamente (Blindada contra erros de texto)
                     def categorizar_grupo(texto):
-                        texto = str(texto).lower()
-                        if "medicamento" in texto: return "Outros medicamentos"
-                        if "exame" in texto and "cardi" not in texto and "oftal" not in texto: return "Outros exames"
-                        if "sadt" in texto or "procedimento" in texto and "odont" not in texto and "oftal" not in texto and "card" not in texto: return "Outros procedimentos (SADT)"
-                        if "odontol" in texto: return "Outros procedimentos (assistência odontológica)"
-                        if "não especificado" in texto: return "Outros custos não especificados"
-                        if "oftal" in texto: return "Outros procedimentos oftalmológicos"
-                        if "cardi" in texto and "procedimento" in texto: return "Outros procedimentos cardiológicos"
-                        if "cardi" in texto and "exame" in texto: return "Outros exames cardiológicos"
+                        if pd.isna(texto): return "Outros custos não especificados"
+                        t = str(texto).lower()
+                        if "medicamento" in t: return "Outros medicamentos"
+                        if "exame" in t and "cardi" not in t and "oftal" not in t: return "Outros exames"
+                        if "sadt" in t or ("procedimento" in t and "odont" not in t and "oftal" not in t and "card" not in t): return "Outros procedimentos (SADT)"
+                        if "odontol" in t: return "Outros procedimentos (assistência odontológica)"
+                        if "oftal" in t: return "Outros procedimentos oftalmológicos"
+                        if "cardi" in t and "procedimento" in t: return "Outros procedimentos cardiológicos"
+                        if "cardi" in t and "exame" in t: return "Outros exames cardiológicos"
                         return "Outros custos não especificados"
 
-                    # Aplica a categoria padrão
+                    # Aplica a categoria e garante que o custo seja numérico
                     df_outros['Grupo_Consolidado'] = df_outros['Grupo'].apply(categorizar_grupo)
+                    df_outros['Custo_Total_Calc'] = pd.to_numeric(df_outros['Custo_Total_Calc'], errors='coerce').fillna(0)
                     
                     grupos_unicos = sorted(df_outros['Grupo_Consolidado'].unique().tolist())
                     
@@ -2714,14 +2715,14 @@ else:
                             # Soma total do grupo
                             total_grupo = df_g['Custo_Total_Calc'].sum()
                             
-                            # Agregação por Descrição (Soma tudo o que tem a mesma descrição)
+                            # Agregação por Descrição
                             agg_desc = df_g.groupby('Descrição').agg({
                                 'Quantidade': 'sum', 
                                 'Custo_Total_Calc': 'sum'
                             }).reset_index()
                             
                             # HTML das descrições compiladas
-                            desc_html = "".join([f"• {row['Descrição']} ({row['Quantidade']} un): R$ {row['Custo_Total_Calc']:,.2f}<br>" 
+                            desc_html = "".join([f"• {row['Descrição']} ({int(row['Quantidade'])} un): R$ {row['Custo_Total_Calc']:,.2f}<br>" 
                                                 for _, row in agg_desc.iterrows()])
                             
                             # Breakdown por competência
