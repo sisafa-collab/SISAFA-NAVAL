@@ -2555,7 +2555,7 @@ else:
                 # Tenta carregar, se falhar, exibe um ícone de fallback
                 try:
                     if 'caminho_escudo_dsm' in locals() and os.path.exists(caminho_escudo_dsm):
-                        st.image(caminho_escudo_dsm, width=300)
+                        st.image(caminho_escudo_dsm, width=1000)
                     else:
                         st.warning("Escudo DSM não encontrado.")
                 except:
