@@ -2030,6 +2030,18 @@ else:
             st.header("📈 Inteligência de Dados e Produtividade")
             st.write("") # Respiro visual
 
+            st.write("")
+                
+                # --- RODAPÉ COM IDENTIDADE VISUAL ---
+                st.markdown("""
+                <div style="text-align: center; padding: 20px; border-top: 2px solid #2e6b54; margin-top: 40px;">
+                    <p style="color: #2e6b54; font-weight: bold; font-size: 1.1rem; letter-spacing: 1px;">
+                        "RESTARÁ SEMPRE MUITO O QUE FAZER"
+                    </p>
+                    <p style="color: #777; font-size: 0.8rem;">SISAFA-NAVAL | Módulo de Auditoria | HOSBRA</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
             # --- FILTROS DE COMPETÊNCIA ---
             col_f1, col_f2 = st.columns(2)
             anos_disp = sorted(df['ano_competencia'].unique(), reverse=True)
@@ -2378,9 +2390,6 @@ else:
             except Exception as e:
                 st.error(f"Erro ao processar os dados de Glosa: {e}")
 
-
-
-
             # =======================================================
             # --- 1. SEÇÃO: PIZZAS E VOLUMES (UM EMBAIXO DO OUTRO) ---
             # =======================================================
@@ -2673,7 +2682,7 @@ else:
                 
                 # =======================================================
                 # --- BLOCO FINAL: RENDERIZAÇÃO DOS 8 GRUPOS DE "OUTROS" (VERSÃO FINAL) ---
-                st.markdown("### 📂 Grupos de Custos Diversos (Famigerado Grupo Outros)")
+                st.markdown("### 📂 Grupos de Custos Diversos (O famigerado grupo "Outros" 🫨)")
 
                 # Busca colunas pelo índice (51=Quantidade, 52=Custo) conforme sua planilha
                 idx_qtd = 51
