@@ -2508,10 +2508,9 @@ else:
             # =======================================================
             st.divider()
 
-            # 🎨 INJEÇÃO DO CSS NEON AQUI (Garante o visual na Aba da Auditoria/DSM)
+            # 🎨 INJEÇÃO DO CSS NEON AQUI (Garante o visual)
             st.markdown("""
             <style>
-            /* Cards base (Efeito Neon Suave no Branco) */
             .neon-card {
                 background: #ffffff;
                 border-radius: 12px;
@@ -2523,27 +2522,14 @@ else:
                 border-bottom: 4px solid #eee;
             }
             .neon-card:hover { transform: translateY(-3px); }
-            
-            /* Títulos dos Cards */
             .nc-title { font-size: 0.9rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
             .nc-value { font-size: 2.2rem; font-weight: 900; margin-bottom: 5px; }
             .nc-sub { font-size: 0.85rem; font-weight: 600; color: #777; }
-            
-            /* Cores Neon / Futuristas Específicas */
             .card-cyan { border-bottom-color: #00e5ff; box-shadow: 0 10px 20px rgba(0, 229, 255, 0.15); }
-            .card-cyan .nc-value { color: #00b8d4; text-shadow: 0 0 10px rgba(0, 229, 255, 0.3); }
-            
             .card-purple { border-bottom-color: #d500f9; box-shadow: 0 10px 20px rgba(213, 0, 249, 0.15); }
-            .card-purple .nc-value { color: #aa00ff; text-shadow: 0 0 10px rgba(213, 0, 249, 0.3); }
-            
             .card-alert { border-bottom-color: #ff1744; box-shadow: 0 10px 20px rgba(255, 23, 68, 0.15); background: #fffcfc;}
-            .card-alert .nc-value { color: #d50000; text-shadow: 0 0 10px rgba(255, 23, 68, 0.3); }
-            
             .card-green { border-bottom-color: #00e676; box-shadow: 0 10px 20px rgba(0, 230, 118, 0.15); }
-            .card-green .nc-value { color: #00c853; text-shadow: 0 0 10px rgba(0, 230, 118, 0.3); }
-            
             .card-orange { border-bottom-color: #ff9100; box-shadow: 0 10px 20px rgba(255, 145, 0, 0.15); }
-            .card-orange .nc-value { color: #ff6d00; text-shadow: 0 0 10px rgba(255, 145, 0, 0.3); }
             </style>
             """, unsafe_allow_html=True)
 
@@ -2554,30 +2540,66 @@ else:
             with col_dsm2:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
-            # 1. Padronização Robusta das Colunas (Blindagem contra KeyError)
+            # ==========================================
+            # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA
+            # ==========================================
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
             
+            # 1. Renomeia e limpa espaços
             for col in df_aud.columns:
                 if 'custo total' in col.lower() and col != "Outros":
                     df_aud.rename(columns={col: 'Custo_Total_Calc'}, inplace=True)
+            
+            if 'Grupo' in df_aud.columns: df_aud['Grupo'] = df_aud['Grupo'].astype(str).str.strip()
+            if 'Descrição' in df_aud.columns: df_aud['Descrição'] = df_aud['Descrição'].astype(str).str.strip()
+            if 'Quantidade' in df_aud.columns: df_aud['Quantidade'] = pd.to_numeric(df_aud['Quantidade'], errors='coerce').fillna(0).astype(int)
 
-            # Filtro de Período
-            comp_unicas = sorted(df_aud['Competência'].unique().tolist())
-            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação DSM:", comp_unicas, default=comp_unicas[-1:])
+            # 2. Tratamento Blindado de Datas Mistas (DD/MM/YYYY vs YYYY-MM-DD)
+            def parse_timestamp(val):
+                v_str = str(val).strip()
+                if not v_str or v_str.lower() in ['nan', 'none', 'nat']: return pd.NaT
+                return pd.to_datetime(v_str, dayfirst=True, errors='coerce')
+
+            df_aud['Data_Auditoria'] = df_aud['timestamp'].apply(parse_timestamp)
+            
+            # 3. Criação do Filtro pelo "Mês da Auditoria" e formatação da Competência
+            mapa_meses = {1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN', 7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'}
+            
+            df_aud['Mês_Auditoria'] = df_aud['Data_Auditoria'].apply(lambda d: f"{mapa_meses[d.month]}/{d.year}" if pd.notna(d) else "Desconhecido")
+            
+            df_aud['mes_competencia'] = pd.to_numeric(df_aud['mes_competencia'], errors='coerce')
+            df_aud['ano_competencia'] = pd.to_numeric(df_aud['ano_competencia'], errors='coerce')
+            df_aud['Competência'] = df_aud.apply(lambda r: f"{mapa_meses[int(r['mes_competencia'])]}/{str(int(r['ano_competencia']))[2:]}" if pd.notna(r['mes_competencia']) else "S/C", axis=1)
+            df_aud['sort_comp'] = df_aud['ano_competencia'].fillna(0) * 100 + df_aud['mes_competencia'].fillna(0) # Chave para ordenar meses cronologicamente
+
+            # Limpeza Numérica Segura das colunas financeiras da Auditoria
+            colunas_validas = [c for c in lista_oficial if c in df_aud.columns and c != "Outros"]
+            for c in colunas_validas + ['Custo_Total_Calc']:
+                if c in df_aud.columns:
+                    df_aud[c] = df_aud[c].apply(limpar_valor) # Usa a sua função nativa de limpeza
+
+            # ==========================================
+            # 🎛️ FILTROS E PREPARAÇÃO
+            # ==========================================
+            # Pega meses únicos ordenados cronologicamente
+            df_datas_validas = df_aud.dropna(subset=['Data_Auditoria']).sort_values('Data_Auditoria')
+            meses_audit_unicos = df_datas_validas['Mês_Auditoria'].unique().tolist()
+            if "Desconhecido" in df_aud['Mês_Auditoria'].unique(): meses_audit_unicos.append("Desconhecido")
+
+            periodo_sel = st.multiselect("🎯 Selecione o Mês da Realização da Auditoria (Filtro DSM):", meses_audit_unicos, default=meses_audit_unicos[-1:] if meses_audit_unicos else [])
 
             if not periodo_sel:
-                st.warning("Selecione pelo menos uma competência para visualizar os dados DSM.")
+                st.warning("Selecione pelo menos um mês de auditoria para visualizar os dados DSM.")
             else:
-                df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
+                df_dsm = df_aud[df_aud['Mês_Auditoria'].isin(periodo_sel)].copy()
                 
-                # --- MATRIZ OFICIAL DE GRUPOS ---
+                # --- MATRIZ OFICIAL DE GRUPOS E CORES ---
                 g1_hosp = ["Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE", "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME", "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos", "Remédio de Alto Custo: Antibióticos"]
                 g2_lab = ["Análises Clínicas", "RX Convencional", "Tomografias", "Ressonâncias magnéticas", "Ultrassonografias"]
                 g3_spec = ["Exames oftalmológicos", "Holter 24h", "Mapa 24h", "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana", "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos", "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica", "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco"]
                 g4_terap = ["Hemodiálise", "Fisioterapia", "Fonoaudiologia", "Psicologia / Psicoterapia", "Avaliação neuropsicológica", "Psicopedagogia", "Terapia Ocupacional", "Musicoterapia"]
                 g5_odonto = ["Consultas", "Laboratórios Odontológicos", "Ex. Radiol. e Doc. Orto", "Prótese", "Ortodontia"]
 
-                # --- DICIONÁRIOS DE ESTILIZAÇÃO E GRUPOS ---
                 mapa_cc_classe = {}
                 for c in g1_hosp: mapa_cc_classe[c] = "card-cyan"
                 for c in g2_lab: mapa_cc_classe[c] = "card-purple"
@@ -2597,20 +2619,22 @@ else:
                 # =======================================================
                 st.markdown("### 📋 Centros de Custo Oficiais")
                 
-                colunas_validas = [c for c in lista_oficial if c in df_dsm.columns and c != "Outros"]
                 centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
 
                 if not centros_ativos:
-                    st.info("Nenhum valor auditado nos Centros de Custo oficiais para a(s) competência(s) selecionada(s).")
+                    st.info("Nenhum valor auditado nos Centros de Custo oficiais no mês selecionado.")
                 else:
-                    # Renderiza em Grid de 3 colunas
                     for i in range(0, len(centros_ativos), 3):
                         cols = st.columns(3)
                         for j, centro in enumerate(centros_ativos[i:i+3]):
                             df_centro = df_dsm[df_dsm[centro] > 0]
                             
                             valor_cc = df_centro[centro].sum()
-                            breakdown_comp = df_centro.groupby('Competência')[centro].sum().to_dict()
+                            
+                            # Agrupamento cronológico correto da competência
+                            brk_df = df_centro.groupby(['sort_comp', 'Competência'])[centro].sum().reset_index()
+                            brk_df = brk_df[brk_df[centro] > 0].sort_values('sort_comp')
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[centro]:,.2f}</b><br>" for _, row in brk_df.iterrows()])
                             
                             nups_relacionados = df_centro['nup'].unique()
                             df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
@@ -2619,7 +2643,6 @@ else:
                             v_gl = df_rel['glosa'].apply(limpar_valor).sum() if not df_rel.empty and 'glosa' in df_rel.columns else 0
                             v_lq = df_rel['valor_liquido'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_liquido' in df_rel.columns else 0
 
-                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown_comp.items())])
                             css_class = mapa_cc_classe.get(centro, "card-cyan")
 
                             with cols[j]:
@@ -2633,7 +2656,7 @@ else:
                                     </div>
                                     <hr style="margin: 8px 0; border: 0.5px solid #eee;">
                                     <div class="nc-sub" style="text-align: left; font-size: 0.8rem;">
-                                        <span style="font-weight:bold; color:#444;">Discriminação no Centro:</span><br>
+                                        <span style="font-weight:bold; color:#444;">Discriminação da Fatura (Por Competência):</span><br>
                                         {breakdown_html}
                                     </div>
                                 </div>
@@ -2649,7 +2672,7 @@ else:
                 df_outros = df_dsm[df_dsm['Grupo'].isin(mapa_cores_outros.keys())]
 
                 if df_outros.empty or 'Custo_Total_Calc' not in df_outros.columns:
-                    st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
+                    st.info("Nenhum lançamento no Grupo VI para o mês selecionado.")
                 else:
                     grupos_presentes = df_outros['Grupo'].unique().tolist()
                     
@@ -2661,7 +2684,11 @@ else:
                             cor_hex = mapa_cores_outros.get(grupo, "#cccccc")
                             
                             valor_grupo = df_g['Custo_Total_Calc'].sum()
-                            breakdown_comp = df_g.groupby('Competência')['Custo_Total_Calc'].sum().to_dict()
+                            
+                            # Agrupamento cronológico correto da competência para Outros
+                            brk_df = df_g.groupby(['sort_comp', 'Competência'])['Custo_Total_Calc'].sum().reset_index()
+                            brk_df = brk_df[brk_df['Custo_Total_Calc'] > 0].sort_values('sort_comp')
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row['Custo_Total_Calc']:,.2f}</b><br>" for _, row in brk_df.iterrows()])
                             
                             agg_desc = df_g.groupby('Descrição').agg({'Quantidade': 'sum', 'Custo_Total_Calc': 'sum'}).reset_index()
                             desc_html = "".join([f"• {row['Descrição']} (Qtd: {row['Quantidade']}): R$ {row['Custo_Total_Calc']:,.2f}<br>" for _, row in agg_desc.iterrows()])
@@ -2673,8 +2700,6 @@ else:
                             v_gl = df_rel['glosa'].apply(limpar_valor).sum() if not df_rel.empty and 'glosa' in df_rel.columns else 0
                             v_lq = df_rel['valor_liquido'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_liquido' in df_rel.columns else 0
                             
-                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown_comp.items())])
-
                             with cols_outros[j]:
                                 st.markdown(f"""
                                 <div class="neon-card" style="border-bottom-color: {cor_hex}; box-shadow: 0 10px 20px {cor_hex}33;">
@@ -2686,7 +2711,7 @@ else:
                                     </div>
                                     <hr style="margin: 8px 0; border: 0.5px solid #eee;">
                                     <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 150px; overflow-y: auto;">
-                                        <span style="font-weight:bold; color:#444;">Itens Lançados:</span><br>
+                                        <span style="font-weight:bold; color:#444;">Itens Lançados (Auditoria):</span><br>
                                         {desc_html}
                                         <br><span style="font-weight:bold; color:#444;">Por Competência:</span><br>
                                         {breakdown_html}
