@@ -2677,60 +2677,69 @@ else:
                 
                 # =======================================================
                 # =======================================================
-                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS" (VERSÃO À PROVA DE ERRO)
+                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS" (VERSÃO FINAL)
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
                 
-                # Identifica a coluna de custo dinamicamente
-                # Busca qualquer coluna que contenha "custo" ou "total" no nome
-                cols_financeiras = [c for c in df_outros.columns if 'custo' in c.lower() or 'total' in c.lower()]
-                col_custo = cols_financeiras[0] if cols_financeiras else None
-                
-                if not col_custo:
-                    st.error("Não foi possível localizar a coluna de custos na planilha.")
-                else:
-                    # Limpeza forçada na coluna identificada
-                    df_outros[col_custo] = df_outros[col_custo].apply(limpar_valor)
-                    
-                    grupos_presentes = df_outros['Grupo'].unique().tolist()
-                    
-                    for i in range(0, len(grupos_presentes), 3):
-                        cols_outros = st.columns(3)
-                        for j, g_nome in enumerate(grupos_presentes[i:i+3]):
-                            df_g = df_outros[df_outros['Grupo'] == g_nome]
-                            cor_hex = obter_cor_outros(g_nome)
-                            
-                            # Uso da coluna dinâmica 'col_custo'
-                            total_grupo = df_g[col_custo].sum()
-                            
-                            # Agregação por Descrição usando a coluna dinâmica
-                            agg_desc = df_g.groupby('Descrição').agg({
-                                'Quantidade': 'sum', 
-                                col_custo: 'sum'
-                            }).reset_index()
-                            
-                            desc_html = "".join([f"• {row['Descrição']} ({int(row['Quantidade'])} un): R$ {row[col_custo]:,.2f}<br>" 
-                                                for _, row in agg_desc.iterrows()])
-                            
-                            # Breakdown por competência usando a coluna dinâmica
-                            brk = df_g.groupby('Competência')[col_custo].sum()
-                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" 
-                                                    for k, v in brk.items()])
+                # Definimos o df_outros aqui com segurança
+                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
 
-                            with cols_outros[j]:
-                                st.markdown(f"""
-                                <div class="neon-card" style="border-bottom-color: {cor_hex}; box-shadow: 0 10px 20px {cor_hex}33;">
-                                    <div class="nc-title" style="color: {cor_hex}; min-height: 40px;">{g_nome}</div>
-                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {total_grupo:,.2f}</div>
-                                    <hr style="margin: 8px 0; border: 0.5px solid #eee;">
-                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-                                        <span style="font-weight:bold; color:#444;">Itens Compilados:</span><br>
-                                        {desc_html}
-                                        <br><span style="font-weight:bold; color:#444;">Por Competência:</span><br>
-                                        {breakdown_html}
+                if df_outros.empty:
+                    st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
+                else:
+                    # Identifica a coluna de custo dinamicamente
+                    cols_financeiras = [c for c in df_outros.columns if 'custo' in c.lower() or 'total' in c.lower()]
+                    
+                    if not cols_financeiras:
+                        st.error("Coluna de custo não localizada no Grupo VI.")
+                    else:
+                        col_custo = cols_financeiras[0]
+                        # Limpeza forçada na coluna identificada
+                        df_outros[col_custo] = df_outros[col_custo].apply(limpar_valor)
+                        
+                        # Função de Categorização Blindada
+                        def categorizar_grupo(texto):
+                            if pd.isna(texto): return "Outros custos não especificados"
+                            t = str(texto).lower()
+                            if "medicamento" in t: return "Outros medicamentos"
+                            if "exame" in t and "cardi" not in t and "oftal" not in t: return "Outros exames"
+                            if "sadt" in t or ("procedimento" in t and "odont" not in t and "oftal" not in t and "card" not in t): return "Outros procedimentos (SADT)"
+                            if "odontol" in t: return "Outros procedimentos (assistência odontológica)"
+                            if "oftal" in t: return "Outros procedimentos oftalmológicos"
+                            if "cardi" in t and "procedimento" in t: return "Outros procedimentos cardiológicos"
+                            if "cardi" in t and "exame" in t: return "Outros exames cardiológicos"
+                            return "Outros custos não especificados"
+
+                        df_outros['Grupo_Consolidado'] = df_outros['Grupo'].apply(categorizar_grupo)
+                        grupos_unicos = sorted(df_outros['Grupo_Consolidado'].unique().tolist())
+                        
+                        # Grid de 3 colunas
+                        for i in range(0, len(grupos_unicos), 3):
+                            cols_outros = st.columns(3)
+                            for j, g_nome in enumerate(grupos_unicos[i:i+3]):
+                                df_g = df_outros[df_outros['Grupo_Consolidado'] == g_nome]
+                                cor_hex = obter_cor_outros(g_nome)
+                                
+                                total_grupo = df_g[col_custo].sum()
+                                
+                                # Agregação por Descrição e Competência
+                                agg_desc = df_g.groupby('Descrição').agg({'Quantidade': 'sum', col_custo: 'sum'}).reset_index()
+                                desc_html = "".join([f"• {row['Descrição']} ({int(row['Quantidade'])} un): R$ {row[col_custo]:,.2f}<br>" for _, row in agg_desc.iterrows()])
+                                brk = df_g.groupby('Competência')[col_custo].sum()
+                                breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in brk.items()])
+                                
+                                with cols_outros[j]:
+                                    st.markdown(f"""
+                                    <div class="neon-card" style="border-bottom-color: {cor_hex}; box-shadow: 0 10px 20px {cor_hex}33;">
+                                        <div class="nc-title" style="color: {cor_hex};">{g_nome}</div>
+                                        <div class="nc-value" style="font-size: 1.4rem;">R$ {total_grupo:,.2f}</div>
+                                        <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                        <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                            <span style="font-weight:bold; color:#444;">Itens:</span><br>{desc_html}
+                                            <br><span style="font-weight:bold; color:#444;">Por Competência:</span><br>{breakdown_html}
+                                        </div>
                                     </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                    """, unsafe_allow_html=True)
 
 
 
