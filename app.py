@@ -2579,9 +2579,10 @@ else:
                             # Busca faturas relacionadas no DF Principal (df_p)
                             nups_relacionados = df_centro['nup'].unique()
                             df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
-                            v_ap = df_rel['v_ap_num'].sum() if not df_rel.empty else 0
-                            v_gl = df_rel['glosa_num'].sum() if not df_rel.empty else 0
-                            v_lq = df_rel['v_liq_num'].sum() if not df_rel.empty else 0
+                            # Cruzamento blindado usando as colunas originais do dataframe e limpando em tempo real
+                            v_ap = df_rel['valor_apresentado'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_apresentado' in df_rel.columns else 0
+                            v_gl = df_rel['glosa'].apply(limpar_valor).sum() if not df_rel.empty and 'glosa' in df_rel.columns else 0
+                            v_lq = df_rel['valor_liquido'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_liquido' in df_rel.columns else 0
 
                             # Montagem do HTML
                             breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown_comp.items())])
