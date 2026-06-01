@@ -2531,6 +2531,13 @@ else:
             else:
                 df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
                 
+                # --- MATRIZ OFICIAL DE GRUPOS (Para evitar NameError) ---
+                g1_hosp = ["Internações UTI (exceto OPME)", "Internações não UTI (exceto OPME)", "SIAD", "HOME CARE", "Pequenas Cirurgias", "Consultas ambulatoriais", "Consultas emergenciais", "OPME", "Remédio de Alto Custo: Quimioterápicos", "Remédio de Alto Custo: Imunobiológicos", "Remédio de Alto Custo: Antibióticos"]
+                g2_lab = ["Análises Clínicas", "RX Convencional", "Tomografias", "Ressonâncias magnéticas", "Ultrassonografias"]
+                g3_spec = ["Exames oftalmológicos", "Holter 24h", "Mapa 24h", "Estudo eletrofisiológico (para estudo de arritmia cardíaca)", "Angiotomografia coronariana", "Cintilografia miocárdica", "Teste Ergométrico", "Exames do Sistema Digestório e anexos", "FACO (Catarata)", "Injeção Anti-VEGF (Ex: Lucentis)", "Revascularização miocárdica", "Angioplastia coronariana com ou sem Stent", "Cateterismo cardíaco"]
+                g4_terap = ["Hemodiálise", "Fisioterapia", "Fonoaudiologia", "Psicologia / Psicoterapia", "Avaliação neuropsicológica", "Psicopedagogia", "Terapia Ocupacional", "Musicoterapia"]
+                g5_odonto = ["Consultas", "Laboratórios Odontológicos", "Ex. Radiol. e Doc. Orto", "Prótese", "Ortodontia"]
+
                 # --- DICIONÁRIOS DE ESTILIZAÇÃO E GRUPOS ---
                 # Mapeia os centros de custo oficiais para as classes CSS Neon
                 mapa_cc_classe = {}
@@ -2540,7 +2547,7 @@ else:
                 for c in g4_terap: mapa_cc_classe[c] = "card-green"
                 for c in g5_odonto: mapa_cc_classe[c] = "card-alert"
 
-                # Cores fornecidas pelo senhor para os Grupos "Outros"
+                # Cores para os Grupos "Outros"
                 mapa_cores_outros = {
                     "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
                     "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
@@ -2551,7 +2558,7 @@ else:
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Centros de Custos")
+                st.markdown("### 📋 Centros de Custo Oficiais")
                 
                 colunas_validas = [c for c in lista_oficial if c in df_dsm.columns and c != "Outros"]
                 centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
