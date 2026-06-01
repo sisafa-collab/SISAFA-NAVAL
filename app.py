@@ -2032,15 +2032,15 @@ else:
 
             st.write("")
                 
-                # --- RODAPÉ COM IDENTIDADE VISUAL ---
-                st.markdown("""
-                <div style="text-align: center; padding: 20px; border-top: 2px solid #2e6b54; margin-top: 40px;">
-                    <p style="color: #2e6b54; font-weight: bold; font-size: 1.1rem; letter-spacing: 1px;">
-                        "RESTARÁ SEMPRE MUITO O QUE FAZER"
-                    </p>
-                    <p style="color: #777; font-size: 0.8rem;">SISAFA-NAVAL | Módulo de Auditoria | HOSBRA</p>
-                </div>
-                """, unsafe_allow_html=True)
+            # --- RODAPÉ COM IDENTIDADE VISUAL ---
+            st.markdown("""
+            <div style="text-align: center; padding: 20px; border-top: 2px solid #2e6b54; margin-top: 40px;">
+                <p style="color: #2e6b54; font-weight: bold; font-size: 1.1rem; letter-spacing: 1px;">
+                    "RESTARÁ SEMPRE MUITO O QUE FAZER"
+                </p>
+                <p style="color: #777; font-size: 0.8rem;">SISAFA-NAVAL | Módulo de Auditoria | HOSBRA</p>
+            </div>
+            """, unsafe_allow_html=True)
             
             # --- FILTROS DE COMPETÊNCIA ---
             col_f1, col_f2 = st.columns(2)
@@ -2536,8 +2536,14 @@ else:
 
             col_dsm1, col_dsm2 = st.columns([1, 4])
             with col_dsm1:
-                if os.path.exists(caminho_escudo_dsm):
-                    st.image(caminho_escudo_dsm, width=100)
+                # Tenta carregar, se falhar, exibe um ícone de fallback
+                try:
+                    if 'caminho_escudo_dsm' in locals() and os.path.exists(caminho_escudo_dsm):
+                        st.image(caminho_escudo_dsm, width=100)
+                    else:
+                        st.warning("Escudo DSM não encontrado.")
+                except:
+                    st.write("⚓")
             with col_dsm2:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
