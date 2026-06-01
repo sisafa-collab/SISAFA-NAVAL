@@ -2688,7 +2688,7 @@ else:
                 
                 # =======================================================
                 # --- BLOCO FINAL: RENDERIZAÇÃO DOS 8 GRUPOS DE "OUTROS" (VERSÃO FINAL) ---
-                st.markdown("### 📂 Grupos de Custos Diversos (O famigerado grupo "Outros" 🫨)")
+                st.markdown("### 📂 Grupos de Custos Diversos (O famigerado grupo Outros 😱🫨)")
 
                 # Busca colunas pelo índice (51=Quantidade, 52=Custo) conforme sua planilha
                 idx_qtd = 51
