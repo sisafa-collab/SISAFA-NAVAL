@@ -2661,10 +2661,6 @@ else:
                                 <div class="neon-card {css_class}">
                                     <div class="nc-title" style="min-height: 40px;">{centro}</div>
                                     <div class="nc-value" style="font-size: 1.5rem;">R$ {valor_cc:,.2f}</div>
-                                    <div class="nc-sub" style="font-size: 0.75rem; margin-bottom: 10px;">
-                                        <b style="color:#333;">Total nas Faturas do Lote:</b><br>
-                                        Apres: R$ {v_ap:,.2f} | Glosa: R$ {v_gl:,.2f}<br>Líquido Faturas: R$ {v_lq:,.2f}
-                                    </div>
                                     <hr style="margin: 8px 0; border: 0.5px solid #eee;">
                                     <div class="nc-sub" style="text-align: left; font-size: 0.8rem;">
                                         <span style="font-weight:bold; color:#444;">Discriminação do Centro (Por Competência):</span><br>
