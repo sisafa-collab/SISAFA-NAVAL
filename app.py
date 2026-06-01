@@ -2504,7 +2504,6 @@ else:
 
             # =======================================================
             # =======================================================
-            # =======================================================
             # === APOIO À DIRETORIA DE SAÚDE DA MARINHA (DSM) ===
             # =======================================================
             st.divider()
@@ -2515,75 +2514,147 @@ else:
             with col_dsm2:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
-            # Padronização de nomes de colunas para evitar KeyError
+            # 1. Padronização Robusta das Colunas (Blindagem contra KeyError)
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
-            df_aud.rename(columns={'Custo total': 'Outros'}, inplace=True) # Garante o nome padronizado
+            
+            # Padroniza a coluna "Custo total" para um nome fixo no sistema
+            for col in df_aud.columns:
+                if 'custo total' in col.lower() and col != "Outros":
+                    df_aud.rename(columns={col: 'Custo_Total_Calc'}, inplace=True)
 
             # Filtro de Período
             comp_unicas = sorted(df_aud['Competência'].unique().tolist())
-            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação:", comp_unicas, default=comp_unicas[-1:])
+            periodo_sel = st.multiselect("Selecione o(s) mês(es) para consolidação DSM:", comp_unicas, default=comp_unicas[-1:])
 
             if not periodo_sel:
                 st.warning("Selecione pelo menos uma competência para visualizar os dados DSM.")
             else:
                 df_dsm = df_aud[df_aud['Competência'].isin(periodo_sel)].copy()
                 
-                # --- FUNÇÃO DO CARTÃO PADRÃO (Visual Sisafa) ---
-                def card_centro_custo(titulo, dados_centro):
-                    # Cálculos de performance
-                    total_apres = dados_centro['valor_apresentado'].apply(limpar_valor).sum() if 'valor_apresentado' in dados_centro else 0
-                    total_glosa = dados_centro['glosa'].apply(limpar_valor).sum() if 'glosa' in dados_centro else 0
-                    total_liq = dados_centro['valor_liquido'].apply(limpar_valor).sum() if 'valor_liquido' in dados_centro else 0
-                    
-                    # Breakdown por competência (Somente das colunas de valor deste centro)
-                    # Assumindo que o título é o nome da coluna de custo
-                    breakdown = dados_centro.groupby('Competência')[titulo].sum()
-                    breakdown_html = "".join([f"• <b>{comp}:</b> R$ {val:,.2f}<br>" for comp, val in breakdown.items() if val > 0])
+                # --- DICIONÁRIOS DE ESTILIZAÇÃO E GRUPOS ---
+                # Mapeia os centros de custo oficiais para as classes CSS Neon
+                mapa_cc_classe = {}
+                for c in g1_hosp: mapa_cc_classe[c] = "card-cyan"
+                for c in g2_lab: mapa_cc_classe[c] = "card-purple"
+                for c in g3_spec: mapa_cc_classe[c] = "card-orange"
+                for c in g4_terap: mapa_cc_classe[c] = "card-green"
+                for c in g5_odonto: mapa_cc_classe[c] = "card-alert"
 
-                    st.markdown(f"""
-                    <div class="neon-card" style="border-bottom-color: #2e6b54; background: #ffffff;">
-                        <div class="nc-title" style="color: #2e6b54; margin-bottom:10px;">{titulo}</div>
-                        <div class="nc-value" style="color: #2e6b54; font-size: 1.4rem; margin-bottom:5px;">R$ {total_liq:,.2f} (Líquido)</div>
-                        <div class="nc-sub" style="color: #666; margin-bottom:10px;">
-                            Apres: R$ {total_apres:,.2f} | Glosa: R$ {total_glosa:,.2f}
-                        </div>
-                        <hr style="margin: 10px 0;">
-                        <div class="nc-sub" style="text-align: left; font-size: 0.85rem;">
-                            <span style="font-weight:bold; color: #2e6b54;">Detalhamento por competência:</span><br>
-                            {breakdown_html}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Cores fornecidas pelo senhor para os Grupos "Outros"
+                mapa_cores_outros = {
+                    "Outros medicamentos": "#ADD8E6", "Outros exames": "#E6E6FA", 
+                    "Outros procedimentos (SADT)": "#90EE90", "Outros procedimentos (assistência odontológica)": "#FFFF00", 
+                    "Outros custos não especificados": "#FFCC99", "Outros procedimentos oftalmológicos": "#FFB6C1", 
+                    "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
+                }
 
-                # --- RENDERIZAÇÃO ---
-                st.markdown("### 📋 Centros de Custo Oficiais")
+                # =======================================================
+                # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
+                # =======================================================
+                st.markdown("### 📋 Centros de Custos")
                 
-                # Filtra colunas que são centros de custo (excluindo colunas meta-dados)
-                colunas_validas = [c for c in colunas_centros_custo if c in df_dsm.columns and c != "Outros"]
-                
-                for centro in colunas_validas:
-                    df_centro = df_dsm[df_dsm[centro] > 0]
-                    if not df_centro.empty:
-                        card_centro_custo(centro, df_centro)
+                colunas_validas = [c for c in lista_oficial if c in df_dsm.columns and c != "Outros"]
+                centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
 
-                # --- GRUPO VI (OUTROS) ---
+                if not centros_ativos:
+                    st.info("Nenhum valor auditado nos Centros de Custo oficiais para a(s) competência(s) selecionada(s).")
+                else:
+                    # Renderiza em Grid de 3 colunas
+                    for i in range(0, len(centros_ativos), 3):
+                        cols = st.columns(3)
+                        for j, centro in enumerate(centros_ativos[i:i+3]):
+                            df_centro = df_dsm[df_dsm[centro] > 0]
+                            
+                            # Calcula o valor do CC e o Breakdown
+                            valor_cc = df_centro[centro].sum()
+                            breakdown_comp = df_centro.groupby('Competência')[centro].sum().to_dict()
+                            
+                            # Busca faturas relacionadas no DF Principal (df_p)
+                            nups_relacionados = df_centro['nup'].unique()
+                            df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
+                            v_ap = df_rel['v_ap_num'].sum() if not df_rel.empty else 0
+                            v_gl = df_rel['glosa_num'].sum() if not df_rel.empty else 0
+                            v_lq = df_rel['v_liq_num'].sum() if not df_rel.empty else 0
+
+                            # Montagem do HTML
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown_comp.items())])
+                            css_class = mapa_cc_classe.get(centro, "card-cyan")
+
+                            with cols[j]:
+                                st.markdown(f"""
+                                <div class="neon-card {css_class}">
+                                    <div class="nc-title" style="min-height: 40px;">{centro}</div>
+                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {valor_cc:,.2f}</div>
+                                    <div class="nc-sub" style="font-size: 0.75rem; margin-bottom: 10px;">
+                                        <b style="color:#333;">Total nas Faturas do Lote:</b><br>
+                                        Apres: R$ {v_ap:,.2f} | Glosa: R$ {v_gl:,.2f}<br>Líquido Faturas: R$ {v_lq:,.2f}
+                                    </div>
+                                    <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                    <div class="nc-sub" style="text-align: left; font-size: 0.8rem;">
+                                        <span style="font-weight:bold; color:#444;">Discriminação no Centro:</span><br>
+                                        {breakdown_html}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                st.write("")
+                
+                # =======================================================
+                # 2. RENDERIZAÇÃO DOS 8 GRUPOS DE "OUTROS"
+                # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (Grupo VI)")
-                df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outros", na=False)]
-                if not df_outros.empty:
-                    for (grupo, desc), dados in df_outros.groupby(['Grupo', 'Descrição']):
-                        total_g = dados['Outros'].sum()
-                        breakdown = dados.groupby('Competência')['Outros'].sum()
+                
+                df_outros = df_dsm[df_dsm['Grupo'].isin(mapa_cores_outros.keys())]
+
+                if df_outros.empty or 'Custo_Total_Calc' not in df_outros.columns:
+                    st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
+                else:
+                    grupos_presentes = df_outros['Grupo'].unique().tolist()
+                    
+                    # Renderiza em Grid de 3 colunas
+                    for i in range(0, len(grupos_presentes), 3):
+                        cols_outros = st.columns(3)
                         
-                        st.markdown(f"""
-                        <div class="neon-card" style="border-bottom-color: #ff9100; background: #fffcf8;">
-                            <div class="nc-title" style="color: #ff9100;">{grupo} - {desc}</div>
-                            <div class="nc-value" style="color: #ff6d00; font-size: 1.4rem;">R$ {total_g:,.2f}</div>
-                            <div class="nc-sub" style="text-align: left; margin-top: 10px; font-size: 0.85rem;">
-                                <span style="font-weight:bold;">Distribuição:</span><br>
-                                {"".join([f"• <b>{k}:</b> R$ {v:,.2f}<br>" for k, v in breakdown.items()])}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        for j, grupo in enumerate(grupos_presentes[i:i+3]):
+                            df_g = df_outros[df_outros['Grupo'] == grupo]
+                            cor_hex = mapa_cores_outros.get(grupo, "#cccccc")
+                            
+                            # Agregações do Grupo
+                            valor_grupo = df_g['Custo_Total_Calc'].sum()
+                            breakdown_comp = df_g.groupby('Competência')['Custo_Total_Calc'].sum().to_dict()
+                            
+                            # Agregação por Descrição Interna
+                            agg_desc = df_g.groupby('Descrição').agg({'Quantidade': 'sum', 'Custo_Total_Calc': 'sum'}).reset_index()
+                            desc_html = "".join([f"• {row['Descrição']} (Qtd: {row['Quantidade']}): R$ {row['Custo_Total_Calc']:,.2f}<br>" for _, row in agg_desc.iterrows()])
+                            
+                            # Busca faturas relacionadas no DF Principal
+                            nups_relacionados = df_g['nup'].unique()
+                            df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
+                            v_ap = df_rel['v_ap_num'].sum() if not df_rel.empty else 0
+                            v_gl = df_rel['glosa_num'].sum() if not df_rel.empty else 0
+                            v_lq = df_rel['v_liq_num'].sum() if not df_rel.empty else 0
+                            
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in sorted(breakdown_comp.items())])
+
+                            with cols_outros[j]:
+                                # CSS Inline para injetar as cores exatas do seu dicionário
+                                st.markdown(f"""
+                                <div class="neon-card" style="border-bottom-color: {cor_hex}; box-shadow: 0 10px 20px {cor_hex}33;">
+                                    <div class="nc-title" style="color: {cor_hex}; text-shadow: 0 0 5px {cor_hex}80; min-height: 40px;">{grupo}</div>
+                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {valor_grupo:,.2f}</div>
+                                    <div class="nc-sub" style="font-size: 0.75rem; margin-bottom: 10px;">
+                                        <b style="color:#333;">Total nas Faturas do Lote:</b><br>
+                                        Apres: R$ {v_ap:,.2f} | Glosa: R$ {v_gl:,.2f}<br>Líquido Faturas: R$ {v_lq:,.2f}
+                                    </div>
+                                    <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 150px; overflow-y: auto;">
+                                        <span style="font-weight:bold; color:#444;">Itens Lançados:</span><br>
+                                        {desc_html}
+                                        <br><span style="font-weight:bold; color:#444;">Por Competência:</span><br>
+                                        {breakdown_html}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
 
 
