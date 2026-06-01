@@ -2034,11 +2034,27 @@ else:
                 
             # --- RODAPÉ COM IDENTIDADE VISUAL ---
             st.markdown("""
-            <div style="text-align: center; padding: 20px; border-top: 2px solid #2e6b54; margin-top: 40px;">
-                <p style="color: #2e6b54; font-weight: bold; font-size: 1.1rem; letter-spacing: 1px;">
+            <div style="text-align: center; padding: 30px; border-top: 2px solid #2e6b54; margin-top: 40px; background-color: rgba(46, 107, 84, 0.05); border-radius: 0 0 15px 15px;">
+                <p style="
+                    color: #2e6b54; 
+                    font-weight: 900; 
+                    font-size: 1.8rem; 
+                    letter-spacing: 3px; 
+                    line-height: 1.2;
+                    text-shadow: 0 0 10px #2e6b54, 0 0 20px #2e6b54, 0 0 30px #2e6b54;
+                ">
                     "RESTARÁ SEMPRE MUITO O QUE FAZER"
                 </p>
-                <p style="color: #777; font-size: 0.8rem;">SISAFA-NAVAL | Módulo de Auditoria | HOSBRA</p>
+                <p style="
+                    color: #555; 
+                    font-size: 1.1rem; 
+                    font-weight: 700; 
+                    margin-top: -10px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                ">
+                    (SEPÚLVEDA, A.C.M)
+                </p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -2539,7 +2555,7 @@ else:
                 # Tenta carregar, se falhar, exibe um ícone de fallback
                 try:
                     if 'caminho_escudo_dsm' in locals() and os.path.exists(caminho_escudo_dsm):
-                        st.image(caminho_escudo_dsm, width=100)
+                        st.image(caminho_escudo_dsm, width=300)
                     else:
                         st.warning("Escudo DSM não encontrado.")
                 except:
@@ -2644,7 +2660,7 @@ else:
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Centros de Custo Oficiais")
+                st.markdown("### 📋 Centros de Custos")
                 
                 centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
 
