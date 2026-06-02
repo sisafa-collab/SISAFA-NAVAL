@@ -1177,15 +1177,6 @@ else:
                         
                         ose_selecionada = col_e4.selectbox("Empresa Cadastrada (OSE):", options=lista_oses, index=idx_ose)
                         
-                        # Lógica para preenchimento dinâmico ou nova empresa
-                        if ose_selecionada == "➕ DIGITAR NOVA EMPRESA (Não listada)":
-                            nova_ose = col_e4.text_input("Nome da Nova Empresa:", placeholder="Digite o nome correto aqui...")
-                            cnpj_sugerido = "" # Limpa o CNPJ para o auditor digitar o novo
-                        else:
-                            nova_ose = ose_selecionada
-                            cnpj_sugerido = mapa_ose_cnpj.get(nova_ose, str(dados['cnpj']))
-                        
-                        novo_cnpj = col_e5.text_input("Novo CNPJ:", value=cnpj_sugerido)
                         
                         if st.button("💾 SALVAR CORREÇÃO", use_container_width=True):
                             try:
