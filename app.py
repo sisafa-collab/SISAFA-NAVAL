@@ -1148,7 +1148,7 @@ else:
                 st.divider()
 
                 # --- FERRAMENTA DE CORREÇÃO (ERRO HUMANO) ---
-                with st.expander("🛠️ CORRIGIR ERROS DE CADASTRO (NUP, Fatura ou Valor)"):
+                with st.expander("🛠️ CORRIGIR ERROS DE CADASTRO (NUP, Fatura, Valor ou Empresa)"):
                     st.write("Selecione um processo da fila para editar os dados originais:")
                     
                     nup_edit = st.selectbox("Escolha o NUP para corrigir:", [""] + df_fila['nup'].tolist(), key="sb_edit_fila")
@@ -1156,10 +1156,27 @@ else:
                     if nup_edit:
                         dados = df_fila[df_fila['nup'] == nup_edit].iloc[0]
                         
+                        # Cria um mapeamento dinâmico de OSE e CNPJ baseado nos dados já carregados
+                        mapa_ose_cnpj = dict(zip(df_fila['ose'].astype(str), df_fila['cnpj'].astype(str)))
+                        lista_oses = sorted([ose for ose in mapa_ose_cnpj.keys() if ose.strip() not in ["nan", "None", ""]])
+                        
+                        # Linha 1: Dados Financeiros e de Identificação
                         col_e1, col_e2, col_e3 = st.columns(3)
-                        novo_nup = col_e1.text_input("Novo NUP:", value=dados['nup'])
-                        nova_fat = col_e2.text_input("Nova Fatura:", value=dados['Numero_da_fatura'])
-                        novo_val = col_e3.number_input("Novo Valor (R$):", value=float(dados['valor_limpo']), format="%.2f")
+                        novo_nup = col_e1.text_input("Novo NUP:", value=str(dados['nup']))
+                        nova_fat = col_e2.text_input("Nova Fatura:", value=str(dados['Numero_da_fatura']))
+                        novo_val = col_e3.number_input("Novo Valor (R$):", value=float(dados.get('valor_limpo', 0.0)), format="%.2f")
+                        
+                        # Linha 2: Dados da Empresa (OSE e CNPJ amarrados)
+                        col_e4, col_e5 = st.columns([2, 1])
+                        
+                        ose_atual = str(dados['ose'])
+                        idx_ose = lista_oses.index(ose_atual) if ose_atual in lista_oses else 0
+                        
+                        nova_ose = col_e4.selectbox("Nova Empresa (OSE):", options=lista_oses, index=idx_ose)
+                        
+                        # O CNPJ muda automaticamente se o auditor alterar a OSE
+                        cnpj_sugerido = mapa_ose_cnpj.get(nova_ose, str(dados['cnpj']))
+                        novo_cnpj = col_e5.text_input("Novo CNPJ:", value=cnpj_sugerido)
                         
                         if st.button("💾 SALVAR CORREÇÃO", use_container_width=True):
                             try:
@@ -1168,16 +1185,21 @@ else:
                                 celula = aba_edit.find(nup_edit)
                                 
                                 if celula:
-                                    # Colunas: B=2 (NUP), E=5 (Fatura), F=6 (Valor), H=8 (V. Líquido)
+                                    # Atualiza os dados originais
                                     aba_edit.update_cell(celula.row, 2, novo_nup)
                                     aba_edit.update_cell(celula.row, 5, nova_fat)
                                     aba_edit.update_cell(celula.row, 6, novo_val)
-                                    aba_edit.update_cell(celula.row, 8, novo_val)
+                                    aba_edit.update_cell(celula.row, 8, novo_val) # Mantém o líquido igualado na correção inicial
+                                    
+                                    # ⚠️ IMPORTANTE: Ajuste o número das colunas (3 e 4) conforme a estrutura real da sua planilha
+                                    # Exemplo: Se CNPJ for a coluna C (3) e OSE for a coluna D (4)
+                                    aba_edit.update_cell(celula.row, 3, novo_cnpj) 
+                                    aba_edit.update_cell(celula.row, 4, nova_ose)
                                     
                                     registrar_acao(novo_nup, nova_fat, "CORREÇÃO", f"Corrigido por {st.session_state.user_id}")
                                     
-                                    st.success("✅ Dados atualizados!")
-                                    st.cache_data.clear() # Limpa o cache para atualizar a tabela
+                                    st.success("✅ Dados da fatura e da empresa atualizados com sucesso!")
+                                    st.cache_data.clear() # Limpa o cache para a tabela recarregar com as correções
                                     time.sleep(1)
                                     st.rerun()
                             except Exception as e:
