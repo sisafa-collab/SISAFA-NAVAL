@@ -1156,7 +1156,7 @@ else:
                     if nup_edit:
                         dados = df_fila[df_fila['nup'] == nup_edit].iloc[0]
                         
-                        # 1. CORREÇÃO DE ESCOPO: Usamos o 'df' (histórico completo) em vez do 'df_fila'
+                        # Mapeamento do histórico completo (apenas leitura das empresas já existentes no SISAFA)
                         mapa_ose_cnpj = dict(zip(df['ose'].astype(str), df['cnpj'].astype(str)))
                         lista_oses = sorted([ose for ose in mapa_ose_cnpj.keys() if ose.strip() not in ["nan", "None", ""]])
                         
@@ -1166,15 +1166,18 @@ else:
                         nova_fat = col_e2.text_input("Nova Fatura:", value=str(dados['Numero_da_fatura']))
                         novo_val = col_e3.number_input("Novo Valor (R$):", value=float(dados.get('valor_limpo', 0.0)), format="%.2f")
                         
-                        # Linha 2: Dados da Empresa (OSE e CNPJ amarrados)
+                        # Linha 2: Dados da Empresa (OSE e CNPJ estritamente amarrados)
                         col_e4, col_e5 = st.columns([2, 1])
                         
                         ose_atual = str(dados['ose'])
                         idx_ose = lista_oses.index(ose_atual) if ose_atual in lista_oses else 0
                         
-                        ose_selecionada = col_e4.selectbox("Empresa Cadastrada (OSE):", options=lista_oses, index=idx_ose)
+                        # Caixa de seleção restrita às empresas já cadastradas na base
+                        nova_ose = col_e4.selectbox("Empresa Cadastrada (OSE):", options=lista_oses, index=idx_ose)
                         
-                        novo_cnpj = col_e5.text_input("Novo CNPJ:", value=cnpj_sugerido)
+                        # Busca automaticamente o CNPJ vinculado à OSE selecionada acima
+                        cnpj_sugerido = mapa_ose_cnpj.get(nova_ose, str(dados['cnpj']))
+                        novo_cnpj = col_e5.text_input("CNPJ Correspondente:", value=cnpj_sugerido)
                         
                         if st.button("💾 SALVAR CORREÇÃO", use_container_width=True):
                             try:
@@ -1188,13 +1191,13 @@ else:
                                     aba_edit.update_cell(celula.row, 6, novo_val)
                                     aba_edit.update_cell(celula.row, 8, novo_val) 
                                     
-                                    # ⚠️ Colunas 3 e 4 representam CNPJ e OSE na planilha. Ajuste se necessário!
+                                    # ⚠️ Colunas 3 e 4 representam CNPJ e OSE na planilha.
                                     aba_edit.update_cell(celula.row, 3, novo_cnpj) 
                                     aba_edit.update_cell(celula.row, 4, nova_ose)
                                     
                                     registrar_acao(novo_nup, nova_fat, "CORREÇÃO", f"Corrigido por {st.session_state.user_id}")
                                     
-                                    st.success("✅ Dados atualizados com sucesso no SISAFA!")
+                                    st.success("✅ Dados da fatura e da empresa atualizados com sucesso no SISAFA!")
                                     st.cache_data.clear() 
                                     time.sleep(1)
                                     st.rerun()
