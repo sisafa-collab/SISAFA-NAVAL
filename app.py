@@ -1156,9 +1156,12 @@ else:
                     if nup_edit:
                         dados = df_fila[df_fila['nup'] == nup_edit].iloc[0]
                         
-                        # Cria um mapeamento dinâmico de OSE e CNPJ baseado nos dados já carregados
-                        mapa_ose_cnpj = dict(zip(df_fila['ose'].astype(str), df_fila['cnpj'].astype(str)))
+                        # 1. CORREÇÃO DE ESCOPO: Usamos o 'df' (histórico completo) em vez do 'df_fila'
+                        mapa_ose_cnpj = dict(zip(df['ose'].astype(str), df['cnpj'].astype(str)))
                         lista_oses = sorted([ose for ose in mapa_ose_cnpj.keys() if ose.strip() not in ["nan", "None", ""]])
+                        
+                        # 2. VÁLVULA DE ESCAPE: E se for uma empresa inédita?
+                        lista_oses.append("➕ DIGITAR NOVA EMPRESA (Não listada)")
                         
                         # Linha 1: Dados Financeiros e de Identificação
                         col_e1, col_e2, col_e3 = st.columns(3)
@@ -1172,15 +1175,20 @@ else:
                         ose_atual = str(dados['ose'])
                         idx_ose = lista_oses.index(ose_atual) if ose_atual in lista_oses else 0
                         
-                        nova_ose = col_e4.selectbox("Nova Empresa (OSE):", options=lista_oses, index=idx_ose)
+                        ose_selecionada = col_e4.selectbox("Empresa Cadastrada (OSE):", options=lista_oses, index=idx_ose)
                         
-                        # O CNPJ muda automaticamente se o auditor alterar a OSE
-                        cnpj_sugerido = mapa_ose_cnpj.get(nova_ose, str(dados['cnpj']))
+                        # Lógica para preenchimento dinâmico ou nova empresa
+                        if ose_selecionada == "➕ DIGITAR NOVA EMPRESA (Não listada)":
+                            nova_ose = col_e4.text_input("Nome da Nova Empresa:", placeholder="Digite o nome correto aqui...")
+                            cnpj_sugerido = "" # Limpa o CNPJ para o auditor digitar o novo
+                        else:
+                            nova_ose = ose_selecionada
+                            cnpj_sugerido = mapa_ose_cnpj.get(nova_ose, str(dados['cnpj']))
+                        
                         novo_cnpj = col_e5.text_input("Novo CNPJ:", value=cnpj_sugerido)
                         
                         if st.button("💾 SALVAR CORREÇÃO", use_container_width=True):
                             try:
-                                # Acessa a planilha para editar a célula exata
                                 aba_edit = sh.worksheet(ABA_PROCESSOS)
                                 celula = aba_edit.find(nup_edit)
                                 
@@ -1189,17 +1197,16 @@ else:
                                     aba_edit.update_cell(celula.row, 2, novo_nup)
                                     aba_edit.update_cell(celula.row, 5, nova_fat)
                                     aba_edit.update_cell(celula.row, 6, novo_val)
-                                    aba_edit.update_cell(celula.row, 8, novo_val) # Mantém o líquido igualado na correção inicial
+                                    aba_edit.update_cell(celula.row, 8, novo_val) 
                                     
-                                    # ⚠️ IMPORTANTE: Ajuste o número das colunas (3 e 4) conforme a estrutura real da sua planilha
-                                    # Exemplo: Se CNPJ for a coluna C (3) e OSE for a coluna D (4)
+                                    # ⚠️ Colunas 3 e 4 representam CNPJ e OSE na planilha. Ajuste se necessário!
                                     aba_edit.update_cell(celula.row, 3, novo_cnpj) 
                                     aba_edit.update_cell(celula.row, 4, nova_ose)
                                     
                                     registrar_acao(novo_nup, nova_fat, "CORREÇÃO", f"Corrigido por {st.session_state.user_id}")
                                     
-                                    st.success("✅ Dados da fatura e da empresa atualizados com sucesso!")
-                                    st.cache_data.clear() # Limpa o cache para a tabela recarregar com as correções
+                                    st.success("✅ Dados atualizados com sucesso no SISAFA!")
+                                    st.cache_data.clear() 
                                     time.sleep(1)
                                     st.rerun()
                             except Exception as e:
