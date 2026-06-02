@@ -1160,9 +1160,6 @@ else:
                         mapa_ose_cnpj = dict(zip(df['ose'].astype(str), df['cnpj'].astype(str)))
                         lista_oses = sorted([ose for ose in mapa_ose_cnpj.keys() if ose.strip() not in ["nan", "None", ""]])
                         
-                        # 2. VÁLVULA DE ESCAPE: E se for uma empresa inédita?
-                        lista_oses.append("➕ DIGITAR NOVA EMPRESA (Não listada)")
-                        
                         # Linha 1: Dados Financeiros e de Identificação
                         col_e1, col_e2, col_e3 = st.columns(3)
                         novo_nup = col_e1.text_input("Novo NUP:", value=str(dados['nup']))
@@ -1177,6 +1174,7 @@ else:
                         
                         ose_selecionada = col_e4.selectbox("Empresa Cadastrada (OSE):", options=lista_oses, index=idx_ose)
                         
+                        novo_cnpj = col_e5.text_input("Novo CNPJ:", value=cnpj_sugerido)
                         
                         if st.button("💾 SALVAR CORREÇÃO", use_container_width=True):
                             try:
