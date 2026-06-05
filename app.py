@@ -585,9 +585,9 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_xy(10 + (largura_col * 2), y_assinaturas)
     pdf.multi_cell(largura_col, 4, limpar(f"{auditor_info['nome']}\nAuditor Responsável"), 0, 'C')
 
-    # --- 9. RODAPÉ FINAL (VERMELHO) ---
-    # Usamos set_y negativo para fixar o aviso sempre no final da página, independente do resto
-    pdf.set_y(-20) 
+    # --- 9. RODAPÉ FINAL (FIXADO NA ÚLTIMA FOLHA) ---
+    # Forçamos a posição para o rodapé ficar estático no final da página
+    pdf.set_y(-25) 
     pdf.set_text_color(220, 0, 0)
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
