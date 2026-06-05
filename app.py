@@ -659,7 +659,10 @@ def obter_proximo_numero_glosa():
                 # Mostra outros erros (como aba com nome errado)
                 raise e
 
+
 def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
+    from fpdf import FPDF
+    import datetime
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
@@ -667,6 +670,12 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
+
+    # --- 0. MARCA D'ÁGUA ---
+    caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
+    if os.path.exists(caminho_logo_relatorio):
+        # Centralizada e dimensionada para preencher o fundo suavemente
+        pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
 
     # Cores Tema Neon SISAFA
     cor_cyan = (0, 229, 255)
@@ -683,19 +692,9 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     texto_intro = (
         f"O presente relatório tem por finalidade apresentar a situação consolidada das faturas da empresa {ose_nome}, "
         "refletindo o atual estágio de processamento administrativo, financeiro e de auditoria adotado por este Hospital Naval. "
-        "O detalhamento do rito processual e das etapas de liquidação pode ser verificado através do QR Code abaixo."
+        "O detalhamento do rito processual e das etapas de liquidação pode ser verificado no fluxograma (canto inferior esquerdo)."
     )
     pdf.multi_cell(0, 5, limpar(texto_intro), align='J')
-    pdf.ln(5)
-
-    # Espaço reservado para o QR Code (Desenhando uma moldura tática)
-    x_qr = 95
-    y_qr = pdf.get_y()
-    pdf.set_fill_color(240, 240, 240)
-    pdf.rect(x_qr, y_qr, 20, 20, style='F')
-    pdf.set_xy(x_qr, y_qr + 22)
-    pdf.set_font("Arial", 'I', 7)
-    pdf.cell(20, 3, limpar("[QR Code Rito]"), 0, 1, 'C')
     pdf.ln(5)
 
     # --- 3. CARDS NEON SIMULADOS NO PDF ---
@@ -731,16 +730,20 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
 
     # --- 4. GRÁFICO DE PIZZA ---
     try:
-        # Salva o gráfico Plotly como imagem temporária e injeta no PDF
+        # Tenta salvar o gráfico Plotly como imagem temporária
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
             fig_pie.write_image(tmpfile.name, width=600, height=400)
             pdf.image(tmpfile.name, x=30, y=pdf.get_y(), w=150)
             os.remove(tmpfile.name)
-        pdf.ln(85) # Pula o espaço da imagem
+        pdf.ln(85) # Pula o espaço da imagem gerada
     except Exception as e:
-        pdf.ln(10)
-        pdf.set_font("Arial", 'I', 9)
-        pdf.cell(0, 10, limpar("(O gráfico não pôde ser gerado nesta versão do PDF)"), 0, 1, 'C')
+        # Se o kaleido não estiver instalado, mostra aviso em vez de quebrar a página
+        pdf.ln(15)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.set_text_color(220, 0, 0)
+        pdf.cell(0, 10, limpar("⚠️ AVISO: GRÁFICO INDISPONÍVEL (Requer pacote 'kaleido')"), 0, 1, 'C')
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
 
     # --- 5. TABELA COM ESTILO NEON ---
     pdf.set_font("Arial", 'B', 12)
@@ -769,19 +772,33 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # --- 6. FECHAMENTO ---
+    # --- 6. FECHAMENTO & IMAGEM INFERIOR ---
     pdf.ln(10)
+    
+    # Salva a coordenada Y antes do rodapé para alinhar a imagem e o texto
+    y_fechamento = pdf.get_y()
+    
+    caminho_mapeamento = "mapeamento-de-processo.png"
+    if os.path.exists(caminho_mapeamento):
+        # Insere a imagem no canto esquerdo
+        pdf.image(caminho_mapeamento, x=10, y=y_fechamento, w=35)
+        
+    # Desloca o texto para a direita (x=50) para não ficar sobreposto à imagem
+    pdf.set_xy(50, y_fechamento)
     pdf.set_font("Arial", 'I', 9)
     fechamento = (
         "Esperamos que os esclarecimentos prestados contribuam para a transparência do processo e "
         "nos colocamos à inteira disposição para quaisquer necessidades adicionais."
     )
-    pdf.multi_cell(0, 5, limpar(fechamento), align='C')
+    pdf.multi_cell(140, 5, limpar(fechamento), align='C')
+    
+    pdf.set_x(50)
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(0, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
+    pdf.cell(140, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
     pdf.set_font("Arial", '', 9)
-    pdf.cell(0, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
+    pdf.set_x(50)
+    pdf.cell(140, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
