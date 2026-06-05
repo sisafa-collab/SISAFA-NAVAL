@@ -660,34 +660,29 @@ def obter_proximo_numero_glosa():
                 raise e
 
 
-def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
+def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
+    from fpdf import FPDF
+    
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
+    # Criação do PDF
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    # --- 0. MARCA D'ÁGUA (Simples e Leve) ---
-    caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
-    if os.path.exists(caminho_logo_relatorio):
-        pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
-
-    # --- 1. CABEÇALHO ---
+    
+    # Cabeçalho
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
     
-    # --- 2. PAINEL DE DADOS ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
+    # Resumo
     pdf.set_font("Arial", '', 10)
-    pdf.cell(0, 7, limpar(f"Volume Total: R$ {volume_total:,.2f}"), ln=True)
+    pdf.cell(0, 7, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
     pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # --- 3. TABELA (Sem gráfico pesado para não travar o servidor) ---
-    pdf.set_font("Arial", 'B', 10)
+    # Tabela Simples (Eficiência Máxima)
+    pdf.set_font("Arial", 'B', 9)
     pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C')
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C')
     pdf.cell(110, 8, "Situação", 1, 1, 'C')
@@ -697,20 +692,15 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         n_fat = str(row.get('Numero_da_fatura', 'S/N'))
         valor = float(row.get('v_liq_num', 0.0))
         sit = str(row.get('etapa_nome', 'Indefinida'))
+        
         pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # --- 4. MAPA DE PROCESSO (Imagem no canto) ---
-    y_final = pdf.get_y() + 10
-    caminho_mapeamento = "mapeamento-de-processo.png"
-    if os.path.exists(caminho_mapeamento):
-        pdf.image(caminho_mapeamento, x=10, y=y_final, w=30)
-    
-    # --- 5. RODAPÉ FIXO ---
-    pdf.set_y(-25)
+    # Rodapé
+    pdf.set_y(-20)
     pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 5, limpar("Hospital Naval de Brasília - A saúde Naval no Planalto Central"), 0, 1, 'C')
+    pdf.cell(0, 5, limpar("Hospital Naval de Brasília - Relatório Gerencial"), 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
