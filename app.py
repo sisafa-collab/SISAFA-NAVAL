@@ -708,28 +708,19 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.text(15, 50, f"R$ {volume_total:,.2f}")
     pdf.text(115, 50, f"{qtd_total} unidades")
 
-    # --- 3. GRÁFICO (MATPLOTLIB - À PROVA DE FALHAS) ---
+    # 3. Gráfico Blindado (Matplotlib - Não precisa de Kaleido)
     if fig_pie:
         try:
-            import matplotlib.pyplot as plt
-            import numpy as np
-
-            # Extrai os dados do gráfico do Plotly para o Matplotlib
             labels = [d['label'] for d in fig_pie.data[0].labels]
             values = fig_pie.data[0].values
-
             fig, ax = plt.subplots(figsize=(4, 2))
-            ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90, textprops={'fontsize': 8})
-            ax.axis('equal') 
-
+            ax.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7})
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', dpi=100)
                 plt.close(fig)
                 pdf.image(tmp.name, x=55, y=60, w=100)
                 os.remove(tmp.name)
-        except Exception as e:
-            # Se falhar, não trava o PDF, apenas pula o gráfico
-            pass
+        except: pass
 
     # --- 4. TABELA ---
     pdf.set_y(150)
@@ -749,14 +740,12 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
         pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
-    # --- 5. RODAPÉ ---
-    # --- 5. RODAPÉ (QR Code aumentado e posicionado) ---
-    pdf.set_y(260)
+    # 5. Rodapé Absoluto (Forçado no fim da página)
+    pdf.set_y(260) 
     if os.path.exists("mapeamento-de-processo.png"):
         pdf.image("mapeamento-de-processo.png", x=10, y=260, w=30)
-    
-    pdf.set_font("Arial", 'I', 12)
-    pdf.set_x(35)
+    pdf.set_xy(45, 260)
+    pdf.set_font("Arial", 'I', 8)
     msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
