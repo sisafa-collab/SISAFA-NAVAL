@@ -665,7 +665,11 @@ import os
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 
-def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie=None):
+def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
+    from fpdf import FPDF
+    import tempfile
+    import os
+
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
@@ -676,118 +680,52 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie=N
 
     # Cores Tema Neon SISAFA
     cor_cyan = (0, 229, 255)
-    cor_roxo = (213, 0, 249)
     cor_fundo_card = (30, 30, 30)
 
     # --- 0. MARCA D'ÁGUA ---
-    caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
-    if os.path.exists(caminho_logo_relatorio):
-        pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
+    if os.path.exists("SISAFA-NAVAL-relatorio.png"):
+        pdf.image("SISAFA-NAVAL-relatorio.png", x=30, y=80, w=150)
 
     # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
     pdf.ln(2)
 
-    # --- 2. TEXTO INTRODUTÓRIO ---
+    # --- 2. PAINEL DE DADOS ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
     pdf.set_font("Arial", '', 10)
-    texto_intro = (
-        f"O presente relatório tem por finalidade apresentar a situação consolidada das faturas da empresa {ose_nome}, "
-        "refletindo o atual estágio de processamento administrativo, financeiro e de auditoria adotado por este Hospital Naval. "
-        "O detalhamento do rito processual e das etapas de liquidação pode ser verificado no fluxograma (canto inferior esquerdo)."
-    )
-    pdf.multi_cell(0, 5, limpar(texto_intro), align='J')
+    pdf.cell(0, 7, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
+    pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # --- 3. CARDS NEON SIMULADOS NO PDF ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel de Análise Financeira"), ln=True, align='L')
-    
-    y_cards = pdf.get_y()
-    
-    # Card 1: Volume Total
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.rect(10, y_cards, 90, 20, style='F')
-    pdf.set_xy(10, y_cards + 3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(90, 5, limpar("Volume Financeiro Total"), 0, 2, 'C')
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(*cor_cyan)
-    pdf.cell(90, 8, limpar(f"R$ {volume_total:,.2f}"), 0, 0, 'C')
-
-    # Card 2: Faturas
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.rect(110, y_cards, 90, 20, style='F')
-    pdf.set_xy(110, y_cards + 3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(90, 5, limpar("Faturas Cadastradas"), 0, 2, 'C')
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(*cor_roxo)
-    pdf.cell(90, 8, limpar(f"{qtd_total} faturas"), 0, 0, 'C')
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(15)
-
-    # --- 4. GRÁFICO DE PIZZA (MATPLOTLIB: À PROVA DE TRAVAMENTO) ---
-    try:
-        df_pizza = df_ose.groupby('etapa_nome')['v_liq_num'].sum().reset_index()
-        if not df_pizza.empty:
-            # Cria a figura nativa do Matplotlib
-            fig, ax = plt.subplots(figsize=(6, 3.5))
+    # --- 3. GRÁFICO (De volta ao jogo!) ---
+    if fig_pie:
+        try:
+            # Pede ao Plotly para gerar a imagem estática de forma rápida
+            img_bytes = fig_pie.to_image(format="png", width=500, height=350, scale=1.5)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                tmp.write(img_bytes)
+                tmp_path = tmp.name
             
-            # Paleta Neon
-            cores = ['#00e5ff', '#d500f9', '#00e676', '#ff9100', '#ff1744', '#2979ff', '#00bfa5', '#ffd600', '#c51162']
-            
-            # Gera o gráfico de rosca (Donut)
-            wedges, texts, autotexts = ax.pie(
-                df_pizza['v_liq_num'], 
-                labels=df_pizza['etapa_nome'], 
-                autopct='%1.1f%%', 
-                startangle=140, 
-                colors=cores,
-                wedgeprops=dict(width=0.4, edgecolor='white')
-            )
-            
-            # Estilo das fontes do gráfico
-            plt.setp(texts, size=8, weight="bold")
-            plt.setp(autotexts, size=8, weight="bold", color="white")
-            ax.axis('equal') 
-            
-            # Salva como PNG temporário com baixa resolução (super leve)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-                plt.savefig(tmpfile.name, format='png', bbox_inches='tight', dpi=100, transparent=True)
-                tmp_path = tmpfile.name
-            
-            # Libera a memória do servidor na mesma hora
-            plt.close(fig) 
-            
-            # Insere no PDF
-            pdf.image(tmp_path, x=25, y=pdf.get_y(), w=160)
+            pdf.image(tmp_path, x=35, y=pdf.get_y(), w=140)
             os.remove(tmp_path)
-            pdf.ln(90) # Pula o espaço da imagem
-    except Exception as e:
-        pdf.ln(10)
-        pdf.set_font("Arial", 'I', 9)
-        pdf.cell(0, 10, limpar(f"(Não foi possível gerar a ilustração gráfica: {e})"), 0, 1, 'C')
+            pdf.ln(80) # Dá espaço para a imagem
+        except Exception as e:
+            pdf.cell(0, 10, limpar("(Gráfico exibido no painel digital)"), ln=True, align='C')
 
-    # --- 5. TABELA DE DADOS ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Análise das faturas:"), ln=True, align='L')
-    
+    # --- 4. TABELA NEON ---
+    pdf.set_font("Arial", 'B', 10)
     pdf.set_fill_color(*cor_fundo_card)
     pdf.set_text_color(*cor_cyan)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 8, limpar("Nº Fatura"), 1, 0, 'C', fill=True)
-    pdf.cell(40, 8, limpar("Valor (R$)"), 1, 0, 'C', fill=True)
-    pdf.cell(110, 8, limpar("Situação"), 1, 1, 'C', fill=True)
+    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
+    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
+    pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
 
-    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
+    pdf.set_text_color(0, 0, 0)
     
     df_ordenado = df_ose.sort_values(by='status')
-    
     for _, row in df_ordenado.iterrows():
         n_fat = str(row.get('Numero_da_fatura', 'S/N'))
         valor = float(row.get('v_liq_num', 0.0))
@@ -797,29 +735,15 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie=N
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # --- 6. FECHAMENTO & IMAGEM INFERIOR ---
+    # --- 5. RODAPÉ E MAPA ---
     pdf.ln(10)
-    y_fechamento = pdf.get_y()
+    y_pos = pdf.get_y()
+    if os.path.exists("mapeamento-de-processo.png"):
+        pdf.image("mapeamento-de-processo.png", x=10, y=y_pos, w=35)
     
-    caminho_mapeamento = "mapeamento-de-processo.png"
-    if os.path.exists(caminho_mapeamento):
-        pdf.image(caminho_mapeamento, x=10, y=y_fechamento, w=35)
-        
-    pdf.set_xy(50, y_fechamento)
-    pdf.set_font("Arial", 'I', 9)
-    fechamento = (
-        "Esperamos que os esclarecimentos prestados contribuam para a transparência do processo e "
-        "nos colocamos à inteira disposição para quaisquer necessidades adicionais."
-    )
-    pdf.multi_cell(140, 5, limpar(fechamento), align='C')
-    
-    pdf.set_x(50)
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(140, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
-    pdf.set_font("Arial", '', 9)
-    pdf.set_x(50)
-    pdf.cell(140, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
+    pdf.set_xy(50, y_pos)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.multi_cell(140, 4, limpar("Esperamos que os esclarecimentos contribuam para a transparência do processo.\n\nHospital Naval de Brasília - A saúde Naval no Planalto Central"), align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
@@ -4232,25 +4156,29 @@ Cordialmente,
 
                 # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
                 with col_btn2:
-                    # Usamos um botão simples, o processamento será sob demanda
-                    if st.button(f"🖨️ Baixar Dossiê em PDF", use_container_width=True, type="primary"):
-                        with st.spinner("Compilando dossiê oficial (aguarde um instante)..."):
+                    if st.button("🖨️ Processar Dossiê em PDF", use_container_width=True, type="primary"):
+                        with st.spinner("Compilando dados e gráficos (aguarde)..."):
                             try:
-                                # Criamos uma versão simplificada da figura para o PDF, 
-                                # reduzindo a carga de memória
-                                fig_pdf = fig_pie
-                                fig_pdf.update_layout(width=500, height=350)
+                                # Chama a função (com o gráfico junto)
+                                pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
                                 
-                                pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pdf)
+                                # A MÁGICA: Converte o arquivo inteiro em texto!
+                                b64 = base64.b64encode(pdf_bytes).decode()
+                                nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
                                 
-                                st.download_button(
-                                    label="✅ Download Pronto!",
-                                    data=pdf_bytes,
-                                    file_name=f"Dossie_{ose_sel.replace(' ', '_')}.pdf",
-                                    mime="application/pdf"
-                                )
+                                # Cria um botão falso em HTML que força o navegador a baixar na hora
+                                btn_html = f'''
+                                <a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" 
+                                   style="display: block; text-align: center; background-color: #00e5ff; 
+                                          color: #1e3d59; padding: 10px; border-radius: 5px; font-weight: bold; 
+                                          text-decoration: none; margin-top: 10px; box-shadow: 0 4px 10px rgba(0, 229, 255, 0.4);">
+                                    📥 PDF PRONTO! CLIQUE AQUI PARA SALVAR
+                                </a>
+                                '''
+                                st.markdown(btn_html, unsafe_allow_html=True)
+                                
                             except Exception as e:
-                                st.error(f"Erro ao gerar PDF: {e}. Dica: Se o erro persistir, verifique o tamanho da fatura.")
+                                st.error(f"Erro ao compilar: {e}")
         
         
 
