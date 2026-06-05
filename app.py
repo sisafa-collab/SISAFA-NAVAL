@@ -670,95 +670,72 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import tempfile
     import os
 
-    # Filtro de codificação robusto (Remove emojis e caracteres que causam 502)
-    def limpar(txt):
-        if not txt: return ""
-        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
-
+    # Inicializa
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=20)
-
-    # Cores Neon SISAFA
-    cor_neon = (0, 230, 118)
-    cor_fundo_card = (20, 20, 20)
-
-    # --- 1. CABEÇALHO (Com destaque Neon) ---
+    
+    # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 16)
-    pdf.set_text_color(*cor_neon)
-    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS DO(A)\n{str(ose_nome).upper()}"), align='C')
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(0, 230, 118) # Verde Neon
+    pdf.cell(0, 10, f"SITUAÇÃO DAS FATURAS: {ose_nome.upper()}", ln=True, align='C')
     pdf.ln(5)
 
-    # --- 2. CARDS FINANCEIROS (Design Neon Profissional) ---
-    y_cards = pdf.get_y()
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.set_draw_color(*cor_neon)
-    
-    # Card 1: Volume
-    pdf.rect(10, y_cards, 90, 25, 'DF')
-    pdf.set_xy(10, y_cards + 5)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(90, 5, "Volume Financeiro Total", 0, 1, 'C')
-    pdf.set_text_color(*cor_neon)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(90, 8, f"R$ {volume_total:,.2f}", 0, 0, 'C')
-
-    # Card 2: Faturas
+    # --- 2. PAINEL FINANCEIRO (Layout Fixo) ---
     pdf.set_text_color(0, 0, 0)
-    pdf.rect(110, y_cards, 90, 25, 'DF')
-    pdf.set_xy(110, y_cards + 5)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(90, 5, "Faturas Cadastradas", 0, 1, 'C')
-    pdf.set_text_color(*cor_neon)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(90, 8, f"{qtd_total} faturas", 0, 0, 'C')
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "Painel Financeiro", ln=True)
     
-    pdf.ln(35)
-    pdf.set_text_color(0, 0, 0)
+    # Desenho dos dois cards lado a lado
+    pdf.set_fill_color(240, 240, 240)
+    pdf.rect(10, pdf.get_y(), 90, 20, 'F') # Card 1
+    pdf.rect(110, pdf.get_y(), 90, 20, 'F') # Card 2
+    
+    pdf.set_font("Arial", '', 9)
+    pdf.text(15, pdf.get_y() + 8, "Volume Total")
+    pdf.text(115, pdf.get_y() + 8, "Total Faturas")
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.text(15, pdf.get_y() + 16, f"R$ {volume_total:,.2f}")
+    pdf.text(115, pdf.get_y() + 16, f"{qtd_total} unidades")
+    pdf.ln(25)
 
-    # --- 3. GRÁFICO (Se existir) ---
+    # --- 3. GRÁFICO (Opcional) ---
     if fig_pie:
         try:
-            img_bytes = fig_pie.to_image(format="png", width=400, height=300, scale=1.5)
+            img_bytes = fig_pie.to_image(format="png", width=400, height=250, scale=1)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 tmp.write(img_bytes)
-                pdf.image(tmp.name, x=40, y=pdf.get_y(), w=130)
+                pdf.image(tmp.name, x=45, y=pdf.get_y(), w=120)
                 os.remove(tmp.name)
-            pdf.ln(80)
+            pdf.ln(70)
         except: pass
 
-    # --- 4. TABELA (Otimizada e com formatação decimal) ---
+    # --- 4. TABELA (Colunas Fixas) ---
+    pdf.set_fill_color(200, 200, 200)
     pdf.set_font("Arial", 'B', 9)
-    pdf.set_fill_color(220, 220, 220)
     pdf.cell(50, 8, "Nº Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
     pdf.cell(100, 8, "Situação", 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
-        if pdf.get_y() > 250: pdf.add_page()
+        # Verificação de página antes de cada linha
+        if pdf.get_y() > 260: pdf.add_page()
         
-        n_fat = limpar(row.get('Numero_da_fatura', 'S/N'))
-        valor = float(row.get('v_liq_num', 0))
-        sit = limpar(row.get('etapa_nome', 'Indefinida'))
-        
-        pdf.cell(50, 7, n_fat, 1, 0, 'C')
-        pdf.cell(40, 7, f"{valor:,.2f}", 1, 0, 'R')
-        pdf.cell(100, 7, sit, 1, 1, 'L')
+        pdf.cell(50, 7, str(row.get('Numero_da_fatura', 'S/N')), 1, 0, 'C')
+        pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
+        pdf.cell(100, 7, str(row.get('etapa_nome', 'Indefinida')), 1, 1, 'L')
 
-    # --- 5. RODAPÉ FIXO ---
-    pdf.set_y(-30)
+    # --- 5. RODAPÉ (Fixado na base) ---
+    pdf.set_y(-25)
+    pdf.set_font("Arial", 'I', 8)
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=30)
-    
-    pdf.set_xy(50, pdf.get_y())
-    pdf.set_font("Arial", 'I', 12)
-    pdf.set_text_color(100, 100, 100)
-    pdf.multi_cell(110, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central", align='C')
+        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=25)
+    pdf.set_x(40)
+    pdf.multi_cell(150, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central", align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
-
+    
 # --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
 def obter_sh():
     """Garante a ligação ao Google Sheets com verificação de segurança contra quebras"""
