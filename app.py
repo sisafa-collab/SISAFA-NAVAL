@@ -660,30 +660,27 @@ def obter_proximo_numero_glosa():
                 raise e
 
 
-def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
+def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie=None):
     from fpdf import FPDF
     import os
+    import tempfile
 
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
-    # Configuração do PDF (Orientação Retrato)
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # --- 0. MARCA D'ÁGUA ---
-    caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
-    if os.path.exists(caminho_logo_relatorio):
-        pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
+    # --- Marca d'água ---
+    if os.path.exists("SISAFA-NAVAL-relatorio.png"):
+        pdf.image("SISAFA-NAVAL-relatorio.png", x=30, y=80, w=150)
 
-    # --- 1. CABEÇALHO ---
+    # --- Cabeçalho e Painel ---
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
-    pdf.ln(2)
-
-    # --- 2. PAINEL DE DADOS ---
+    pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS: {str(ose_nome).upper()}"), ln=True, align='C')
+    
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
     pdf.set_font("Arial", '', 10)
@@ -691,9 +688,22 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
     pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # --- 3. TABELA DE FATURAS ---
+    # --- Inserção do Gráfico (Modo Otimizado) ---
+    if fig_pie:
+        try:
+            # Converte o gráfico para imagem de forma leve
+            img_bytes = fig_pie.to_image(format="png", width=400, height=300, scale=1)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                tmp.write(img_bytes)
+                tmp_path = tmp.name
+            pdf.image(tmp_path, x=40, y=pdf.get_y(), w=130)
+            os.remove(tmp_path)
+            pdf.ln(75)
+        except:
+            pdf.cell(0, 10, limpar("Gráfico indisponível para esta exportação."), ln=True, align='C')
+
+    # --- Tabela ---
     pdf.set_font("Arial", 'B', 9)
-    # Cabeçalhos com fundo cinza
     pdf.set_fill_color(200, 200, 200)
     pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
@@ -704,23 +714,19 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
         n_fat = str(row.get('Numero_da_fatura', 'S/N'))
         valor = float(row.get('v_liq_num', 0.0))
         sit = str(row.get('etapa_nome', 'Indefinida'))
-        
         pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # --- 4. MAPA DE PROCESSO (Canto Inferior Esquerdo) ---
-    # Calculamos Y dinamicamente para garantir que a imagem fique ao lado do texto de rodapé
-    y_pos = 240 
-    caminho_mapeamento = "mapeamento-de-processo.png"
-    if os.path.exists(caminho_mapeamento):
-        pdf.image(caminho_mapeamento, x=10, y=y_pos, w=35)
+    # --- Rodapé com Mapeamento ---
+    y_pos = 240
+    if os.path.exists("mapeamento-de-processo.png"):
+        pdf.image("mapeamento-de-processo.png", x=10, y=y_pos, w=35)
     
-    # --- 5. RODAPÉ ---
     pdf.set_y(y_pos)
     pdf.set_x(50)
     pdf.set_font("Arial", 'I', 8)
-    pdf.multi_cell(140, 4, limpar("Esperamos que os esclarecimentos prestados contribuam para a transparência do processo. Colocamo-nos à disposição para necessidades adicionais.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central"), align='C')
+    pdf.multi_cell(140, 4, limpar("Hospital Naval de Brasília - A saúde Naval no Planalto Central"), align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
