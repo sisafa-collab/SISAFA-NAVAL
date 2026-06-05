@@ -803,7 +803,25 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
     
     caminho_mapeamento = "mapeamento-de-processo.png"
     if os.path.exists(caminho_mapeamento):
-        pdf.image(
+        pdf.image(caminho_mapeamento, x=10, y=y_fechamento, w=35)
+        
+    pdf.set_xy(50, y_fechamento)
+    pdf.set_font("Arial", 'I', 9)
+    fechamento = (
+        "Esperamos que os esclarecimentos prestados contribuam para a transparência do processo e "
+        "nos colocamos à inteira disposição para quaisquer necessidades adicionais."
+    )
+    pdf.multi_cell(140, 5, limpar(fechamento), align='C')
+    
+    pdf.set_x(50)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(140, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
+    pdf.set_font("Arial", '', 9)
+    pdf.set_x(50)
+    pdf.cell(140, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
+
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 # --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
 def obter_sh():
