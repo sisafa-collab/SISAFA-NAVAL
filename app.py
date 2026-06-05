@@ -684,9 +684,11 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_xy(10, 10)
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
+    pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
     pdf.cell(190, 8, "RELATÓRIO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, limpar(ose_nome.upper()), 0, 1, 'C')
+    pdf.cell(190, 8, "SISTEMA DE ACOMPANHAMENTO DE FATURAS DO HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
     pdf.ln(5)
 
 
@@ -708,21 +710,36 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.text(15, 50, f"R$ {volume_total:,.2f}")
     pdf.text(115, 50, f"{qtd_total} unidades")
 
-    # --- 3. GRÁFICO (Blindado com Matplotlib) ---
+    # --- 3. GRÁFICO (Blindado e Debugado) ---
     if fig_pie:
         try:
-            fig, ax = plt.subplots(figsize=(4, 2))
-            # Ajuste de dados do Plotly para Matplotlib
-            ax.pie([d.get('value', 0) for d in fig_pie.data[0].to_plotly_json()['values']], 
-                   labels=[d for d in fig_pie.data[0].labels], 
-                   autopct='%1.1f%%', textprops={'fontsize': 7})
+            # Extração robusta de dados
+            dados = fig_pie.data[0]
+            labels = dados.labels
+            values = dados.values
+            
+            # Força o Matplotlib a criar um gráfico limpo
+            plt.figure(figsize=(4, 2), dpi=100)
+            plt.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7})
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                plt.savefig(tmp.name, bbox_inches='tight', dpi=100)
-                plt.close(fig)
+                plt.savefig(tmp.name, bbox_inches='tight')
+                plt.close() # Fecha a figura corretamente
+                
+                # O X e Y aqui são cruciais. Se o gráfico não aparece,
+                # pode ser que ele esteja a ser desenhado fora da margem.
+                # Vamos forçar o desenho na posição 50, 60.
                 pdf.image(tmp.name, x=55, y=60, w=100)
-                os.remove(tmp.name)
-        except: pass
+                
+                # Limpeza forçada do arquivo
+                tmp.close()
+                if os.path.exists(tmp.name):
+                    os.remove(tmp.name)
+        except Exception as e:
+            # Se der erro, vamos escrever o erro no PDF para saber o que está a acontecer
+            pdf.set_xy(50, 70)
+            pdf.set_font("Arial", '', 8)
+            pdf.cell(100, 10, f"Erro no grafico: {str(e)[:50]}", 0, 1, 'C')
 
     # --- 4. TABELA ---
     pdf.set_y(150)
@@ -748,7 +765,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.image("mapeamento-de-processo.png", x=10, y=260, w=25)
     pdf.set_xy(40, 260)
     pdf.set_font("Arial", 'I', 8)
-    msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
+    msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
