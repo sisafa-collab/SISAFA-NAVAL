@@ -670,99 +670,92 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import tempfile
     import os
 
+    # Filtro de codificação robusto (Remove emojis e caracteres que causam 502)
     def limpar(txt):
         if not txt: return ""
-        # Remove emojis e caracteres especiais que o latin-1 não suporta
-        txt_str = str(txt)
-        # Lista de caracteres para ignorar ou substituir
-        txt_limpo = txt_str.encode('latin-1', 'ignore').decode('latin-1')
-        return txt_limpo
-
-# Na sua função, certifique-se de que TODOS os textos passam por ela:
-# Exemplo: pdf.cell(..., limpar(row.get('etapa_nome')), ...)
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_auto_page_break(auto=True, margin=20)
 
     # Cores Neon SISAFA
-    neon_verde = (0, 230, 118)
-    fundo_card = (20, 20, 20)
-    branco = (255, 255, 255)
+    cor_neon = (0, 230, 118)
+    cor_fundo_card = (20, 20, 20)
 
-    # --- 1. CABEÇALHO ---
+    # --- 1. CABEÇALHO (Com destaque Neon) ---
     pdf.set_font("Arial", 'B', 16)
-    pdf.set_text_color(*neon_verde)
-    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS: {str(ose_nome).upper()}"), align='C')
+    pdf.set_text_color(*cor_neon)
+    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS DO(A)\n{str(ose_nome).upper()}"), align='C')
+    pdf.set_text_color(0, 0, 0)
     pdf.ln(5)
 
-    # --- 2. PAINEL DE DADOS (Sem emojis para não travar a codificação) ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Painel Financeiro", ln=True)
-    
+    # --- 2. CARDS FINANCEIROS (Design Neon Profissional) ---
     y_cards = pdf.get_y()
-    pdf.set_fill_color(*fundo_card)
-    pdf.set_draw_color(*neon_verde)
+    pdf.set_fill_color(*cor_fundo_card)
+    pdf.set_draw_color(*cor_neon)
     
     # Card 1: Volume
     pdf.rect(10, y_cards, 90, 25, 'DF')
-    pdf.set_text_color(255, 255, 255)
     pdf.set_xy(10, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(90, 5, "Volume Financeiro Total", 0, 1, 'C')
-    pdf.set_text_color(*neon_verde)
+    pdf.set_text_color(*cor_neon)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(90, 8, f"R$ {volume_total:,.2f}", 0, 0, 'C')
 
     # Card 2: Faturas
+    pdf.set_text_color(0, 0, 0)
     pdf.rect(110, y_cards, 90, 25, 'DF')
-    pdf.set_text_color(255, 255, 255)
     pdf.set_xy(110, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(90, 5, "Faturas Cadastradas", 0, 1, 'C')
-    pdf.set_text_color(*neon_verde)
+    pdf.set_text_color(*cor_neon)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(90, 8, f"{qtd_total} faturas", 0, 0, 'C')
     
     pdf.ln(35)
     pdf.set_text_color(0, 0, 0)
 
-    # --- 3. GRÁFICO (Ajustado) ---
+    # --- 3. GRÁFICO (Se existir) ---
     if fig_pie:
         try:
             img_bytes = fig_pie.to_image(format="png", width=400, height=300, scale=1.5)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 tmp.write(img_bytes)
-                pdf.image(tmp.name, x=45, y=pdf.get_y(), w=120)
+                pdf.image(tmp.name, x=40, y=pdf.get_y(), w=130)
                 os.remove(tmp.name)
-            pdf.ln(75)
+            pdf.ln(80)
         except: pass
 
-    # --- 4. TABELA COM CABEÇALHO NEON ---
+    # --- 4. TABELA (Otimizada e com formatação decimal) ---
     pdf.set_font("Arial", 'B', 9)
-    pdf.set_fill_color(*fundo_card)
-    pdf.set_text_color(*neon_verde)
-    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(50, 8, "Nº Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
-    pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
+    pdf.cell(100, 8, "Situação", 1, 1, 'C', True)
 
-    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
         if pdf.get_y() > 250: pdf.add_page()
-        # Aqui o FPDF aceita o texto limpo, o suporte a emojis depende da fonte
-        pdf.cell(40, 7, limpar(row.get('Numero_da_fatura')), 1, 0, 'C')
-        pdf.cell(40, 7, f"R$ {float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
-        pdf.cell(110, 7, limpar(row.get('etapa_nome')), 1, 1, 'L')
+        
+        n_fat = limpar(row.get('Numero_da_fatura', 'S/N'))
+        valor = float(row.get('v_liq_num', 0))
+        sit = limpar(row.get('etapa_nome', 'Indefinida'))
+        
+        pdf.cell(50, 7, n_fat, 1, 0, 'C')
+        pdf.cell(40, 7, f"{valor:,.2f}", 1, 0, 'R')
+        pdf.cell(100, 7, sit, 1, 1, 'L')
 
-    # --- 5. RODAPÉ ESTILIZADO ---
+    # --- 5. RODAPÉ FIXO ---
     pdf.set_y(-30)
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=90)
+        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=30)
     
     pdf.set_xy(50, pdf.get_y())
-    pdf.set_font("Arial", 'I', 8)
-    pdf.multi_cell(110, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais.\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central!", align='C')
+    pdf.set_font("Arial", 'I', 12)
+    pdf.set_text_color(100, 100, 100)
+    pdf.multi_cell(110, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central", align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
