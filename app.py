@@ -671,12 +671,12 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import os
 
     def limpar(txt):
-    if not txt: return ""
-    # Remove emojis e caracteres especiais que o latin-1 não suporta
-    txt_str = str(txt)
-    # Lista de caracteres para ignorar ou substituir
-    txt_limpo = txt_str.encode('latin-1', 'ignore').decode('latin-1')
-    return txt_limpo
+        if not txt: return ""
+        # Remove emojis e caracteres especiais que o latin-1 não suporta
+        txt_str = str(txt)
+        # Lista de caracteres para ignorar ou substituir
+        txt_limpo = txt_str.encode('latin-1', 'ignore').decode('latin-1')
+        return txt_limpo
 
 # Na sua função, certifique-se de que TODOS os textos passam por ela:
 # Exemplo: pdf.cell(..., limpar(row.get('etapa_nome')), ...)
