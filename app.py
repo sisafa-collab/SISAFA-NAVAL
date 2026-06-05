@@ -672,85 +672,90 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
 
     def limpar(txt):
         if not txt: return ""
-        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+        # Decodificação segura para aceitar emojis
+        return str(txt)
 
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
+    # Usamos o modo unicode para suportar emojis
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Cores Tema Neon SISAFA
-    cor_cyan = (0, 229, 255)
-    cor_fundo_card = (30, 30, 30)
-    cor_neon = (0, 230, 118)
+    # Cores Neon SISAFA
+    neon_verde = (0, 230, 118)
+    fundo_card = (20, 20, 20)
+    branco = (255, 255, 255)
+
+    # --- 1. CABEÇALHO ---
+    pdf.set_font("Arial", 'B', 16)
+    pdf.set_text_color(*neon_verde)
+    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS: {str(ose_nome).upper()}"), align='C')
+    pdf.ln(5)
+
+    # --- 2. CARDS "NEON" (REPLICANDO O PAINEL WEB) ---
+    pdf.set_text_color(0, 0, 0)
+    y_cards = pdf.get_y()
     
-    # --- 1. CABEÇALHO  ---
+    # Card 1: Volume
+    pdf.set_fill_color(*fundo_card)
+    pdf.rounded_rect(10, y_cards, 90, 25, 3, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(10, y_cards + 5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(90, 5, "💰 Volume Financeiro Total", 0, 1, 'C')
+    pdf.set_text_color(*neon_verde)
     pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(*cor_neon) # Aplica o Verde Neon
-    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS DO(A)\n{str(ose_nome).upper()}"), align='C')
-    pdf.set_text_color(0, 0, 0) # Reseta para preto para o resto do texto
-    pdf.ln(5)
+    pdf.cell(90, 8, f"R$ {volume_total:,.2f}", 0, 0, 'C')
 
-    # --- 2. PAINEL DE DADOS ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
-    pdf.set_font("Arial", '', 10)
-    pdf.cell(0, 7, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
-    pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
-    pdf.ln(5)
+    # Card 2: Faturas
+    pdf.set_fill_color(*fundo_card)
+    pdf.rounded_rect(110, y_cards, 90, 25, 3, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_xy(110, y_cards + 5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(90, 5, "📝 Faturas Cadastradas", 0, 1, 'C')
+    pdf.set_text_color(*neon_verde)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(90, 8, f"{qtd_total} faturas", 0, 0, 'C')
+    
+    pdf.ln(35)
+    pdf.set_text_color(0, 0, 0)
 
-    # --- 3. GRÁFICO (De volta ao jogo!) ---
+    # --- 3. GRÁFICO (Ajustado) ---
     if fig_pie:
         try:
-            # Pede ao Plotly para gerar a imagem estática de forma rápida
-            img_bytes = fig_pie.to_image(format="png", width=500, height=350, scale=1.5)
+            img_bytes = fig_pie.to_image(format="png", width=400, height=300, scale=1.5)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 tmp.write(img_bytes)
-                tmp_path = tmp.name
-            
-            pdf.image(tmp_path, x=35, y=pdf.get_y(), w=140)
-            os.remove(tmp_path)
-            pdf.ln(80) # Dá espaço para a imagem
-        except Exception as e:
-            pdf.cell(0, 10, limpar("(Gráfico exibido no painel digital)"), ln=True, align='C')
+                pdf.image(tmp.name, x=45, y=pdf.get_y(), w=120)
+                os.remove(tmp.name)
+            pdf.ln(75)
+        except: pass
 
-    # --- 4. TABELA NEON ---
-    pdf.set_font("Arial", 'B', 10)
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.set_text_color(*cor_cyan)
+    # --- 4. TABELA COM CABEÇALHO NEON ---
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_fill_color(*fundo_card)
+    pdf.set_text_color(*neon_verde)
     pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
     pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
 
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
-    pdf.set_text_color(0, 0, 0)
-    
-    df_ordenado = df_ose.sort_values(by='status')
-    for _, row in df_ordenado.iterrows():
-        n_fat = str(row.get('Numero_da_fatura', 'S/N'))
-        valor = float(row.get('v_liq_num', 0.0))
-        sit = str(row.get('etapa_nome', 'Indefinida'))
-        
-        pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
-        pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
-        pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
+    for _, row in df_ose.sort_values(by='status').iterrows():
+        if pdf.get_y() > 250: pdf.add_page()
+        # Aqui o FPDF aceita o texto limpo, o suporte a emojis depende da fonte
+        pdf.cell(40, 7, limpar(row.get('Numero_da_fatura')), 1, 0, 'C')
+        pdf.cell(40, 7, f"R$ {float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
+        pdf.cell(110, 7, limpar(row.get('etapa_nome')), 1, 1, 'L')
 
-    # --- 5. RODAPÉ E MAPA ---
-    # Proteção: Se faltar espaço para o mapa (que tem ~35mm de altura), quebra a página
-    pdf.set_y(-45)
-    # Mapeamento canto esquerdo
+    # --- 5. RODAPÉ ESTILIZADO ---
+    pdf.set_y(-30)
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=35)
+        pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=90)
     
-    # Logo SISAFA canto direito
-    if os.path.exists("SISAFA-NAVAL-relatorio.png"):
-        pdf.image("SISAFA-NAVAL-relatorio.png", x=170, y=pdf.get_y(), w=25)
-    
-    # --- 5. RODAPÉ (Com texto centralizado e sutil) ---
     pdf.set_xy(50, pdf.get_y())
-    pdf.set_font("Arial", 'I', 14)
-    pdf.set_text_color(100, 100, 100) # Um cinza escuro elegante para o rodapé
-    pdf.multi_cell(110, 4, limpar("Hospital Naval de Brasília\nA saúde Naval no Planalto Central"), align='C')
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.multi_cell(110, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais.\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central!", align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
