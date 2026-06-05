@@ -665,7 +665,7 @@ import os
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 
-def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
+def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie=None):
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
