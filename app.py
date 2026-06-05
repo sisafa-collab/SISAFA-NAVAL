@@ -678,7 +678,6 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # Cores Tema Neon SISAFA
     cor_cyan = (0, 229, 255)
     cor_fundo_card = (30, 30, 30)
 
@@ -688,62 +687,114 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
 
     # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
-    pdf.ln(2)
+    # Trocado de 'cell' para 'multi_cell' para que nomes longos quebrem a linha automaticamente
+    pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS DO(A)\n{str(ose_nome).upper()}"), align='C')
+    pdf.ln(5)
 
     # --- 2. PAINEL DE DADOS ---
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
+    pdf.cell(0, 8, limpar("Painel Financeiro"), ln=True)
     pdf.set_font("Arial", '', 10)
-    pdf.cell(0, 7, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
-    pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
+    pdf.cell(0, 6, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
+    pdf.cell(0, 6, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # --- 3. GRÁFICO (De volta ao jogo!) ---
+    # --- 3. GRÁFICO (Com espaçamento inteligente) ---
     if fig_pie:
         try:
-            # Pede ao Plotly para gerar a imagem estática de forma rápida
             img_bytes = fig_pie.to_image(format="png", width=500, height=350, scale=1.5)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 tmp.write(img_bytes)
                 tmp_path = tmp.name
             
-            pdf.image(tmp_path, x=35, y=pdf.get_y(), w=140)
+            # Se não tiver espaço para o gráfico, vai para a próxima folha
+            if pdf.get_y() > 170:
+                pdf.add_page()
+
+            y_grafico = pdf.get_y()
+            pdf.image(tmp_path, x=35, y=y_grafico, w=140)
             os.remove(tmp_path)
-            pdf.ln(80) # Dá espaço para a imagem
+            
+            # A altura real do gráfico gerado é de aprox. 98mm. Saltamos 105mm para dar folga.
+            pdf.set_y(y_grafico + 105) 
         except Exception as e:
             pdf.cell(0, 10, limpar("(Gráfico exibido no painel digital)"), ln=True, align='C')
 
-    # --- 4. TABELA NEON ---
-    pdf.set_font("Arial", 'B', 10)
+    # --- 4. TABELA NEON (Com Altura Dinâmica) ---
+    # Verifica se há espaço antes de desenhar o cabeçalho
+    if pdf.get_y() > 240:
+        pdf.add_page()
+
+    pdf.set_font("Arial", 'B', 9)
     pdf.set_fill_color(*cor_fundo_card)
     pdf.set_text_color(*cor_cyan)
-    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
-    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
-    pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
+    
+    # Ajuste milimétrico das colunas para preencher os 190mm da folha
+    w_fat = 65
+    w_val = 40
+    w_sit = 85
+    
+    pdf.cell(w_fat, 8, "Nº Fatura(s)", 1, 0, 'C', True)
+    pdf.cell(w_val, 8, "Valor (R$)", 1, 0, 'C', True)
+    pdf.cell(w_sit, 8, "Situação", 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 8)
     pdf.set_text_color(0, 0, 0)
     
     df_ordenado = df_ose.sort_values(by='status')
+    
     for _, row in df_ordenado.iterrows():
-        n_fat = str(row.get('Numero_da_fatura', 'S/N'))
+        n_fat = limpar(str(row.get('Numero_da_fatura', 'S/N')))
         valor = float(row.get('v_liq_num', 0.0))
-        sit = str(row.get('etapa_nome', 'Indefinida'))
+        sit = limpar(str(row.get('etapa_nome', 'Indefinida')))
         
-        pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
-        pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
-        pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
+        # Limita de forma segura as faturas para não quebrar o PDF se forem 500 faturas juntas
+        if len(n_fat) > 300:
+            n_fat = n_fat[:297] + "..."
+
+        # Controle de quebra de página por linha
+        if pdf.get_y() > 265:
+            pdf.add_page()
+            # Redesenha o cabeçalho na nova folha
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_fill_color(*cor_fundo_card)
+            pdf.set_text_color(*cor_cyan)
+            pdf.cell(w_fat, 8, "Nº Fatura(s)", 1, 0, 'C', True)
+            pdf.cell(w_val, 8, "Valor (R$)", 1, 0, 'C', True)
+            pdf.cell(w_sit, 8, "Situação", 1, 1, 'C', True)
+            pdf.set_font("Arial", '', 8)
+            pdf.set_text_color(0, 0, 0)
+
+        # LÓGICA DE CÉLULA DINÂMICA
+        start_y = pdf.get_y()
+        start_x = pdf.get_x()
+        
+        # O multi_cell desenha o texto longo e quebra linhas sozinho
+        pdf.multi_cell(w_fat, 5, n_fat, 1, 'L')
+        altura_linha = pdf.get_y() - start_y # Descobrimos qual foi a altura final!
+        
+        # Retornamos o cursor para cima para desenhar as outras colunas usando a altura descoberta
+        pdf.set_xy(start_x + w_fat, start_y)
+        pdf.cell(w_val, altura_linha, f"R$ {valor:,.2f}", 1, 0, 'C')
+        pdf.cell(w_sit, altura_linha, sit, 1, 1, 'L')
+        
+        # Garante que o cursor termine na parte debaixo da maior célula
+        pdf.set_y(start_y + altura_linha)
 
     # --- 5. RODAPÉ E MAPA ---
+    # Proteção: Se faltar espaço para o mapa (que tem ~35mm de altura), quebra a página
+    if pdf.get_y() > 240:
+        pdf.add_page()
+        
     pdf.ln(10)
     y_pos = pdf.get_y()
+    
     if os.path.exists("mapeamento-de-processo.png"):
         pdf.image("mapeamento-de-processo.png", x=10, y=y_pos, w=35)
     
     pdf.set_xy(50, y_pos)
     pdf.set_font("Arial", 'I', 8)
-    pdf.multi_cell(140, 4, limpar("Esperamos que os esclarecimentos contribuam para a transparência do processo.\n\nHospital Naval de Brasília - A saúde Naval no Planalto Central"), align='C')
+    pdf.multi_cell(140, 4, limpar("Esperamos que os esclarecimentos contribuam para a transparência do processo.\n\nHospital Naval de Brasília\n\nA saúde Naval no Planalto Central"), align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
