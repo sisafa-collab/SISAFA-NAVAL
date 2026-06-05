@@ -670,27 +670,30 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import tempfile
     import os
 
-    # Inicializa (Margens estreitas para caber tudo)
+    # Filtro: remove caracteres que o FPDF latin-1 não suporta (como emojis complexos)
+    def limpar(txt):
+        if not txt: return ""
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_margins(10, 10, 10)
 
-    # --- 1. CABEÇALHO (Y fixo: 10) ---
+    # --- 1. CABEÇALHO ---
     pdf.set_xy(10, 10)
     pdf.set_font("Arial", 'B', 16)
     pdf.set_text_color(0, 230, 118)
-    pdf.cell(190, 10, f"SITUACAO DAS FATURAS: {ose_nome.upper()[:40]}", 0, 1, 'C')
+    pdf.cell(190, 10, limpar(f"SITUACAO DAS FATURAS: {ose_nome.upper()[:40]}"), 0, 1, 'C')
 
-    # --- 2. PAINEL (Y fixo: 25) ---
+    # --- 2. PAINEL ---
     pdf.set_y(25)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, "Painel Financeiro", 0, 1, 'L')
     
-    # Cards manuais (X, Y, Largura, Altura)
     pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, 35, 90, 20, 'F') # Card 1
-    pdf.rect(110, 35, 90, 20, 'F') # Card 2
+    pdf.rect(10, 35, 90, 20, 'F') 
+    pdf.rect(110, 35, 90, 20, 'F')
     
     pdf.set_font("Arial", '', 9)
     pdf.text(15, 42, "Volume Total")
@@ -700,7 +703,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.text(15, 50, f"R$ {volume_total:,.2f}")
     pdf.text(115, 50, f"{qtd_total} unidades")
 
-    # --- 3. GRÁFICO (Posicionado em Y=60) ---
+    # --- 3. GRÁFICO ---
     if fig_pie:
         try:
             img_bytes = fig_pie.to_image(format="png", width=400, height=200, scale=1)
@@ -710,7 +713,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
                 os.remove(tmp.name)
         except: pass
 
-    # --- 4. TABELA (Iniciando estritamente em Y=150) ---
+    # --- 4. TABELA ---
     pdf.set_y(150)
     pdf.set_fill_color(200, 200, 200)
     pdf.set_font("Arial", 'B', 9)
@@ -720,21 +723,23 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
 
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
-        # Se ultrapassar 260mm, nova página
         if pdf.get_y() > 260:
             pdf.add_page()
             pdf.set_y(10)
         
-        pdf.cell(50, 7, str(row.get('Numero_da_fatura', 'SN')), 1, 0, 'C')
+        pdf.cell(50, 7, limpar(str(row.get('Numero_da_fatura', 'SN'))), 1, 0, 'C')
         pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
-        pdf.cell(100, 7, str(row.get('etapa_nome', 'Indefinida')), 1, 1, 'L')
+        pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
-    # --- 5. RODAPÉ (Ancorado no final absoluto da página) ---
-    pdf.set_y(270)
-    pdf.set_font("Arial", 'I', 12)
+    # --- 5. RODAPÉ ---
+    pdf.set_y(250)
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=270, w=20)
-    pdf.cell(0, 5, "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central", 0, 1, 'C')
+        pdf.image("mapeamento-de-processo.png", x=10, y=250, w=20)
+    
+    pdf.set_font("Arial", 'I', 8)
+    pdf.set_x(35)
+    msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
+    pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
     
