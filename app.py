@@ -2684,7 +2684,7 @@ else:
                 # =======================================================
                 st.markdown("### 📋 Centros de Custos Oficiais")
                 
-                centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
+                centros_ativos = [c for c in colunas_oficiais if df_dsm[c].sum() > 0]
 
                 if not centros_ativos:
                     st.info("Nenhum valor auditado nos Centros de Custo oficiais no mês selecionado.")
