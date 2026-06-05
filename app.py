@@ -2574,7 +2574,7 @@ else:
             with col_dsm1:
                 try:
                     if 'caminho_escudo_dsm' in locals() and os.path.exists(caminho_escudo_dsm):
-                        st.image(caminho_escudo_dsm, width=100) # Ajustado para 100px para não estourar a tela
+                        st.image(caminho_escudo_dsm, width=150) # Ajustado para 100px para não estourar a tela
                     else:
                         st.warning("Escudo DSM não encontrado.")
                 except:
@@ -2583,25 +2583,23 @@ else:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
             # ==========================================
-            # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA (UNIFICADO)
+            # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA (TÁTICA INDUSTRIAL RESTAURADA)
             # ==========================================
-            # 1. Limpeza brutal de colunas
+            # 1. Limpeza brutal do cabeçalho
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
             
-            # 2. Identificação Dinâmica da Coluna de "Outros" (Custo Total)
-            col_custo_outros = None
-            if 'Custo total' in df_aud.columns: col_custo_outros = 'Custo total'
-            elif 'Custo_Total_Calc' in df_aud.columns: col_custo_outros = 'Custo_Total_Calc'
-            else:
-                cand = [c for c in df_aud.columns if 'custo' in c.lower() and 'total' in c.lower() and c != "Outros"]
-                col_custo_outros = cand[0] if cand else None
+            # 2. Resgate do Método Industrial (Índices 51 = Qtd, 52 = Custo Outros)
+            idx_qtd = 51
+            idx_val = 52
+            
+            # Pega o nome exato das colunas usando a posição na planilha
+            col_qtd = df_aud.columns[idx_qtd] if len(df_aud.columns) > idx_qtd else None
+            col_custo_outros = df_aud.columns[idx_val] if len(df_aud.columns) > idx_val else None
 
             # 3. Limpeza das Strings vitais
             if 'Grupo' in df_aud.columns: df_aud['Grupo'] = df_aud['Grupo'].astype(str).str.strip()
             if 'Descrição' in df_aud.columns: df_aud['Descrição'] = df_aud['Descrição'].astype(str).str.strip()
             
-            # Identifica e limpa a coluna de Quantidade
-            col_qtd = 'Quantidade' if 'Quantidade' in df_aud.columns else df_aud.columns[51] if len(df_aud.columns) > 51 else None
             if col_qtd and col_qtd in df_aud.columns:
                 df_aud[col_qtd] = pd.to_numeric(df_aud[col_qtd], errors='coerce').fillna(0).astype(int)
 
@@ -2626,17 +2624,17 @@ else:
 
             # 5. APLICAÇÃO GLOBAL DO LIMPAR_VALOR
             colunas_oficiais = [c for c in lista_oficial if c in df_aud.columns and c != "Outros"]
-            colunas_financeiras = colunas_oficiais.copy()
-            if col_custo_outros: colunas_financeiras.append(col_custo_outros)
-
-            for c in colunas_financeiras:
+            
+            for c in colunas_oficiais:
                 df_aud[c] = df_aud[c].apply(limpar_valor)
+                
+            if col_custo_outros and col_custo_outros in df_aud.columns:
+                df_aud[col_custo_outros] = df_aud[col_custo_outros].apply(limpar_valor)
 
             # 6. CRIAÇÃO DA COLUNA MESTRA (Soma Tudo: Oficiais + Outros)
-            if col_custo_outros:
-                df_aud['Valor_Total_Auditado'] = df_aud[colunas_oficiais].sum(axis=1) + df_aud[col_custo_outros]
-            else:
-                df_aud['Valor_Total_Auditado'] = df_aud[colunas_oficiais].sum(axis=1)
+            soma_oficiais = df_aud[colunas_oficiais].sum(axis=1)
+            soma_outros = df_aud[col_custo_outros].fillna(0) if col_custo_outros else 0
+            df_aud['Valor_Total_Auditado'] = soma_oficiais + soma_outros
 
             # ==========================================
             # 🎛️ FILTROS E PREPARAÇÃO
@@ -2682,7 +2680,7 @@ else:
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Centros de Custos Oficiais")
+                st.markdown("### 📋 Distribuição por Centros de Custos ao "estilo DSM"")
                 
                 centros_ativos = [c for c in colunas_oficiais if df_dsm[c].sum() > 0]
 
@@ -2721,9 +2719,11 @@ else:
                 # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (O famigerado grupo Outros 😱🫨)")
 
+                # Filtra as linhas que de fato pertencem a "Outro"
                 df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
 
-                if df_outros.empty or not col_custo_outros:
+                # Removemos a trava do nome da coluna. Confiamos apenas no conteúdo do df_outros.
+                if df_outros.empty:
                     st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
                 else:
                     def categorizar_grupo(texto):
@@ -2746,7 +2746,7 @@ else:
                             df_g = df_outros[df_outros['Grupo_Consolidado'] == g_nome]
                             cor_hex = obter_cor_outros(g_nome)
                             
-                            # Soma utilizando a coluna limpa dinamicamente
+                            # Soma utilizando a coluna identificada pelo índice 52
                             total_grupo = df_g[col_custo_outros].sum()
                             
                             # Agregação por Descrição
@@ -2802,7 +2802,7 @@ else:
                             for j, empresa in enumerate(empresas_unicas[i:i+3]):
                                 df_e = df_empresas[df_empresas['ose'] == empresa]
                                 
-                                # Agora usamos a Coluna Mestra consolidada!
+                                # Usamos a Coluna Mestra consolidada que jamais falha
                                 total_empresa = df_e['Valor_Total_Auditado'].sum()
                                 
                                 brk_emp = df_e.groupby(['sort_comp', 'Competência'])['Valor_Total_Auditado'].sum().reset_index()
