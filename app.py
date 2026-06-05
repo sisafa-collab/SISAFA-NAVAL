@@ -2680,7 +2680,7 @@ else:
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Distribuição por Centros de Custos ao "estilo DSM"")
+                st.markdown("### 📋 Distribuição por Centros de Custos ao estilo DSM")
                 
                 centros_ativos = [c for c in colunas_oficiais if df_dsm[c].sum() > 0]
 
@@ -2831,7 +2831,7 @@ else:
 
     # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
         with t_rel:
-            st.subheader("💬 Central de Relacionamento (Setor: AUDITORIA)")
+            st.subheader("💬 Central de Relacionamento")
             
             try:
                 # 1. Carregamos as mensagens
