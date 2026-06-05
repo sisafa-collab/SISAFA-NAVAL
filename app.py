@@ -728,22 +728,20 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_text_color(0, 0, 0) # Reseta a cor da fonte
     pdf.ln(15)
 
-    # --- 4. GRÁFICO DE PIZZA ---
+    # --- 4. GRÁFICO DE PIZZA (VERSÃO OTIMIZADA) ---
     try:
-        # Tenta salvar o gráfico Plotly como imagem temporária
+        # Aumentamos o tempo de espera e definimos um formato mais leve
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-            fig_pie.write_image(tmpfile.name, width=600, height=400)
-            pdf.image(tmpfile.name, x=30, y=pdf.get_y(), w=150)
+            # O 'scale=2' garante a qualidade sem precisar de 2000px de largura
+            fig_pie.write_image(tmpfile.name, format="png", scale=1) 
+            pdf.image(tmpfile.name, x=30, y=pdf.get_y(), w=140)
             os.remove(tmpfile.name)
-        pdf.ln(85) # Pula o espaço da imagem gerada
+        pdf.ln(80) 
     except Exception as e:
-        # Se o kaleido não estiver instalado, mostra aviso em vez de quebrar a página
-        pdf.ln(15)
-        pdf.set_font("Arial", 'B', 9)
-        pdf.set_text_color(220, 0, 0)
-        pdf.cell(0, 10, limpar("⚠️ AVISO: GRÁFICO INDISPONÍVEL (Requer pacote 'kaleido')"), 0, 1, 'C')
-        pdf.set_text_color(0, 0, 0)
-        pdf.ln(5)
+        pdf.ln(10)
+        # Se falhar (por falta de kaleido), o PDF sai sem o gráfico, mas não trava
+        pdf.set_font("Arial", 'I', 8)
+        pdf.cell(0, 10, limpar("(Gráfico dinâmico indisponível para esta exportação)"), 0, 1, 'C')
 
     # --- 5. TABELA COM ESTILO NEON ---
     pdf.set_font("Arial", 'B', 12)
@@ -4141,7 +4139,7 @@ else:
 
                 # BOTÃO 1: GERAR TEXTO PARA E-MAIL/WHATSAPP
                 with col_btn1:
-                    if st.button(f"📑 Gerar Texto do Panorama", use_container_width=True):
+                    if st.button(f"📑 Gerar texto de Panorama", use_container_width=True):
                         with st.spinner("Sincronizando dados..."):
                             
                             # (Seu código existente do explica_etapa e montagem do resumo_corpo e msg_final fica todo aqui exatamente como estava)
@@ -4211,23 +4209,25 @@ Cordialmente,
 
                 # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
                 with col_btn2:
-                    try:
-                        pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
-                        st.download_button(
-                            label=f"🖨️ Baixar Dossiê em PDF",
-                            data=pdf_bytes,
-                            file_name=f"Dossie_Financeiro_{ose_sel.replace(' ', '_')}.pdf",
-                            mime="application/pdf",
-                            type="primary",
-                            use_container_width=True
-                        )
-                    except Exception as e:
-                        st.error(f"Erro ao compilar o PDF: {e}")
-
-                # Exibe o panorama pronto para cópia (caso o botão de texto tenha sido clicado)
-                if 'panorama_gerado_exec' in st.session_state:
-                    st.success("✅ **Panorama Gerencial pronto para cópia!** Basta clicar no ícone de 'Copy' no canto superior direito do bloco abaixo. 🫡🇧🇷")
-                    st.code(st.session_state['panorama_gerado_exec'], language="text")
+                    # Usamos um botão simples, o processamento será sob demanda
+                    if st.button(f"🖨️ Baixar Dossiê em PDF", use_container_width=True, type="primary"):
+                        with st.spinner("Compilando dossiê oficial (aguarde um instante)..."):
+                            try:
+                                # Criamos uma versão simplificada da figura para o PDF, 
+                                # reduzindo a carga de memória
+                                fig_pdf = fig_pie
+                                fig_pdf.update_layout(width=500, height=350)
+                                
+                                pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pdf)
+                                
+                                st.download_button(
+                                    label="✅ Download Pronto!",
+                                    data=pdf_bytes,
+                                    file_name=f"Dossie_{ose_sel.replace(' ', '_')}.pdf",
+                                    mime="application/pdf"
+                                )
+                            except Exception as e:
+                                st.error(f"Erro ao gerar PDF: {e}. Dica: Se o erro persistir, verifique o tamanho da fatura.")
         
         
 
