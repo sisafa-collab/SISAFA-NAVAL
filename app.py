@@ -679,11 +679,15 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.add_page()
     pdf.set_margins(10, 10, 10)
 
-    # --- 1. CABEÇALHO ---
+    # --- 1. CABEÇALHO (Harmonizado) ---
     pdf.set_xy(10, 10)
-    pdf.set_font("Arial", 'B', 16)
-    pdf.set_text_color(0, 230, 118)
-    pdf.cell(190, 10, limpar(f"SITUACAO DAS FATURAS: {ose_nome.upper()[:40]}"), 0, 1, 'C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(190, 8, "RELATÓRIO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(190, 8, limpar(ose_nome.upper()), 0, 1, 'C')
+    pdf.ln(5)
+
 
     # --- 2. PAINEL ---
     pdf.set_y(25)
@@ -703,15 +707,28 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.text(15, 50, f"R$ {volume_total:,.2f}")
     pdf.text(115, 50, f"{qtd_total} unidades")
 
-    # --- 3. GRÁFICO ---
+    # --- 3. GRÁFICO (MATPLOTLIB - À PROVA DE FALHAS) ---
     if fig_pie:
         try:
-            img_bytes = fig_pie.to_image(format="png", width=400, height=200, scale=1)
+            import matplotlib.pyplot as plt
+            import numpy as np
+
+            # Extrai os dados do gráfico do Plotly para o Matplotlib
+            labels = [d['label'] for d in fig_pie.data[0].labels]
+            values = fig_pie.data[0].values
+
+            fig, ax = plt.subplots(figsize=(4, 2))
+            ax.pie(values, labels=labels, autopct='%1.1f%%', startangle=90, textprops={'fontsize': 8})
+            ax.axis('equal') 
+
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                tmp.write(img_bytes)
-                pdf.image(tmp.name, x=50, y=60, w=110)
+                plt.savefig(tmp.name, bbox_inches='tight', dpi=100)
+                plt.close(fig)
+                pdf.image(tmp.name, x=55, y=60, w=100)
                 os.remove(tmp.name)
-        except: pass
+        except Exception as e:
+            # Se falhar, não trava o PDF, apenas pula o gráfico
+            pass
 
     # --- 4. TABELA ---
     pdf.set_y(150)
@@ -732,11 +749,12 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
     # --- 5. RODAPÉ ---
-    pdf.set_y(250)
+    # --- 5. RODAPÉ (QR Code aumentado e posicionado) ---
+    pdf.set_y(260)
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=250, w=20)
+        pdf.image("mapeamento-de-processo.png", x=10, y=260, w=30)
     
-    pdf.set_font("Arial", 'I', 8)
+    pdf.set_font("Arial", 'I', 12)
     pdf.set_x(35)
     msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
