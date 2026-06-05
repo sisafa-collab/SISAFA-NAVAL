@@ -19,6 +19,7 @@ from pm4py.objects.conversion.log import converter as log_converter
 from fpdf import FPDF
 import io
 import json
+import tempfile
 
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
@@ -657,6 +658,132 @@ def obter_proximo_numero_glosa():
             else:
                 # Mostra outros erros (como aba com nome errado)
                 raise e
+
+def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
+    def limpar(txt):
+        if not txt: return ""
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Cores Tema Neon SISAFA
+    cor_cyan = (0, 229, 255)
+    cor_roxo = (213, 0, 249)
+    cor_fundo_card = (30, 30, 30)
+
+    # --- 1. CABEÇALHO ---
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
+    pdf.ln(2)
+
+    # --- 2. TEXTO INTRODUTÓRIO APRIMORADO ---
+    pdf.set_font("Arial", '', 10)
+    texto_intro = (
+        f"O presente relatório tem por finalidade apresentar a situação consolidada das faturas da empresa {ose_nome}, "
+        "refletindo o atual estágio de processamento administrativo, financeiro e de auditoria adotado por este Hospital Naval. "
+        "O detalhamento do rito processual e das etapas de liquidação pode ser verificado através do QR Code abaixo."
+    )
+    pdf.multi_cell(0, 5, limpar(texto_intro), align='J')
+    pdf.ln(5)
+
+    # Espaço reservado para o QR Code (Desenhando uma moldura tática)
+    x_qr = 95
+    y_qr = pdf.get_y()
+    pdf.set_fill_color(240, 240, 240)
+    pdf.rect(x_qr, y_qr, 20, 20, style='F')
+    pdf.set_xy(x_qr, y_qr + 22)
+    pdf.set_font("Arial", 'I', 7)
+    pdf.cell(20, 3, limpar("[QR Code Rito]"), 0, 1, 'C')
+    pdf.ln(5)
+
+    # --- 3. CARDS NEON SIMULADOS NO PDF ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Painel de Análise Financeira"), ln=True, align='L')
+    
+    y_cards = pdf.get_y()
+    
+    # Card 1: Volume Total (Fundo escuro, texto Cyan)
+    pdf.set_fill_color(*cor_fundo_card)
+    pdf.rect(10, y_cards, 90, 20, style='F')
+    pdf.set_xy(10, y_cards + 3)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(90, 5, limpar("Volume Financeiro Total"), 0, 2, 'C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(*cor_cyan)
+    pdf.cell(90, 8, limpar(f"R$ {volume_total:,.2f}"), 0, 0, 'C')
+
+    # Card 2: Faturas (Fundo escuro, texto Roxo)
+    pdf.set_fill_color(*cor_fundo_card)
+    pdf.rect(110, y_cards, 90, 20, style='F')
+    pdf.set_xy(110, y_cards + 3)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(90, 5, limpar("Faturas Cadastradas"), 0, 2, 'C')
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(*cor_roxo)
+    pdf.cell(90, 8, limpar(f"{qtd_total} faturas"), 0, 0, 'C')
+
+    pdf.set_text_color(0, 0, 0) # Reseta a cor da fonte
+    pdf.ln(15)
+
+    # --- 4. GRÁFICO DE PIZZA ---
+    try:
+        # Salva o gráfico Plotly como imagem temporária e injeta no PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
+            fig_pie.write_image(tmpfile.name, width=600, height=400)
+            pdf.image(tmpfile.name, x=30, y=pdf.get_y(), w=150)
+            os.remove(tmpfile.name)
+        pdf.ln(85) # Pula o espaço da imagem
+    except Exception as e:
+        pdf.ln(10)
+        pdf.set_font("Arial", 'I', 9)
+        pdf.cell(0, 10, limpar("(O gráfico não pôde ser gerado nesta versão do PDF)"), 0, 1, 'C')
+
+    # --- 5. TABELA COM ESTILO NEON ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Análise das faturas:"), ln=True, align='L')
+    
+    # Cabeçalho da Tabela
+    pdf.set_fill_color(*cor_fundo_card)
+    pdf.set_text_color(*cor_cyan)
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(40, 8, limpar("Nº Fatura"), 1, 0, 'C', fill=True)
+    pdf.cell(40, 8, limpar("Valor (R$)"), 1, 0, 'C', fill=True)
+    pdf.cell(110, 8, limpar("Situação"), 1, 1, 'C', fill=True)
+
+    # Corpo da Tabela
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 8)
+    
+    df_ordenado = df_ose.sort_values(by='status')
+    
+    for _, row in df_ordenado.iterrows():
+        n_fat = str(row.get('Numero_da_fatura', 'S/N'))
+        valor = float(row.get('v_liq_num', 0.0))
+        sit = str(row.get('etapa_nome', 'Indefinida'))
+        
+        pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
+        pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
+        pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
+
+    # --- 6. FECHAMENTO ---
+    pdf.ln(10)
+    pdf.set_font("Arial", 'I', 9)
+    fechamento = (
+        "Esperamos que os esclarecimentos prestados contribuam para a transparência do processo e "
+        "nos colocamos à inteira disposição para quaisquer necessidades adicionais."
+    )
+    pdf.multi_cell(0, 5, limpar(fechamento), align='C')
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
+    pdf.set_font("Arial", '', 9)
+    pdf.cell(0, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
+
+    return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 # --- CONEXÃO GLOBAL BLINDADA (Substitua no topo do arquivo) ---
 def obter_sh():
@@ -3676,10 +3803,6 @@ else:
             else:
                 st.info("Não há faturas aguardando confirmação de pagamento.")
 
-
-
-
-
         # --- ABA 4: ESTATÍSTICAS E INDICADORES (KPIs Financeiros) ---
         with tab4:
         
@@ -3992,69 +4115,62 @@ else:
                     st.info("Não há volume financeiro pendente para esta OSE.")
 
                 # =================================================================
-                # 📧 GERADOR DE PANORAMA OFICIAL PARA O FORNECEDOR
+                # 📧 COMUNICAÇÃO E RELATÓRIOS OFICIAIS PARA O FORNECEDOR
                 # =================================================================
                 st.markdown("#### ✉️ Comunicação com a OSE")
-                st.info("Gere o texto padrão atualizado para responder a questionamentos da empresa.")
+                st.info("Gere o texto padrão atualizado para responder e-mails ou emita o Dossiê em PDF.")
 
-                if st.button(f"📑 Gerar Panorama de Pagamento para {ose_sel}", use_container_width=True, type="primary"):
-                    with st.spinner("Sincronizando dados e formatando panorama oficial..."):
-                        
-                        # Definição das explicações didáticas
-                        explica_etapa = {
-                            1: "Registro e conferência inicial da documentação em nossa Secretaria.",
-                            2: "Divisão de Auditoria recebeu as faturas e iniciou a análise técnica detalhada dos serviços e materiais cobrados.",
-                            3: "Auditoria técnica concluída com sucesso e aguardando o recebimento no setor financeiro.",
-                            4: "Aguardando a reserva orçamentária, com vistas à emissão da Nota de Empenho.",
-                            5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
-                            6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão dos documentos fiscais pertinentes.",
-                            7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo gestor e, posteriormente, encaminhada para a Seção de Execução Financeira.",
-                            8: "Liquidação da Nota Fiscal no Sistema Integrado de Administração Financeira do Governo Federal (SIAFI) 🖥️, conforme o estabelecido no artigo 63 da Lei 4.320/64.",
-                            9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil após a aprovação para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários devidos."
-                        }
+                col_btn1, col_btn2 = st.columns(2)
 
-                        meses_map = {1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN", 7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"}
-
-                        # Garante a coluna de data para ordenação
-                        df_ose_exec['dt_ordem'] = pd.to_datetime(df_ose_exec['dt_mov'], errors='coerce')
-                        
-                        resumo_corpo = ""
-                        etapas_ativas = sorted(df_ose_exec['status'].unique())
-                        
-                        for st_id in etapas_ativas:
-                            if st_id >= 9: continue # Ignora os já pagos no E-MAIL (Mantido como o senhor instruiu)
+                # BOTÃO 1: GERAR TEXTO PARA E-MAIL/WHATSAPP
+                with col_btn1:
+                    if st.button(f"📑 Gerar Texto do Panorama", use_container_width=True):
+                        with st.spinner("Sincronizando dados..."):
                             
-                            df_etapa = df_ose_exec[df_ose_exec['status'] == st_id].copy()
+                            # (Seu código existente do explica_etapa e montagem do resumo_corpo e msg_final fica todo aqui exatamente como estava)
+                            explica_etapa = {
+                                1: "Registro e conferência inicial da documentação em nossa Secretaria.",
+                                2: "Divisão de Auditoria recebeu as faturas e iniciou a análise técnica detalhada dos serviços e materiais cobrados.",
+                                3: "Auditoria técnica concluída com sucesso e aguardando o recebimento no setor financeiro.",
+                                4: "Aguardando a reserva orçamentária, com vistas à emissão da Nota de Empenho.",
+                                5: "Recurso orçamentário já reservado especificamente para estas faturas. Oportunamente, destaca-se que serão envidados os esforços necessários para o encaminhamento da respectiva NE com a maior celeridade possível!",
+                                6: "Fase em que o fiscal do contrato irá apreciar a Nota de Empenho, bem como realizará o devido contato com a empresa, com vistas à emissão dos documentos fiscais pertinentes.",
+                                7: "Fase em que a empresa deve emitir e enviar a Nota Fiscal para o Hospital. A Nota Fiscal é certificada pelo gestor e, posteriormente, encaminhada para a Seção de Execução Financeira.",
+                                8: "Liquidação da Nota Fiscal no Sistema Integrado de Administração Financeira do Governo Federal (SIAFI) 🖥️, conforme o estabelecido no artigo 63 da Lei 4.320/64.",
+                                9: "Pagamento autorizado pelo Ordenador de Despesas. Nessa etapa, o pagamento demora, em média, um dia útil após a aprovação para ser creditado em conta-corrente. Outrossim, salienta-se que, por ocasião dos pagamentos, são realizados os abatimentos tributários devidos."
+                            }
+
+                            meses_map = {1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN", 7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"}
+                            df_ose_exec['dt_ordem'] = pd.to_datetime(df_ose_exec['dt_mov'], errors='coerce')
+                            resumo_corpo = ""
+                            etapas_ativas = sorted(df_ose_exec['status'].unique())
                             
-                            if not df_etapa.empty:
-                                nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
-                                total_etapa = df_etapa['v_liq_num'].sum()
-                                descricao = explica_etapa.get(st_id, "")
-                                
-                                resumo_corpo += f"\n🔹 **{nome_da_etapa.upper()}**\n"
-                                resumo_corpo += f"   - {descricao}\n"
-                                resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
-                                
-                                # Quebra por competência dentro da etapa
-                                competencias = df_etapa['competencia_grafico'].unique()
-                                for comp in competencias:
-                                    df_comp = df_etapa[df_etapa['competencia_grafico'] == comp]
-                                    lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
-                                    subtotal_comp = df_comp['v_liq_num'].sum()
+                            for st_id in etapas_ativas:
+                                if st_id >= 9: continue
+                                df_etapa = df_ose_exec[df_ose_exec['status'] == st_id].copy()
+                                if not df_etapa.empty:
+                                    nome_da_etapa = mapa_status_nomes.get(st_id, f"Etapa {st_id}")
+                                    total_etapa = df_etapa['v_liq_num'].sum()
+                                    descricao = explica_etapa.get(st_id, "")
+                                    resumo_corpo += f"\n🔹 **{nome_da_etapa.upper()}**\n"
+                                    resumo_corpo += f"   - {descricao}\n"
+                                    resumo_corpo += f"   - Volume Total na Etapa: R$ {total_etapa:,.2f}\n"
                                     
-                                    # Ajusta o rótulo (Ex: 5/2026 -> MAI/2026)
-                                    try:
-                                        mes_num, ano_str = comp.split('/')
-                                        mes_sigla = meses_map.get(int(mes_num), mes_num)
-                                        rotulo_entrada = f"{mes_sigla}/{ano_str}"
-                                    except:
-                                        rotulo_entrada = comp
+                                    competencias = df_etapa['competencia_grafico'].unique()
+                                    for comp in competencias:
+                                        df_comp = df_etapa[df_etapa['competencia_grafico'] == comp]
+                                        lista_faturas = ", ".join(df_comp['Numero_da_fatura'].astype(str).tolist())
+                                        subtotal_comp = df_comp['v_liq_num'].sum()
+                                        try:
+                                            mes_num, ano_str = comp.split('/')
+                                            mes_sigla = meses_map.get(int(mes_num), mes_num)
+                                            rotulo_entrada = f"{mes_sigla}/{ano_str}"
+                                        except:
+                                            rotulo_entrada = comp
+                                        resumo_corpo += f"     ➔ Competência {rotulo_entrada}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
+                                    resumo_corpo += "───────────────────────────────────────\n"
 
-                                    resumo_corpo += f"     ➔ Competência {rotulo_entrada}: Faturas [{lista_faturas}] — Subtotal: R$ {subtotal_comp:,.2f}\n"
-                                
-                                resumo_corpo += "───────────────────────────────────────\n"
-
-                        msg_final = f"""Prezado (a) representante da empresa {ose_sel},
+                            msg_final = f"""Prezado (a) representante da empresa {ose_sel},
 
 Cumprimentando-o (a) cordialmente, seguem abaixo algumas orientações, bem como um panorama atualizado de seus processos ora em trâmite no Hospital Naval de Brasília (HNBra):
 
@@ -4074,9 +4190,24 @@ Estamos à disposição para eventuais esclarecimentos. Gratos pela distinta par
 
 Cordialmente,
 """
-                        st.session_state['panorama_gerado_exec'] = msg_final
+                            st.session_state['panorama_gerado_exec'] = msg_final
 
-                # Exibe o panorama pronto para cópia
+                # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
+                with col_btn2:
+                    try:
+                        pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
+                        st.download_button(
+                            label=f"🖨️ Baixar Dossiê em PDF",
+                            data=pdf_bytes,
+                            file_name=f"Dossie_Financeiro_{ose_sel.replace(' ', '_')}.pdf",
+                            mime="application/pdf",
+                            type="primary",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error(f"Erro ao compilar o PDF: {e}")
+
+                # Exibe o panorama pronto para cópia (caso o botão de texto tenha sido clicado)
                 if 'panorama_gerado_exec' in st.session_state:
                     st.success("✅ **Panorama Gerencial pronto para cópia!** Basta clicar no ícone de 'Copy' no canto superior direito do bloco abaixo. 🫡🇧🇷")
                     st.code(st.session_state['panorama_gerado_exec'], language="text")
