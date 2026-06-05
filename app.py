@@ -661,8 +661,6 @@ def obter_proximo_numero_glosa():
 
 
 def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
-    from fpdf import FPDF
-    import datetime
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
@@ -671,132 +669,48 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
-    # --- 0. MARCA D'ÁGUA ---
+    # --- 0. MARCA D'ÁGUA (Simples e Leve) ---
     caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
     if os.path.exists(caminho_logo_relatorio):
-        # Centralizada e dimensionada para preencher o fundo suavemente
         pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
-
-    # Cores Tema Neon SISAFA
-    cor_cyan = (0, 229, 255)
-    cor_roxo = (213, 0, 249)
-    cor_fundo_card = (30, 30, 30)
 
     # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
-    pdf.ln(2)
-
-    # --- 2. TEXTO INTRODUTÓRIO APRIMORADO ---
+    
+    # --- 2. PAINEL DE DADOS ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
     pdf.set_font("Arial", '', 10)
-    texto_intro = (
-        f"O presente relatório tem por finalidade apresentar a situação consolidada das faturas da empresa {ose_nome}, "
-        "refletindo o atual estágio de processamento administrativo, financeiro e de auditoria adotado por este Hospital Naval. "
-        "O detalhamento do rito processual e das etapas de liquidação pode ser verificado no fluxograma (canto inferior esquerdo)."
-    )
-    pdf.multi_cell(0, 5, limpar(texto_intro), align='J')
+    pdf.cell(0, 7, limpar(f"Volume Total: R$ {volume_total:,.2f}"), ln=True)
+    pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # --- 3. CARDS NEON SIMULADOS NO PDF ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel de Análise Financeira"), ln=True, align='L')
-    
-    y_cards = pdf.get_y()
-    
-    # Card 1: Volume Total (Fundo escuro, texto Cyan)
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.rect(10, y_cards, 90, 20, style='F')
-    pdf.set_xy(10, y_cards + 3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(90, 5, limpar("Volume Financeiro Total"), 0, 2, 'C')
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(*cor_cyan)
-    pdf.cell(90, 8, limpar(f"R$ {volume_total:,.2f}"), 0, 0, 'C')
+    # --- 3. TABELA (Sem gráfico pesado para não travar o servidor) ---
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C')
+    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C')
+    pdf.cell(110, 8, "Situação", 1, 1, 'C')
 
-    # Card 2: Faturas (Fundo escuro, texto Roxo)
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.rect(110, y_cards, 90, 20, style='F')
-    pdf.set_xy(110, y_cards + 3)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(90, 5, limpar("Faturas Cadastradas"), 0, 2, 'C')
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(*cor_roxo)
-    pdf.cell(90, 8, limpar(f"{qtd_total} faturas"), 0, 0, 'C')
-
-    pdf.set_text_color(0, 0, 0) # Reseta a cor da fonte
-    pdf.ln(15)
-
-    # --- 4. GRÁFICO DE PIZZA (VERSÃO OTIMIZADA) ---
-    try:
-        # Aumentamos o tempo de espera e definimos um formato mais leve
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpfile:
-            # O 'scale=2' garante a qualidade sem precisar de 2000px de largura
-            fig_pie.write_image(tmpfile.name, format="png", scale=1) 
-            pdf.image(tmpfile.name, x=30, y=pdf.get_y(), w=140)
-            os.remove(tmpfile.name)
-        pdf.ln(80) 
-    except Exception as e:
-        pdf.ln(10)
-        # Se falhar (por falta de kaleido), o PDF sai sem o gráfico, mas não trava
-        pdf.set_font("Arial", 'I', 8)
-        pdf.cell(0, 10, limpar("(Gráfico dinâmico indisponível para esta exportação)"), 0, 1, 'C')
-
-    # --- 5. TABELA COM ESTILO NEON ---
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Análise das faturas:"), ln=True, align='L')
-    
-    # Cabeçalho da Tabela
-    pdf.set_fill_color(*cor_fundo_card)
-    pdf.set_text_color(*cor_cyan)
-    pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 8, limpar("Nº Fatura"), 1, 0, 'C', fill=True)
-    pdf.cell(40, 8, limpar("Valor (R$)"), 1, 0, 'C', fill=True)
-    pdf.cell(110, 8, limpar("Situação"), 1, 1, 'C', fill=True)
-
-    # Corpo da Tabela
-    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
-    
-    df_ordenado = df_ose.sort_values(by='status')
-    
-    for _, row in df_ordenado.iterrows():
+    for _, row in df_ose.iterrows():
         n_fat = str(row.get('Numero_da_fatura', 'S/N'))
         valor = float(row.get('v_liq_num', 0.0))
         sit = str(row.get('etapa_nome', 'Indefinida'))
-        
         pdf.cell(40, 7, limpar(n_fat), 1, 0, 'C')
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # --- 6. FECHAMENTO & IMAGEM INFERIOR ---
-    pdf.ln(10)
-    
-    # Salva a coordenada Y antes do rodapé para alinhar a imagem e o texto
-    y_fechamento = pdf.get_y()
-    
+    # --- 4. MAPA DE PROCESSO (Imagem no canto) ---
+    y_final = pdf.get_y() + 10
     caminho_mapeamento = "mapeamento-de-processo.png"
     if os.path.exists(caminho_mapeamento):
-        # Insere a imagem no canto esquerdo
-        pdf.image(caminho_mapeamento, x=10, y=y_fechamento, w=35)
-        
-    # Desloca o texto para a direita (x=50) para não ficar sobreposto à imagem
-    pdf.set_xy(50, y_fechamento)
-    pdf.set_font("Arial", 'I', 9)
-    fechamento = (
-        "Esperamos que os esclarecimentos prestados contribuam para a transparência do processo e "
-        "nos colocamos à inteira disposição para quaisquer necessidades adicionais."
-    )
-    pdf.multi_cell(140, 5, limpar(fechamento), align='C')
+        pdf.image(caminho_mapeamento, x=10, y=y_final, w=30)
     
-    pdf.set_x(50)
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(140, 5, limpar("Hospital Naval de Brasília"), 0, 1, 'C')
-    pdf.set_font("Arial", '', 9)
-    pdf.set_x(50)
-    pdf.cell(140, 5, limpar("A saúde Naval no Planalto Central"), 0, 1, 'C')
+    # --- 5. RODAPÉ FIXO ---
+    pdf.set_y(-25)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.cell(0, 5, limpar("Hospital Naval de Brasília - A saúde Naval no Planalto Central"), 0, 1, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
