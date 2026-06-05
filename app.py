@@ -708,13 +708,15 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.text(15, 50, f"R$ {volume_total:,.2f}")
     pdf.text(115, 50, f"{qtd_total} unidades")
 
-    # 3. Gráfico Blindado (Matplotlib - Não precisa de Kaleido)
+    # --- 3. GRÁFICO (Blindado com Matplotlib) ---
     if fig_pie:
         try:
-            labels = [d['label'] for d in fig_pie.data[0].labels]
-            values = fig_pie.data[0].values
             fig, ax = plt.subplots(figsize=(4, 2))
-            ax.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7})
+            # Ajuste de dados do Plotly para Matplotlib
+            ax.pie([d.get('value', 0) for d in fig_pie.data[0].to_plotly_json()['values']], 
+                   labels=[d for d in fig_pie.data[0].labels], 
+                   autopct='%1.1f%%', textprops={'fontsize': 7})
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', dpi=100)
                 plt.close(fig)
@@ -741,10 +743,10 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
     # 5. Rodapé Absoluto (Forçado no fim da página)
-    pdf.set_y(260) 
+    pdf.set_y(-30) 
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=260, w=30)
-    pdf.set_xy(45, 260)
+        pdf.image("mapeamento-de-processo.png", x=10, y=260, w=25)
+    pdf.set_xy(40, 260)
     pdf.set_font("Arial", 'I', 8)
     msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
