@@ -20,6 +20,7 @@ from fpdf import FPDF
 import io
 import json
 import tempfile
+import kaleido
 
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
