@@ -1445,7 +1445,10 @@ else:
                                         "desc_glosa": temp_desc
                                     })
 
-                        col_add, col_salvar = st.columns(2)
+                            # --- NOVA LÓGICA DE BOTÕES (EM LOTE) ---
+                        col_qtd, col_add, col_salvar = st.columns([1, 2, 2])
+                        
+                        qtd_adicionar = col_qtd.number_input("Qtd a adicionar (limite: 20 pacientes ⚠️):", min_value=1, max_value=20, value=1, step=1, key=f"qtd_add_gl_{nup_audit}")
                         btn_add = col_add.form_submit_button("➕ ADICIONAR PACIENTE NO RELATÓRIO 🤕🤧🤒")
                         btn_salvar = col_salvar.form_submit_button("💾 CONFIRMAR PACIENTES", type="primary")
 
@@ -1468,7 +1471,10 @@ else:
                     if btn_add:
                         # Salva o que foi digitado e adiciona uma linha em branco
                         st.session_state[key_glosas] = novos_dados
-                        st.session_state[key_glosas].append({"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""})
+                        for _ in range(qtd_adicionar):
+                        st.session_state[key_glosas].append({
+                            "paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""
+                        })
                         st.rerun()
 
                     # --- 1. RESUMO FINANCEIRO (Soma Automática dos Pacientes) ---
@@ -1617,7 +1623,10 @@ else:
                                         "valor": temp_val
                                     })
                         
-                        col_add_g6, col_salvar_g6 = st.columns(2)
+                        # --- NOVA LÓGICA DE BOTÕES (EM LOTE) ---
+                        col_qtd_g6, col_add_g6, col_salvar_g6 = st.columns([1, 2, 2])
+                        
+                        qtd_add_g6 = col_qtd_g6.number_input("Qtd a adicionar:", min_value=1, max_value=20, value=1, step=1, key=f"qtd_add_g6_{nup_audit}")
                         btn_add_g6 = col_add_g6.form_submit_button("➕ ADICIONAR OUTRO ITEM")
                         btn_salvar_g6 = col_salvar_g6.form_submit_button("💾 CONFIRMAR ITENS (GRUPO VI)", type="primary")
 
@@ -1637,7 +1646,8 @@ else:
                     if btn_add_g6:
                         # Salva o que já foi digitado e acrescenta uma nova linha vazia
                         st.session_state[key_lista_g6] = novos_dados_g6
-                        st.session_state[key_lista_g6].append({"tipo": "", "desc": "", "qtd": 1, "valor": 0.0})
+                        for _ in range(qtd_add_g6):
+                            st.session_state[key_lista_g6].append({"tipo": "", "desc": "", "qtd": 1, "valor": 0.0})
                         st.rerun()
 
 
@@ -2332,7 +2342,7 @@ else:
             st.write("")
             st.write("")
 
-            # ====== 
+            
             # =======================================================
             # === NOVA SEÇÃO: INTELIGÊNCIA E MAPEAMENTO DE GLOSAS ===
             # =======================================================
@@ -2680,7 +2690,7 @@ else:
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Distribuição por Centros de Custos ao estilo DSM")
+                st.markdown("### 📋 Distribuição por Centros de Custos ao estilo DSM ⚕️")
                 
                 centros_ativos = [c for c in colunas_oficiais if df_dsm[c].sum() > 0]
 
