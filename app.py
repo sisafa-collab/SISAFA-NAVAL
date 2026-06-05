@@ -2572,10 +2572,9 @@ else:
 
             col_dsm1, col_dsm2 = st.columns([1, 4])
             with col_dsm1:
-                # Tenta carregar, se falhar, exibe um ícone de fallback
                 try:
                     if 'caminho_escudo_dsm' in locals() and os.path.exists(caminho_escudo_dsm):
-                        st.image(caminho_escudo_dsm, width=1000)
+                        st.image(caminho_escudo_dsm, width=100) # Ajustado para 100px para não estourar a tela
                     else:
                         st.warning("Escudo DSM não encontrado.")
                 except:
@@ -2584,60 +2583,64 @@ else:
                 st.subheader("Apoio às informações prestadas à Diretoria de Saúde da Marinha (DSM)")
 
             # ==========================================
-            # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA
+            # 🧹 MOTOR DE NORMALIZAÇÃO E LIMPEZA PROFUNDA (UNIFICADO)
             # ==========================================
             # 1. Limpeza brutal de colunas
             df_aud.columns = [str(c).strip() for c in df_aud.columns]
             
-            # Caça qualquer coluna que signifique "Custo Total" ignorando espaços duplos
-            for col in df_aud.columns:
-                col_lower = col.lower()
-                if 'custo' in col_lower and 'total' in col_lower and col != "Outros":
-                    df_aud.rename(columns={col: 'Custo_Total_Calc'}, inplace=True)
-            
-            # Limpeza das Strings vitais
+            # 2. Identificação Dinâmica da Coluna de "Outros" (Custo Total)
+            col_custo_outros = None
+            if 'Custo total' in df_aud.columns: col_custo_outros = 'Custo total'
+            elif 'Custo_Total_Calc' in df_aud.columns: col_custo_outros = 'Custo_Total_Calc'
+            else:
+                cand = [c for c in df_aud.columns if 'custo' in c.lower() and 'total' in c.lower() and c != "Outros"]
+                col_custo_outros = cand[0] if cand else None
+
+            # 3. Limpeza das Strings vitais
             if 'Grupo' in df_aud.columns: df_aud['Grupo'] = df_aud['Grupo'].astype(str).str.strip()
             if 'Descrição' in df_aud.columns: df_aud['Descrição'] = df_aud['Descrição'].astype(str).str.strip()
-            if 'Quantidade' in df_aud.columns: df_aud['Quantidade'] = pd.to_numeric(df_aud['Quantidade'], errors='coerce').fillna(0).astype(int)
+            
+            # Identifica e limpa a coluna de Quantidade
+            col_qtd = 'Quantidade' if 'Quantidade' in df_aud.columns else df_aud.columns[51] if len(df_aud.columns) > 51 else None
+            if col_qtd and col_qtd in df_aud.columns:
+                df_aud[col_qtd] = pd.to_numeric(df_aud[col_qtd], errors='coerce').fillna(0).astype(int)
 
-            # 2. Motor Blindado de Datas (Entende DD/MM e YYYY-MM)
+            # 4. Motor Blindado de Datas
             def parse_timestamp_blindado(val):
                 v_str = str(val).strip()
                 if not v_str or v_str.lower() in ['nan', 'none', 'nat']: return pd.NaT
                 try:
-                    # Se tem traço na 4ª posição, é Padrão ISO (2026-05-06)
-                    if '-' in v_str and v_str.find('-') == 4:
-                        return pd.to_datetime(v_str, errors='coerce')
-                    # Caso contrário, assume o padrão BR (DD/MM/YYYY)
+                    if '-' in v_str and v_str.find('-') == 4: return pd.to_datetime(v_str, errors='coerce')
                     return pd.to_datetime(v_str, dayfirst=True, errors='coerce')
                 except:
                     return pd.to_datetime(v_str, errors='coerce')
 
             df_aud['Data_Auditoria'] = df_aud['timestamp'].apply(parse_timestamp_blindado)
             
-            # 3. Criação do Filtro Mês da Auditoria & Tradução da Competência
             mapa_meses = {1: 'JAN', 2: 'FEV', 3: 'MAR', 4: 'ABR', 5: 'MAI', 6: 'JUN', 7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'}
-            
             df_aud['Mês_Auditoria'] = df_aud['Data_Auditoria'].apply(lambda d: f"{mapa_meses[d.month]}/{d.year}" if pd.notna(d) else "Desconhecido")
-            
             df_aud['mes_competencia'] = pd.to_numeric(df_aud['mes_competencia'], errors='coerce')
             df_aud['ano_competencia'] = pd.to_numeric(df_aud['ano_competencia'], errors='coerce')
-            
-            # A mágica da tradução (Ex: 4 -> ABR/26)
             df_aud['Competência'] = df_aud.apply(lambda r: f"{mapa_meses[int(r['mes_competencia'])]}/{str(int(r['ano_competencia']))[2:]}" if pd.notna(r['mes_competencia']) else "S/C", axis=1)
-            # Chave secreta para ordenar os meses perfeitamente (Ex: 202604)
             df_aud['sort_comp'] = df_aud['ano_competencia'].fillna(0) * 100 + df_aud['mes_competencia'].fillna(0) 
 
-            # Limpeza Numérica Segura das colunas financeiras
-            colunas_validas = [c for c in lista_oficial if c in df_aud.columns and c != "Outros"]
-            for c in colunas_validas + ['Custo_Total_Calc']:
-                if c in df_aud.columns:
-                    df_aud[c] = df_aud[c].apply(limpar_valor)
+            # 5. APLICAÇÃO GLOBAL DO LIMPAR_VALOR
+            colunas_oficiais = [c for c in lista_oficial if c in df_aud.columns and c != "Outros"]
+            colunas_financeiras = colunas_oficiais.copy()
+            if col_custo_outros: colunas_financeiras.append(col_custo_outros)
+
+            for c in colunas_financeiras:
+                df_aud[c] = df_aud[c].apply(limpar_valor)
+
+            # 6. CRIAÇÃO DA COLUNA MESTRA (Soma Tudo: Oficiais + Outros)
+            if col_custo_outros:
+                df_aud['Valor_Total_Auditado'] = df_aud[colunas_oficiais].sum(axis=1) + df_aud[col_custo_outros]
+            else:
+                df_aud['Valor_Total_Auditado'] = df_aud[colunas_oficiais].sum(axis=1)
 
             # ==========================================
             # 🎛️ FILTROS E PREPARAÇÃO
             # ==========================================
-            # Filtro com meses de auditoria detectados na planilha
             df_datas_validas = df_aud.dropna(subset=['Data_Auditoria']).sort_values('Data_Auditoria')
             meses_audit_unicos = df_datas_validas['Mês_Auditoria'].unique().tolist()
             if "Desconhecido" in df_aud['Mês_Auditoria'].unique(): meses_audit_unicos.append("Desconhecido")
@@ -2670,17 +2673,16 @@ else:
                     "Outros procedimentos cardiológicos": "#FFB6C1", "Outros exames cardiológicos": "#FFB6C1"
                 }
 
-                # Função tolerante para buscar cor (Ignora se faltou uma letra)
                 def obter_cor_outros(nome_grupo):
                     nome_limpo = str(nome_grupo).lower().strip()
                     for k, v in mapa_cores_outros.items():
                         if k.lower() in nome_limpo: return v
-                    return "#ff9100" # Cor de alerta padrão SISAFA
+                    return "#ff9100" 
 
                 # =======================================================
                 # 1. RENDERIZAÇÃO DOS 42 CENTROS DE CUSTO OFICIAIS
                 # =======================================================
-                st.markdown("### 📋 Centros de Custos")
+                st.markdown("### 📋 Centros de Custos Oficiais")
                 
                 centros_ativos = [c for c in colunas_validas if df_dsm[c].sum() > 0]
 
@@ -2693,18 +2695,10 @@ else:
                             df_centro = df_dsm[df_dsm[centro] > 0]
                             valor_cc = df_centro[centro].sum()
                             
-                            # Agrupamento cronológico correto da competência
                             brk_df = df_centro.groupby(['sort_comp', 'Competência'])[centro].sum().reset_index()
                             brk_df = brk_df[brk_df[centro] > 0].sort_values('sort_comp')
                             breakdown_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[centro]:,.2f}</b><br>" for _, row in brk_df.iterrows()])
                             
-                            nups_relacionados = df_centro['nup'].unique()
-                            df_rel = df_p[df_p['nup'].isin(nups_relacionados)]
-                            
-                            v_ap = df_rel['valor_apresentado'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_apresentado' in df_rel.columns else 0
-                            v_gl = df_rel['glosa'].apply(limpar_valor).sum() if not df_rel.empty and 'glosa' in df_rel.columns else 0
-                            v_lq = df_rel['valor_liquido'].apply(limpar_valor).sum() if not df_rel.empty and 'valor_liquido' in df_rel.columns else 0
-
                             css_class = mapa_cc_classe.get(centro, "card-cyan")
 
                             with cols[j]:
@@ -2723,25 +2717,15 @@ else:
                 st.write("")
                 
                 # =======================================================
-                # --- BLOCO FINAL: RENDERIZAÇÃO DOS 8 GRUPOS DE "OUTROS" (VERSÃO FINAL) ---
-
+                # 2. RENDERIZAÇÃO DOS GRUPOS DE "OUTROS"
+                # =======================================================
                 st.markdown("### 📂 Grupos de Custos Diversos (O famigerado grupo Outros 😱🫨)")
 
-                # Busca colunas pelo índice (51=Quantidade, 52=Custo) conforme sua planilha
-                idx_qtd = 51
-                idx_val = 52
-
-                # Filtra qualquer linha que contenha "Outro" no Grupo, ignorando nulos
                 df_outros = df_dsm[df_dsm['Grupo'].str.contains("Outro", case=False, na=False)].copy()
 
-                if df_outros.empty:
+                if df_outros.empty or not col_custo_outros:
                     st.info("Nenhum lançamento no Grupo VI para o período selecionado.")
                 else:
-                    # 1. Limpeza forçada ANTES de qualquer agrupamento
-                    df_outros.iloc[:, idx_val] = df_outros.iloc[:, idx_val].apply(limpar_valor)
-                    df_outros.iloc[:, idx_qtd] = pd.to_numeric(df_outros.iloc[:, idx_qtd], errors='coerce').fillna(0)
-
-                    # 2. Categorização Inteligente
                     def categorizar_grupo(texto):
                         t = str(texto).lower()
                         if "medicamento" in t: return "Outros medicamentos"
@@ -2756,30 +2740,25 @@ else:
                     df_outros['Grupo_Consolidado'] = df_outros['Grupo'].apply(categorizar_grupo)
                     grupos_unicos = sorted(df_outros['Grupo_Consolidado'].unique().tolist())
                     
-                    # 3. Grid de 3 colunas para os cartões
                     for i in range(0, len(grupos_unicos), 3):
                         cols_outros = st.columns(3)
                         for j, g_nome in enumerate(grupos_unicos[i:i+3]):
                             df_g = df_outros[df_outros['Grupo_Consolidado'] == g_nome]
                             cor_hex = obter_cor_outros(g_nome)
                             
-                            # Cálculo do total do grupo usando índice 52
-                            total_grupo = df_g.iloc[:, idx_val].sum()
+                            # Soma utilizando a coluna limpa dinamicamente
+                            total_grupo = df_g[col_custo_outros].sum()
                             
-                            # Agregação por Descrição (usando os índices)
-                            agg_desc = df_g.groupby('Descrição').agg({
-                                df_outros.columns[idx_qtd]: 'sum', 
-                                df_outros.columns[idx_val]: 'sum'
-                            }).reset_index()
+                            # Agregação por Descrição
+                            if col_qtd and col_qtd in df_g.columns:
+                                agg_desc = df_g.groupby('Descrição').agg({col_qtd: 'sum', col_custo_outros: 'sum'}).reset_index()
+                                desc_html = "".join([f"• {row['Descrição']} ({int(row[col_qtd])} un): R$ {row[col_custo_outros]:,.2f}<br>" for _, row in agg_desc.iterrows()])
+                            else:
+                                agg_desc = df_g.groupby('Descrição').agg({col_custo_outros: 'sum'}).reset_index()
+                                desc_html = "".join([f"• {row['Descrição']}: R$ {row[col_custo_outros]:,.2f}<br>" for _, row in agg_desc.iterrows()])
                             
-                            # HTML das descrições compiladas
-                            desc_html = "".join([f"• {row['Descrição']} ({int(row[df_outros.columns[idx_qtd]])} un): R$ {row[df_outros.columns[idx_val]]:,.2f}<br>" 
-                                                for _, row in agg_desc.iterrows()])
-                            
-                            # Breakdown por competência
-                            brk = df_g.groupby('Competência')[df_outros.columns[idx_val]].sum()
-                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" 
-                                                    for k, v in brk.items()])
+                            brk = df_g.groupby('Competência')[col_custo_outros].sum()
+                            breakdown_html = "".join([f"• <span style='color:#555;'>{k}:</span> <b>R$ {v:,.2f}</b><br>" for k, v in brk.items()])
 
                             with cols_outros[j]:
                                 st.markdown(f"""
@@ -2797,68 +2776,55 @@ else:
                                 """, unsafe_allow_html=True)
 
                 # =======================================================
-                # --- NOVA SEÇÃO: VALORES AUDITADOS POR EMPRESA (OSE) ---
+                # 3. NOVA SEÇÃO: VALORES AUDITADOS POR EMPRESA (OSE)
                 # =======================================================
                 st.write("") 
                 st.divider()
                 st.markdown("### 🏢 Análise de Valores Auditados por Empresa (OSE)")
                 
-                # BUSCA PELA COLUNA QUE REALMENTE EXISTE
-                # Vamos forçar a busca pelo nome exato "Custo total" ou "Custo_Total_Calc"
-                nome_coluna_custo = None
-                if 'Custo total' in df_dsm.columns:
-                    nome_coluna_custo = 'Custo total'
-                elif 'Custo_Total_Calc' in df_dsm.columns:
-                    nome_coluna_custo = 'Custo_Total_Calc'
+                if 'ose' not in df_dsm.columns:
+                    st.warning("Coluna de empresa ('ose') não localizada.")
                 else:
-                    # Se não achou, pega qualquer uma que tenha "custo" no nome
-                    candidatas = [c for c in df_dsm.columns if 'custo' in c.lower()]
-                    if candidatas:
-                        nome_coluna_custo = candidatas[0]
-                
-                if not nome_coluna_custo or 'ose' not in df_dsm.columns:
-                    st.warning(f"Coluna de custo não localizada. Colunas encontradas: {list(df_dsm.columns)}")
-                else:
-                    # 2. LIMPEZA E PADRONIZAÇÃO OBRIGATÓRIA
                     df_empresas = df_dsm.copy()
                     df_empresas['ose'] = df_empresas['ose'].astype(str).str.strip()
-                    df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT', 'nan'])]
+                    df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT'])]
                     
-                    # Força a conversão numérica da coluna identificada
-                    df_empresas[nome_coluna_custo] = pd.to_numeric(df_empresas[nome_coluna_custo], errors='coerce').fillna(0)
+                    # Filtra apenas empresas cujo total (Coluna Mestra) seja maior que zero
+                    df_empresas = df_empresas[df_empresas['Valor_Total_Auditado'] > 0]
                     
-                    empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
-                    
-                    # Renderização em Grid de 3 colunas
-                    for i in range(0, len(empresas_unicas), 3):
-                        cols_emp = st.columns(3)
-                        for j, empresa in enumerate(empresas_unicas[i:i+3]):
-                            df_e = df_empresas[df_empresas['ose'] == empresa]
-                            
-                            # Calcula o total usando a coluna que identificamos com sucesso
-                            total_empresa = df_e[nome_coluna_custo].sum()
-                            
-                            # Agrupamento cronológico (Breakdown por Competência)
-                            brk_emp = df_e.groupby(['sort_comp', 'Competência'])[nome_coluna_custo].sum().reset_index()
-                            brk_emp = brk_emp.sort_values('sort_comp')
-                            
-                            breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[nome_coluna_custo]:,.2f}</b><br>" 
-                                                          for _, row in brk_emp.iterrows()])
-                            
-                            cor_hex_emp = "#1e3d59" 
-                            
-                            with cols_emp[j]:
-                                st.markdown(f"""
-                                <div class="neon-card" style="border-bottom-color: {cor_hex_emp}; box-shadow: 0 10px 20px {cor_hex_emp}33;">
-                                    <div class="nc-title" style="color: {cor_hex_emp}; min-height: 40px; font-size: 0.85rem;">{empresa}</div>
-                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {total_empresa:,.2f}</div>
-                                    <hr style="margin: 8px 0; border: 0.5px solid #eee;">
-                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-                                        <span style="font-weight:bold; color:#444;">Discriminação por Competência:</span><br>
-                                        {breakdown_emp_html}
+                    if df_empresas.empty:
+                        st.info("Nenhum valor auditado por empresa no período selecionado.")
+                    else:
+                        empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
+                        
+                        for i in range(0, len(empresas_unicas), 3):
+                            cols_emp = st.columns(3)
+                            for j, empresa in enumerate(empresas_unicas[i:i+3]):
+                                df_e = df_empresas[df_empresas['ose'] == empresa]
+                                
+                                # Agora usamos a Coluna Mestra consolidada!
+                                total_empresa = df_e['Valor_Total_Auditado'].sum()
+                                
+                                brk_emp = df_e.groupby(['sort_comp', 'Competência'])['Valor_Total_Auditado'].sum().reset_index()
+                                brk_emp = brk_emp.sort_values('sort_comp')
+                                
+                                breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row['Valor_Total_Auditado']:,.2f}</b><br>" 
+                                                              for _, row in brk_emp.iterrows()])
+                                
+                                cor_hex_emp = "#1e3d59" 
+                                
+                                with cols_emp[j]:
+                                    st.markdown(f"""
+                                    <div class="neon-card" style="border-bottom-color: {cor_hex_emp}; box-shadow: 0 10px 20px {cor_hex_emp}33;">
+                                        <div class="nc-title" style="color: {cor_hex_emp}; min-height: 40px; font-size: 0.85rem;">{empresa}</div>
+                                        <div class="nc-value" style="font-size: 1.5rem;">R$ {total_empresa:,.2f}</div>
+                                        <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                        <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                            <span style="font-weight:bold; color:#444;">Discriminação por Competência:</span><br>
+                                            {breakdown_emp_html}
+                                        </div>
                                     </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                    """, unsafe_allow_html=True)
 
 
 
