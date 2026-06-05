@@ -1472,9 +1472,9 @@ else:
                         # Salva o que foi digitado e adiciona uma linha em branco
                         st.session_state[key_glosas] = novos_dados
                         for _ in range(qtd_adicionar):
-                        st.session_state[key_glosas].append({
+                            st.session_state[key_glosas].append({
                             "paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""
-                        })
+                            })
                         st.rerun()
 
                     # --- 1. RESUMO FINANCEIRO (Soma Automática dos Pacientes) ---
