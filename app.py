@@ -2803,25 +2803,30 @@ else:
                 st.divider()
                 st.markdown("### 🏢 Análise de Valores Auditados por Empresa (OSE)")
                 
-                # 1. IDENTIFICAÇÃO DINÂMICA DA COLUNA DE CUSTO
-                col_custo_emp = 'Custo_Total_Calc'
-                if col_custo_emp not in df_dsm.columns:
+                # BUSCA PELA COLUNA QUE REALMENTE EXISTE
+                # Vamos forçar a busca pelo nome exato "Custo total" ou "Custo_Total_Calc"
+                nome_coluna_custo = None
+                if 'Custo total' in df_dsm.columns:
+                    nome_coluna_custo = 'Custo total'
+                elif 'Custo_Total_Calc' in df_dsm.columns:
+                    nome_coluna_custo = 'Custo_Total_Calc'
+                else:
+                    # Se não achou, pega qualquer uma que tenha "custo" no nome
                     candidatas = [c for c in df_dsm.columns if 'custo' in c.lower()]
-                    col_custo_emp = candidatas[0] if candidatas else None
+                    if candidatas:
+                        nome_coluna_custo = candidatas[0]
                 
-                if not col_custo_emp or 'ose' not in df_dsm.columns:
-                    st.warning("Dados necessários para análise por empresa não localizados.")
+                if not nome_coluna_custo or 'ose' not in df_dsm.columns:
+                    st.warning(f"Coluna de custo não localizada. Colunas encontradas: {list(df_dsm.columns)}")
                 else:
                     # 2. LIMPEZA E PADRONIZAÇÃO OBRIGATÓRIA
                     df_empresas = df_dsm.copy()
                     df_empresas['ose'] = df_empresas['ose'].astype(str).str.strip()
-                    # Removemos as linhas que não têm nome de empresa antes de agrupar
                     df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT', 'nan'])]
                     
-                    # Forçamos a coluna de custo a ser numérica, substituindo erros por 0
-                    df_empresas[col_custo_emp] = pd.to_numeric(df_empresas[col_custo_emp], errors='coerce').fillna(0)
+                    # Força a conversão numérica da coluna identificada
+                    df_empresas[nome_coluna_custo] = pd.to_numeric(df_empresas[nome_coluna_custo], errors='coerce').fillna(0)
                     
-                    # 3. LISTAGEM TOTAL (Ignoramos o filtro > 0 aqui para não esconder empresas com glosa total, se houver)
                     empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
                     
                     # Renderização em Grid de 3 colunas
@@ -2830,15 +2835,14 @@ else:
                         for j, empresa in enumerate(empresas_unicas[i:i+3]):
                             df_e = df_empresas[df_empresas['ose'] == empresa]
                             
-                            # Calcula o total auditado para esta empresa
-                            total_empresa = df_e[col_custo_emp].sum()
+                            # Calcula o total usando a coluna que identificamos com sucesso
+                            total_empresa = df_e[nome_coluna_custo].sum()
                             
                             # Agrupamento cronológico (Breakdown por Competência)
-                            # Usamos dropna para garantir que não percamos dados por falta de competência
-                            brk_emp = df_e.groupby(['sort_comp', 'Competência'])[col_custo_emp].sum().reset_index()
+                            brk_emp = df_e.groupby(['sort_comp', 'Competência'])[nome_coluna_custo].sum().reset_index()
                             brk_emp = brk_emp.sort_values('sort_comp')
                             
-                            breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[col_custo_emp]:,.2f}</b><br>" 
+                            breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[nome_coluna_custo]:,.2f}</b><br>" 
                                                           for _, row in brk_emp.iterrows()])
                             
                             cor_hex_emp = "#1e3d59" 
