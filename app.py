@@ -662,30 +662,42 @@ def obter_proximo_numero_glosa():
 
 def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
     from fpdf import FPDF
-    
+    import os
+
     def limpar(txt):
         if not txt: return ""
         return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
-    # Criação do PDF
+    # Configuração do PDF (Orientação Retrato)
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    
-    # Cabeçalho
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # --- 0. MARCA D'ÁGUA ---
+    caminho_logo_relatorio = "SISAFA-NAVAL-relatorio.png"
+    if os.path.exists(caminho_logo_relatorio):
+        pdf.image(caminho_logo_relatorio, x=30, y=80, w=150)
+
+    # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS DO(A) {str(ose_nome).upper()}"), ln=True, align='C')
-    
-    # Resumo
+    pdf.ln(2)
+
+    # --- 2. PAINEL DE DADOS ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
     pdf.set_font("Arial", '', 10)
     pdf.cell(0, 7, limpar(f"Volume Financeiro Total: R$ {volume_total:,.2f}"), ln=True)
     pdf.cell(0, 7, limpar(f"Total de Faturas: {qtd_total}"), ln=True)
     pdf.ln(5)
 
-    # Tabela Simples (Eficiência Máxima)
+    # --- 3. TABELA DE FATURAS ---
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C')
-    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C')
-    pdf.cell(110, 8, "Situação", 1, 1, 'C')
+    # Cabeçalhos com fundo cinza
+    pdf.set_fill_color(200, 200, 200)
+    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
+    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
+    pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.iterrows():
@@ -697,10 +709,18 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total):
         pdf.cell(40, 7, limpar(f"R$ {valor:,.2f}"), 1, 0, 'R')
         pdf.cell(110, 7, limpar(sit), 1, 1, 'L')
 
-    # Rodapé
-    pdf.set_y(-20)
+    # --- 4. MAPA DE PROCESSO (Canto Inferior Esquerdo) ---
+    # Calculamos Y dinamicamente para garantir que a imagem fique ao lado do texto de rodapé
+    y_pos = 240 
+    caminho_mapeamento = "mapeamento-de-processo.png"
+    if os.path.exists(caminho_mapeamento):
+        pdf.image(caminho_mapeamento, x=10, y=y_pos, w=35)
+    
+    # --- 5. RODAPÉ ---
+    pdf.set_y(y_pos)
+    pdf.set_x(50)
     pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 5, limpar("Hospital Naval de Brasília - Relatório Gerencial"), 0, 1, 'C')
+    pdf.multi_cell(140, 4, limpar("Esperamos que os esclarecimentos prestados contribuam para a transparência do processo. Colocamo-nos à disposição para necessidades adicionais.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central"), align='C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
