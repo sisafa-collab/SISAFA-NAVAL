@@ -425,7 +425,9 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     # (1) PAPEL NA HORIZONTAL: orientation='L' (Landscape)
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Reduzida a margem inferior para dar mais espaço útil à tabela antes da quebra
+    pdf.set_auto_page_break(auto=True, margin=10)
 
     # --- 0. MARCA D'ÁGUA ---
     try:
@@ -509,17 +511,34 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.cell(35, 6, "Valor da Glosa", 1, 0, 'C', True)
     pdf.cell(30, 6, "Tipo", 1, 0, 'C', True)
     pdf.cell(20, 6, "Cod.", 1, 0, 'C', True)
-    pdf.cell(132, 6, limpar("Descrição"), 1, 1, 'C', True) # Mudado de Observações para Descrição
+    pdf.cell(132, 6, limpar("Descrição"), 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 7)
+    
+    # 5.1 Correção da Altura Dinâmica da Linha (Evita quebra de célula torta)
     for i, g in enumerate(lista_glosas, 1):
-        inicio_y = pdf.get_y()
-        pdf.cell(10, 8, f"{i}", 1, 0, 'C')
-        pdf.cell(50, 8, limpar(g['paciente']), 1, 0, 'L')
-        pdf.cell(35, 8, f"R$ {float(g['valor']):,.2f}", 1, 0, 'R')
-        pdf.cell(30, 8, limpar(g['tipo']), 1, 0, 'C')
-        pdf.cell(20, 8, limpar(g['cod']), 1, 0, 'C')
+        # Captura as coordenadas iniciais da linha
+        start_y = pdf.get_y()
+        start_x = pdf.get_x()
+        
+        # Pinta a célula MultiCell (Descrição) primeiro, para sabermos a altura que ela vai tomar
+        pdf.set_xy(start_x + 145, start_y) # 10+50+35+30+20 = 145 de deslocamento X
         pdf.multi_cell(132, 8, limpar(g['just']), 1, 'L')
+        
+        # A altura real que a linha toda deve ter é baseada no que a multi_cell desenhou
+        end_y = pdf.get_y()
+        altura_linha = end_y - start_y
+        
+        # Desenha as células normais (Single Cells) com a altura descoberta
+        pdf.set_xy(start_x, start_y)
+        pdf.cell(10, altura_linha, f"{i}", 1, 0, 'C')
+        pdf.cell(50, altura_linha, limpar(g['paciente']), 1, 0, 'L')
+        pdf.cell(35, altura_linha, f"R$ {float(g['valor']):,.2f}", 1, 0, 'R')
+        pdf.cell(30, altura_linha, limpar(g['tipo']), 1, 0, 'C')
+        pdf.cell(20, altura_linha, limpar(g['cod']), 1, 0, 'C')
+        
+        # Reposiciona o cursor no final da linha que acabamos de desenhar
+        pdf.set_xy(start_x, end_y)
 
     # --- NOVO CAMPO: OBSERVAÇÃO (Justificativa Técnica) ---
     pdf.ln(2)
@@ -528,13 +547,27 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_font("Arial", '', 8)
     pdf.multi_cell(0, 5, limpar(justificativa), 1)
 
-    # --- 6. RODAPÉ E DATAS ---
+    # --- 6. CONTROLE ESPACIAL (PREVENÇÃO DE DESALINHAMENTO) ---
+    # Se faltar menos de 45mm para o final da página, força uma página nova
+    # Assim, o rodapé e as assinaturas nunca ficam cortados ou flutuando.
+    espaco_necessario_assinaturas = 45 
+    espaco_restante = 210 - pdf.get_y() # 210mm é a altura de A4 Landscape
+    
+    if espaco_restante < espaco_necessario_assinaturas:
+        pdf.add_page()
+        # Reposiciona a marca d'água na nova página, se existir
+        try:
+            pdf.image('SISAFA-NAVAL-relatorio.png', x=100, y=60, w=100)
+        except:
+            pass
+
+    # --- 7. RODAPÉ E DATAS ---
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(140, 5, limpar("Legendas: Adm: Administrativa | Téc: Técnica"), 0, 0, 'L')
     pdf.cell(137, 5, limpar(f"Brasília, na data de assinatura."), 0, 1, 'R')
     
-    # --- 7. ASSINATURAS LADO A LADO ---
+    # --- 8. ASSINATURAS LADO A LADO ---
     pdf.ln(10)
     largura_col = 92
     y_assinaturas = pdf.get_y()
@@ -552,8 +585,9 @@ def gerar_relatorio_glosa_pdf(dados_nup, dados_ose, lista_glosas, auditor_info, 
     pdf.set_xy(10 + (largura_col * 2), y_assinaturas)
     pdf.multi_cell(largura_col, 4, limpar(f"{auditor_info['nome']}\nAuditor Responsável"), 0, 'C')
 
-    # --- 8. RODAPÉ FINAL (VERMELHO) ---
-    pdf.ln(15)
+    # --- 9. RODAPÉ FINAL (VERMELHO) ---
+    # Usamos set_y negativo para fixar o aviso sempre no final da página, independente do resto
+    pdf.set_y(-20) 
     pdf.set_text_color(220, 0, 0)
     pdf.set_font("Arial", 'B', 8)
     pdf.cell(0, 4, limpar("INFORMAÇÃO PESSOAL - ACESSO RESTRITO"), ln=True, align='C')
@@ -1013,8 +1047,6 @@ else:
                 st.rerun()
 
                 
-
-
 
     elif st.session_state.modulo_ativo == "AUDITORIA" or st.session_state.modulo_ativo == "ADMIN":
         st.header("⚖️ Divisão de Auditoria em Saúde ⚕️")
@@ -1626,7 +1658,7 @@ else:
                         # --- NOVA LÓGICA DE BOTÕES (EM LOTE) ---
                         col_qtd_g6, col_add_g6, col_salvar_g6 = st.columns([1, 2, 2])
                         
-                        qtd_add_g6 = col_qtd_g6.number_input("Qtd a adicionar:", min_value=1, max_value=20, value=1, step=1, key=f"qtd_add_g6_{nup_audit}")
+                        qtd_add_g6 = col_qtd_g6.number_input("Qtd a adicionar (limite: 20 unidades de custo ⚠️):", min_value=1, max_value=20, value=1, step=1, key=f"qtd_add_g6_{nup_audit}")
                         btn_add_g6 = col_add_g6.form_submit_button("➕ ADICIONAR OUTRO ITEM")
                         btn_salvar_g6 = col_salvar_g6.form_submit_button("💾 CONFIRMAR ITENS (GRUPO VI)", type="primary")
 
