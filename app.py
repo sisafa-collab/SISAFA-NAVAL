@@ -677,7 +677,6 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
 
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    # Usamos o modo unicode para suportar emojis
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # Cores Neon SISAFA
@@ -691,39 +690,36 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS: {str(ose_nome).upper()}"), align='C')
     pdf.ln(5)
 
-    # --- 2. PAINEL DE DADOS (Cards com bordas neon) ---
+    # --- 2. PAINEL DE DADOS (Sem emojis para não travar a codificação) ---
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
+    pdf.cell(0, 10, "Painel Financeiro", ln=True)
     
     y_cards = pdf.get_y()
-    
-    # Configuração de estilo para os cards
-    pdf.set_fill_color(*fundo_card)      # Fundo escuro
-    pdf.set_draw_color(*neon_verde)      # Borda Neon Verde
-    pdf.set_line_width(0.5)              # Espessura da borda
+    pdf.set_fill_color(*fundo_card)
+    pdf.set_draw_color(*neon_verde)
     
     # Card 1: Volume
-    pdf.rect(10, y_cards, 90, 25, 'DF')  # 'DF' desenha borda e preenche
+    pdf.rect(10, y_cards, 90, 25, 'DF')
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(10, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(90, 5, "💰 Volume Financeiro Total", 0, 1, 'C')
+    pdf.cell(90, 5, "Volume Financeiro Total", 0, 1, 'C')
     pdf.set_text_color(*neon_verde)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(90, 8, f"R$ {volume_total:,.2f}", 0, 0, 'C')
 
     # Card 2: Faturas
-    pdf.rect(110, y_cards, 90, 25, 'DF') # 'DF' desenha borda e preenche
+    pdf.rect(110, y_cards, 90, 25, 'DF')
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(110, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(90, 5, "📝 Faturas Cadastradas", 0, 1, 'C')
+    pdf.cell(90, 5, "Faturas Cadastradas", 0, 1, 'C')
     pdf.set_text_color(*neon_verde)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(90, 8, f"{qtd_total} faturas", 0, 0, 'C')
     
-    pdf.ln(35) # Espaçamento pós-cards
-    pdf.set_text_color(0, 0, 0) # Reset para preto
+    pdf.ln(35)
+    pdf.set_text_color(0, 0, 0)
 
     # --- 3. GRÁFICO (Ajustado) ---
     if fig_pie:
