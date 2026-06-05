@@ -2548,8 +2548,7 @@ else:
                 fig_saude.update_layout(margin=dict(t=40, b=20))
                 st.plotly_chart(fig_saude, use_container_width=True)
 
-            # =======================================================
-            # =======================================================
+            
             # =======================================================
             # === APOIO À DIRETORIA DE SAÚDE DA MARINHA (DSM) ===
             # =======================================================
@@ -2796,7 +2795,59 @@ else:
                                 </div>
                                 """, unsafe_allow_html=True)
 
-
+                # =======================================================
+                # --- NOVA SEÇÃO: VALORES AUDITADOS POR EMPRESA (OSE) ---
+                # =======================================================
+                st.write("") # Respiro visual
+                st.divider()
+                st.markdown("🏢 Análise de Valores Auditados por Empresa (OSE)")
+                
+                if 'ose' not in df_dsm.columns:
+                    st.warning("Coluna de empresa ('ose') não encontrada nos dados de auditoria.")
+                else:
+                    # Filtra apenas linhas com valor total maior que zero
+                    df_empresas = df_dsm[df_dsm['Custo_Total_Calc'] > 0].copy()
+                    
+                    if df_empresas.empty:
+                        st.info("Nenhum valor auditado por empresa no período selecionado.")
+                    else:
+                        # Limpa nomes de OSE vazios ou nulos para evitar bugs visuais
+                        df_empresas['ose'] = df_empresas['ose'].astype(str).str.strip()
+                        df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT'])]
+                        
+                        empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
+                        
+                        # Renderização em Grid de 3 colunas (mesma lógica dos cards anteriores)
+                        for i in range(0, len(empresas_unicas), 3):
+                            cols_emp = st.columns(3)
+                            for j, empresa in enumerate(empresas_unicas[i:i+3]):
+                                df_e = df_empresas[df_empresas['ose'] == empresa]
+                                
+                                # Calcula o total geral da empresa auditado no mês
+                                total_empresa = df_e['Custo_Total_Calc'].sum()
+                                
+                                # Agrupamento cronológico (Breakdown por Competência)
+                                brk_emp = df_e.groupby(['sort_comp', 'Competência'])['Custo_Total_Calc'].sum().reset_index()
+                                brk_emp = brk_emp[brk_emp['Custo_Total_Calc'] > 0].sort_values('sort_comp')
+                                
+                                breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row['Custo_Total_Calc']:,.2f}</b><br>" 
+                                                              for _, row in brk_emp.iterrows()])
+                                
+                                # Cor institucional para as empresas (Azul Marinha escuro)
+                                cor_hex_emp = "#1e3d59" 
+                                
+                                with cols_emp[j]:
+                                    st.markdown(f"""
+                                    <div class="neon-card" style="border-bottom-color: {cor_hex_emp}; box-shadow: 0 10px 20px {cor_hex_emp}33;">
+                                        <div class="nc-title" style="color: {cor_hex_emp}; min-height: 40px; font-size: 0.85rem;">{empresa}</div>
+                                        <div class="nc-value" style="font-size: 1.5rem;">R$ {total_empresa:,.2f}</div>
+                                        <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                        <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                            <span style="font-weight:bold; color:#444;">Discriminação por Competência:</span><br>
+                                            {breakdown_emp_html}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
 
 
