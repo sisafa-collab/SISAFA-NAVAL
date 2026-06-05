@@ -2804,59 +2804,57 @@ else:
                 st.markdown("### 🏢 Análise de Valores Auditados por Empresa (OSE)")
                 
                 # 1. IDENTIFICAÇÃO DINÂMICA DA COLUNA DE CUSTO
-                # Busca qualquer coluna que tenha sido normalizada para Custo_Total_Calc ou que contenha "custo"
                 col_custo_emp = 'Custo_Total_Calc'
                 if col_custo_emp not in df_dsm.columns:
-                    # Tenta encontrar uma alternativa caso o nome tenha variado
                     candidatas = [c for c in df_dsm.columns if 'custo' in c.lower()]
                     col_custo_emp = candidatas[0] if candidatas else None
                 
                 if not col_custo_emp or 'ose' not in df_dsm.columns:
-                    st.warning("Dados necessários para análise por empresa (OSE ou Custos) não localizados.")
+                    st.warning("Dados necessários para análise por empresa não localizados.")
                 else:
-                    # Filtra apenas linhas com valor total maior que zero
-                    df_empresas = df_dsm[df_dsm[col_custo_emp] > 0].copy()
+                    # 2. LIMPEZA E PADRONIZAÇÃO OBRIGATÓRIA
+                    df_empresas = df_dsm.copy()
+                    df_empresas['ose'] = df_empresas['ose'].astype(str).str.strip()
+                    # Removemos as linhas que não têm nome de empresa antes de agrupar
+                    df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT', 'nan'])]
                     
-                    if df_empresas.empty:
-                        st.info("Nenhum valor auditado por empresa no período selecionado.")
-                    else:
-                        # Limpa nomes de OSE e converte custo para numérico
-                        df_empresas['ose'] = df_empresas['ose'].astype(str).str.strip()
-                        df_empresas = df_empresas[~df_empresas['ose'].isin(['nan', 'None', '', 'NaT'])]
-                        df_empresas[col_custo_emp] = pd.to_numeric(df_empresas[col_custo_emp], errors='coerce').fillna(0)
-                        
-                        empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
-                        
-                        # Renderização em Grid de 3 colunas
-                        for i in range(0, len(empresas_unicas), 3):
-                            cols_emp = st.columns(3)
-                            for j, empresa in enumerate(empresas_unicas[i:i+3]):
-                                df_e = df_empresas[df_empresas['ose'] == empresa]
-                                
-                                # Calcula o total geral usando a coluna identificada dinamicamente
-                                total_empresa = df_e[col_custo_emp].sum()
-                                
-                                # Breakdown por Competência
-                                brk_emp = df_e.groupby(['sort_comp', 'Competência'])[col_custo_emp].sum().reset_index()
-                                brk_emp = brk_emp[brk_emp[col_custo_emp] > 0].sort_values('sort_comp')
-                                
-                                breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[col_custo_emp]:,.2f}</b><br>" 
-                                                              for _, row in brk_emp.iterrows()])
-                                
-                                cor_hex_emp = "#1e3d59" 
-                                
-                                with cols_emp[j]:
-                                    st.markdown(f"""
-                                    <div class="neon-card" style="border-bottom-color: {cor_hex_emp}; box-shadow: 0 10px 20px {cor_hex_emp}33;">
-                                        <div class="nc-title" style="color: {cor_hex_emp}; min-height: 40px; font-size: 0.85rem;">{empresa}</div>
-                                        <div class="nc-value" style="font-size: 1.5rem;">R$ {total_empresa:,.2f}</div>
-                                        <hr style="margin: 8px 0; border: 0.5px solid #eee;">
-                                        <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
-                                            <span style="font-weight:bold; color:#444;">Discriminação por Competência:</span><br>
-                                            {breakdown_emp_html}
-                                        </div>
+                    # Forçamos a coluna de custo a ser numérica, substituindo erros por 0
+                    df_empresas[col_custo_emp] = pd.to_numeric(df_empresas[col_custo_emp], errors='coerce').fillna(0)
+                    
+                    # 3. LISTAGEM TOTAL (Ignoramos o filtro > 0 aqui para não esconder empresas com glosa total, se houver)
+                    empresas_unicas = sorted(df_empresas['ose'].unique().tolist())
+                    
+                    # Renderização em Grid de 3 colunas
+                    for i in range(0, len(empresas_unicas), 3):
+                        cols_emp = st.columns(3)
+                        for j, empresa in enumerate(empresas_unicas[i:i+3]):
+                            df_e = df_empresas[df_empresas['ose'] == empresa]
+                            
+                            # Calcula o total auditado para esta empresa
+                            total_empresa = df_e[col_custo_emp].sum()
+                            
+                            # Agrupamento cronológico (Breakdown por Competência)
+                            # Usamos dropna para garantir que não percamos dados por falta de competência
+                            brk_emp = df_e.groupby(['sort_comp', 'Competência'])[col_custo_emp].sum().reset_index()
+                            brk_emp = brk_emp.sort_values('sort_comp')
+                            
+                            breakdown_emp_html = "".join([f"• <span style='color:#555;'>{row['Competência']}:</span> <b>R$ {row[col_custo_emp]:,.2f}</b><br>" 
+                                                          for _, row in brk_emp.iterrows()])
+                            
+                            cor_hex_emp = "#1e3d59" 
+                            
+                            with cols_emp[j]:
+                                st.markdown(f"""
+                                <div class="neon-card" style="border-bottom-color: {cor_hex_emp}; box-shadow: 0 10px 20px {cor_hex_emp}33;">
+                                    <div class="nc-title" style="color: {cor_hex_emp}; min-height: 40px; font-size: 0.85rem;">{empresa}</div>
+                                    <div class="nc-value" style="font-size: 1.5rem;">R$ {total_empresa:,.2f}</div>
+                                    <hr style="margin: 8px 0; border: 0.5px solid #eee;">
+                                    <div class="nc-sub" style="text-align: left; font-size: 0.75rem; max-height: 200px; overflow-y: auto;">
+                                        <span style="font-weight:bold; color:#444;">Discriminação por Competência:</span><br>
+                                        {breakdown_emp_html}
                                     </div>
-                                    """, unsafe_allow_html=True)
+                                </div>
+                                """, unsafe_allow_html=True)
 
 
 
