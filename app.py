@@ -691,13 +691,19 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.multi_cell(0, 8, limpar(f"SITUAÇÃO DAS FATURAS: {str(ose_nome).upper()}"), align='C')
     pdf.ln(5)
 
-    # --- 2. CARDS "NEON" (REPLICANDO O PAINEL WEB) ---
-    pdf.set_text_color(0, 0, 0)
+    # --- 2. PAINEL DE DADOS (Cards com bordas neon) ---
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, limpar("Painel Financeiro"), ln=True)
+    
     y_cards = pdf.get_y()
     
+    # Configuração de estilo para os cards
+    pdf.set_fill_color(*fundo_card)      # Fundo escuro
+    pdf.set_draw_color(*neon_verde)      # Borda Neon Verde
+    pdf.set_line_width(0.5)              # Espessura da borda
+    
     # Card 1: Volume
-    pdf.set_fill_color(*fundo_card)
-    pdf.rounded_rect(10, y_cards, 90, 25, 3, 'F')
+    pdf.rect(10, y_cards, 90, 25, 'DF')  # 'DF' desenha borda e preenche
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(10, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
@@ -707,8 +713,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.cell(90, 8, f"R$ {volume_total:,.2f}", 0, 0, 'C')
 
     # Card 2: Faturas
-    pdf.set_fill_color(*fundo_card)
-    pdf.rounded_rect(110, y_cards, 90, 25, 3, 'F')
+    pdf.rect(110, y_cards, 90, 25, 'DF') # 'DF' desenha borda e preenche
     pdf.set_text_color(255, 255, 255)
     pdf.set_xy(110, y_cards + 5)
     pdf.set_font("Arial", 'B', 10)
@@ -717,8 +722,8 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(90, 8, f"{qtd_total} faturas", 0, 0, 'C')
     
-    pdf.ln(35)
-    pdf.set_text_color(0, 0, 0)
+    pdf.ln(35) # Espaçamento pós-cards
+    pdf.set_text_color(0, 0, 0) # Reset para preto
 
     # --- 3. GRÁFICO (Ajustado) ---
     if fig_pie:
@@ -3821,27 +3826,30 @@ else:
             </style>
             """, unsafe_allow_html=True)
 
-            # --- CARTÃO DE ENCERRAMENTO (Verde Sisafa Neon) ---
             st.markdown("""
-            <style>
-            .card-sisafa { 
-                border-bottom-color: #2e6b54; 
-                background: #f0f7f4;
-                box-shadow: 0 10px 20px rgba(46, 107, 84, 0.15);
-            }
-            .card-sisafa .nc-value { 
-                color: #2e6b54; 
-                text-shadow: 0 0 15px rgba(46, 107, 84, 0.3);
-                font-size: 1.6rem;
-                font-family: 'Courier New', Courier, monospace;
-            }
-            </style>
-            
-            <div class="neon-card card-sisafa">
-                <div class="nc-value">"RESTARÁ SEMPRE MUITO O QUE FAZER"</div>
-            </div>
-            """, unsafe_allow_html=True)
-
+                        <div style="text-align: center; padding: 30px; border-top: 2px solid #2e6b54; margin-top: 40px; background-color: rgba(46, 107, 84, 0.05); border-radius: 0 0 15px 15px;">
+                            <p style="
+                                color: #2e6b54; 
+                                font-weight: 900; 
+                                font-size: 1.8rem; 
+                                letter-spacing: 3px; 
+                                line-height: 1.2;
+                                text-shadow: 0 0 10px #2e6b54, 0 0 20px #2e6b54, 0 0 30px #2e6b54;
+                            ">
+                                "RESTARÁ SEMPRE MUITO O QUE FAZER"
+                            </p>
+                            <p style="
+                                color: #555; 
+                                font-size: 1.1rem; 
+                                font-weight: 700; 
+                                margin-top: -10px;
+                                text-transform: uppercase;
+                                letter-spacing: 1px;
+                            ">
+                                (SEPÚLVEDA, A.C.M)
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
             st.header("⚡ Painel de Execução Financeira")
             st.info("Monitoramento em tempo real do fluxo de empenho, liquidação e pagamento.")
