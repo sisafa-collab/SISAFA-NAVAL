@@ -670,36 +670,41 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import tempfile
     import os
 
-    # Inicializa
+    # Função de limpeza que remove emojis e caracteres inválidos
+    def limpar(txt):
+        if not txt: return ""
+        # Codifica para latin-1 ignorando erros (isso descarta emojis automaticamente)
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
+
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     
     # --- 1. CABEÇALHO ---
     pdf.set_font("Arial", 'B', 16)
     pdf.set_text_color(0, 230, 118) # Verde Neon
-    pdf.cell(0, 10, f"SITUAÇÃO DAS FATURAS: {ose_nome.upper()}", ln=True, align='C')
+    pdf.cell(0, 10, limpar(f"SITUAÇÃO DAS FATURAS: {ose_nome.upper()}"), ln=True, align='C')
     pdf.ln(5)
 
-    # --- 2. PAINEL FINANCEIRO (Layout Fixo) ---
+    # --- 2. PAINEL FINANCEIRO ---
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "Painel Financeiro", ln=True)
+    pdf.cell(0, 8, limpar("Painel Financeiro"), ln=True)
     
-    # Desenho dos dois cards lado a lado
+    # Desenho dos cards
     pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, pdf.get_y(), 90, 20, 'F') # Card 1
-    pdf.rect(110, pdf.get_y(), 90, 20, 'F') # Card 2
+    pdf.rect(10, pdf.get_y(), 90, 20, 'F') 
+    pdf.rect(110, pdf.get_y(), 90, 20, 'F')
     
     pdf.set_font("Arial", '', 9)
-    pdf.text(15, pdf.get_y() + 8, "Volume Total")
-    pdf.text(115, pdf.get_y() + 8, "Total Faturas")
+    pdf.text(15, pdf.get_y() + 8, limpar("Volume Total"))
+    pdf.text(115, pdf.get_y() + 8, limpar("Total Faturas"))
     
     pdf.set_font("Arial", 'B', 12)
     pdf.text(15, pdf.get_y() + 16, f"R$ {volume_total:,.2f}")
     pdf.text(115, pdf.get_y() + 16, f"{qtd_total} unidades")
     pdf.ln(25)
 
-    # --- 3. GRÁFICO (Opcional) ---
+    # --- 3. GRÁFICO ---
     if fig_pie:
         try:
             img_bytes = fig_pie.to_image(format="png", width=400, height=250, scale=1)
@@ -710,29 +715,31 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
             pdf.ln(70)
         except: pass
 
-    # --- 4. TABELA (Colunas Fixas) ---
+    # --- 4. TABELA ---
     pdf.set_fill_color(200, 200, 200)
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(50, 8, "Nº Fatura", 1, 0, 'C', True)
-    pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
-    pdf.cell(100, 8, "Situação", 1, 1, 'C', True)
+    pdf.cell(50, 8, limpar("Nº Fatura"), 1, 0, 'C', True)
+    pdf.cell(40, 8, limpar("Valor (R$)"), 1, 0, 'C', True)
+    pdf.cell(100, 8, limpar("Situação"), 1, 1, 'C', True)
 
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
-        # Verificação de página antes de cada linha
         if pdf.get_y() > 260: pdf.add_page()
         
-        pdf.cell(50, 7, str(row.get('Numero_da_fatura', 'S/N')), 1, 0, 'C')
+        pdf.cell(50, 7, limpar(row.get('Numero_da_fatura', 'S/N')), 1, 0, 'C')
         pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
-        pdf.cell(100, 7, str(row.get('etapa_nome', 'Indefinida')), 1, 1, 'L')
+        pdf.cell(100, 7, limpar(row.get('etapa_nome', 'Indefinida')), 1, 1, 'L')
 
-    # --- 5. RODAPÉ (Fixado na base) ---
-    pdf.set_y(-25)
-    pdf.set_font("Arial", 'I', 8)
+    # --- 5. RODAPÉ ---
+    pdf.set_y(-30)
+    pdf.set_font("Arial", 'I', 14)
     if os.path.exists("mapeamento-de-processo.png"):
         pdf.image("mapeamento-de-processo.png", x=10, y=pdf.get_y(), w=25)
     pdf.set_x(40)
-    pdf.multi_cell(150, 4, "Esperamos  que os esclarecimentos prestados contribuam para a transparência do processo e nos colocamos à disposição para quaisquer necessidades adicionais\n\n\nHospital Naval de Brasília\nA saúde Naval no Planalto Central", align='C')
+    # Remove emojis do rodapé também
+    msg_rodape = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasilia\n\nA saude Naval no Planalto Central"
+    pdf.multi_cell(150, 4, limpar(msg_rodape), align='C')
+
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
     
