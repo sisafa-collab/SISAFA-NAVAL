@@ -4125,11 +4125,16 @@ else:
                 col_btn1, col_btn2 = st.columns(2)
 
                 # BOTÃO 1: GERAR TEXTO PARA E-MAIL/WHATSAPP
+                # (Se não tiver estes imports no topo do arquivo, deixe-os aqui alinhados à esquerda)
+                import base64
+                import gc
+                import matplotlib.pyplot as plt
+
+                # --- BOTÃO 1: GERAR TEXTO PARA E-MAIL/WHATSAPP ---
                 with col_btn1:
-                    if st.button(f"📑 Gerar texto de Panorama", use_container_width=True):
+                    if st.button("📑 Gerar texto de Panorama", use_container_width=True):
                         with st.spinner("Sincronizando dados..."):
                             
-                            # (Seu código existente do explica_etapa e montagem do resumo_corpo e msg_final fica todo aqui exatamente como estava)
                             explica_etapa = {
                                 1: "Registro e conferência inicial da documentação em nossa Secretaria.",
                                 2: "Divisão de Auditoria recebeu as faturas e iniciou a análise técnica detalhada dos serviços e materiais cobrados.",
@@ -4192,49 +4197,55 @@ Estamos à disposição para eventuais esclarecimentos. Gratos pela distinta par
 
 Cordialmente,
 """
+                            # Salva na memória do Streamlit
                             st.session_state['panorama_gerado_exec'] = msg_final
 
-                # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
+                # --- BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL ---
                 with col_btn2:
-                    # Inicializa a flag de controle
-                    if "pdf_pronto" not in st.session_state:
-                        st.session_state["pdf_pronto"] = False
-
-                    # Botão 1: Processar
                     if st.button("🖨️ Processar Dossiê em PDF", use_container_width=True):
                         with st.spinner("Compilando dados e gráficos (aguarde)..."):
                             try:
                                 # 1. Gera o PDF
                                 pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
                                 
-                                # 2. SALVA NO DISCO (Isto evita o Erro 502 Bad Gateway)
-                                with open("dossie_temp.pdf", "wb") as f:
-                                    f.write(pdf_bytes)
+                                # 2. Desafoga a memória RAM do servidor na marra
+                                plt.close('all')
+                                gc.collect()
                                 
-                                # 3. Libera a liberação do botão
-                                st.session_state["pdf_pronto"] = True
+                                # 3. Converte a fundo para Base64 (Bypass do Streamlit)
+                                b64 = base64.b64encode(pdf_bytes).decode()
+                                nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
+                                
+                                # 4. Cria o Botão HTML Seguro e Estilizado
+                                html_button = f'''
+                                <a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" 
+                                   style="display: block; padding: 12px; 
+                                          background-color: #00E676; color: #1e1e1e; 
+                                          text-align: center; text-decoration: none; 
+                                          font-size: 16px; font-family: sans-serif; 
+                                          border-radius: 8px; font-weight: bold; width: 100%;
+                                          box-sizing: border-box;">
+                                   📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR
+                                </a>
+                                '''
+                                
+                                # 5. Renderiza o HTML forçando o Streamlit a interpretá-lo
+                                st.markdown(html_button, unsafe_allow_html=True)
                                 
                             except Exception as e:
                                 st.error(f"Erro ao compilar o PDF: {e}")
 
-                    # Botão 2: O Download Nativo
-                    if st.session_state["pdf_pronto"]:
-                        nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
-                        
-                        # Lê do disco físico em vez da memória RAM
-                        try:
-                            with open("dossie_temp.pdf", "rb") as f:
-                                st.download_button(
-                                    label="📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR",
-                                    data=f,
-                                    file_name=nome_arquivo,
-                                    mime="application/pdf",
-                                    use_container_width=True,
-                                    type="primary"
-                                )
-                        except FileNotFoundError:
-                            st.warning("O arquivo temporário expirou. Por favor, processe o dossiê novamente.")
-                                
+                # --- EXIBIÇÃO DO PANORAMA GERADO ---
+                # TOTALMENTE FORA DAS COLUNAS (Alinhado com a declaração do "with col_btn1" / "with col_btn2")
+                if 'panorama_gerado_exec' in st.session_state:
+                    st.success("✅ Panorama gerado com sucesso! Copie o texto abaixo:")
+                    st.text_area(
+                        "Texto para E-mail / WhatsApp", 
+                        st.session_state['panorama_gerado_exec'], 
+                        height=350
+                    )     
+
+
 
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
