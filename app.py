@@ -4216,20 +4216,8 @@ Cordialmente,
                                 b64 = base64.b64encode(pdf_bytes).decode()
                                 nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
                                 
-                                # 4. Cria o Botão HTML Seguro e Estilizado
-                                html_button = f'''
-                                <a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" 
-                                   style="display: block; padding: 12px; 
-                                          background-color: #00E676; color: #1e1e1e; 
-                                          text-align: center; text-decoration: none; 
-                                          font-size: 16px; font-family: sans-serif; 
-                                          border-radius: 8px; font-weight: bold; width: 100%;
-                                          box-sizing: border-box;">
-                                   📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR
-                                </a>
-                                '''
-                                
-                                # 5. Renderiza o HTML forçando o Streamlit a interpretá-lo
+                                # 4 e 5. Cria o HTML em linha ÚNICA (Sem espaços no início para não virar código na tela) e renderiza
+                                html_button = f'<a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" style="display: block; padding: 12px; background-color: #00E676; color: #1e1e1e; text-align: center; text-decoration: none; font-size: 16px; font-family: sans-serif; border-radius: 8px; font-weight: bold; width: 100%; box-sizing: border-box;">📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR</a>'
                                 st.markdown(html_button, unsafe_allow_html=True)
                                 
                             except Exception as e:
