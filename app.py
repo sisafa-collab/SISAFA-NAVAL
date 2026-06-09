@@ -755,9 +755,9 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_fill_color(0, 230, 118) # Cabeçalho da tabela em Verde Neon
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(40, 8, "N Fatura", 1, 0, 'C', True)
+    pdf.cell(40, 8, "Nº Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
-    pdf.cell(110, 8, "Situacao", 1, 1, 'C', True)
+    pdf.cell(110, 8, "Situação", 1, 1, 'C', True)
 
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
@@ -776,7 +776,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.image("mapeamento-de-processo.png", x=10, y=252, w=32)
     pdf.set_xy(45, 254)
     pdf.set_font("Arial", 'I', 8)
-    msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília. Somos gratos pelo apoio e pela distinta cooperação.\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
+    msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
