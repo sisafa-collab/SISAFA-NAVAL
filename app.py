@@ -4196,33 +4196,44 @@ Cordialmente,
 
                 # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
                 with col_btn2:
-                    # Cria variáveis na memória do Streamlit se elas não existirem
+                    # Inicializa a flag de controle
                     if "pdf_pronto" not in st.session_state:
                         st.session_state["pdf_pronto"] = False
-                        st.session_state["pdf_bytes"] = None
 
                     # Botão 1: Processar
                     if st.button("🖨️ Processar Dossiê em PDF", use_container_width=True):
                         with st.spinner("Compilando dados e gráficos (aguarde)..."):
-                            # Gera o PDF
-                            pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
-                            
-                            # Salva na memória
-                            st.session_state["pdf_bytes"] = pdf_bytes
-                            st.session_state["pdf_pronto"] = True
+                            try:
+                                # 1. Gera o PDF
+                                pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
+                                
+                                # 2. SALVA NO DISCO (Isto evita o Erro 502 Bad Gateway)
+                                with open("dossie_temp.pdf", "wb") as f:
+                                    f.write(pdf_bytes)
+                                
+                                # 3. Libera a liberação do botão
+                                st.session_state["pdf_pronto"] = True
+                                
+                            except Exception as e:
+                                st.error(f"Erro ao compilar o PDF: {e}")
 
-                    # Botão 2: O Download Nativo (Só aparece depois que processar)
+                    # Botão 2: O Download Nativo
                     if st.session_state["pdf_pronto"]:
                         nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
                         
-                        st.download_button(
-                            label="📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR",
-                            data=st.session_state["pdf_bytes"],
-                            file_name=nome_arquivo,
-                            mime="application/pdf",
-                            use_container_width=True,
-                            type="primary"
-                        )
+                        # Lê do disco físico em vez da memória RAM
+                        try:
+                            with open("dossie_temp.pdf", "rb") as f:
+                                st.download_button(
+                                    label="📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR",
+                                    data=f,
+                                    file_name=nome_arquivo,
+                                    mime="application/pdf",
+                                    use_container_width=True,
+                                    type="primary"
+                                )
+                        except FileNotFoundError:
+                            st.warning("O arquivo temporário expirou. Por favor, processe o dossiê novamente.")
                                 
 
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
