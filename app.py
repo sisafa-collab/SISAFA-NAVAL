@@ -672,7 +672,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import os
     import matplotlib.pyplot as plt
 
-    # Substitui emoticons problemáticos por texto seguro antes de limpar
+    # Filtro: remove caracteres que o FPDF latin-1 não suporta (como emojis complexos)
     def limpar(txt):
         if not txt: return ""
         # Dicionário de tradução para evitar o erro de codificação
@@ -693,39 +693,52 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
-    pdf.cell(190, 8, "RELATÓRIO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
+    pdf.cell(190, 8, "RELATÓREO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, limpar(ose_nome.upper()), 0, 1, 'C')
     pdf.cell(190, 8, "SISTEMA DE ACOMPANHAMENTO DE FATURAS DO HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
     pdf.ln(5)
 
-    # --- 2. PAINEL ---
-    pdf.set_y(35)
+    # --- 2. PAINEL (Descido para Y=52 para não embolar com o cabeçalho longo) ---
+    pdf.set_y(52)
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, "Painel Financeiro", 0, 1, 'L')
+    
+    # Cards reposicionados matematicamente abaixo do título do painel
     pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, 45, 90, 20, 'F') 
-    pdf.rect(110, 45, 90, 20, 'F')
+    pdf.rect(10, 62, 90, 20, 'F') 
+    pdf.rect(110, 62, 90, 20, 'F')
+    
     pdf.set_font("Arial", '', 9)
-    pdf.text(15, 52, "Volume Total")
-    pdf.text(115, 52, "Total Faturas")
+    pdf.text(15, 69, "Volume Total")
+    pdf.text(115, 69, "Total Faturas")
+    
     pdf.set_font("Arial", 'B', 12)
-    pdf.text(15, 60, f"R$ {volume_total:,.2f}")
-    pdf.text(115, 60, f"{qtd_total} unidades")
+    pdf.text(15, 77, f"R$ {volume_total:,.2f}")
+    pdf.text(115, 77, f"{qtd_total} unidades")
 
-    # --- 3. GRÁFICO (Blindado) ---
+    # --- 3. GRÁFICO (Corrigido o mapeamento do Plotly Express) ---
     if fig_pie:
         try:
-            plt.figure(figsize=(4, 2), dpi=100)
-            labels = [d.get('label') for d in fig_pie.data[0].to_plotly_json().get('labels', [])]
-            values = fig_pie.data[0].to_plotly_json().get('values', [])
-            plt.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7})
+            # Captura a estrutura real gerada pelo Plotly Express ('names')
+            json_data = fig_pie.data[0].to_plotly_json()
+            labels = json_data.get('names', json_data.get('labels', []))
+            values = json_data.get('values', [])
+            
+            # Paleta de cores moderna simulando o efeito do dashboard SISAFA
+            cores_sisafa = ['#00E676', '#2979FF', '#FF1744', '#FFEA00', '#AA00FF']
+            
+            plt.figure(figsize=(4.5, 2.2), dpi=120)
+            plt.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7}, colors=cores_sisafa[:len(values)])
+            
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                plt.savefig(tmp.name, bbox_inches='tight')
+                plt.savefig(tmp.name, bbox_inches='tight', transparent=True)
                 plt.close()
-                pdf.image(tmp.name, x=55, y=70, w=100)
+                # Posicionado perfeitamente no vão livre entre os cards e a tabela
+                pdf.image(tmp.name, x=52, y=87, w=105)
                 os.remove(tmp.name)
-        except Exception as e: pass
+        except Exception as e: 
+            pass
 
     # --- 4. TABELA ---
     pdf.set_y(150)
@@ -734,23 +747,26 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.cell(50, 8, "N Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
     pdf.cell(100, 8, "Situacao", 1, 1, 'C', True)
+
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
-        if pdf.get_y() > 250:
+        if pdf.get_y() > 245:
             pdf.add_page()
             pdf.set_y(10)
+        
         pdf.cell(50, 7, limpar(str(row.get('Numero_da_fatura', 'SN'))), 1, 0, 'C')
         pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
         pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
-    # --- 5. RODAPÉ (Posição absoluta travada) ---
-    pdf.set_y(260)
+    # --- 5. RODAPÉ (QR Code redimensionado e totalmente visível) ---
+    pdf.set_y(255) 
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=260, w=30)
-    pdf.set_xy(45, 260)
+        # Aumentado para w=32 e ajustado o Y para não ser cortado pela margem da página
+        pdf.image("mapeamento-de-processo.png", x=10, y=252, w=32)
+    pdf.set_xy(45, 254)
     pdf.set_font("Arial", 'I', 8)
     msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
-    pdf.multi_cell(140, 4, limpar(msg), 0, 'C')
+    pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
     
