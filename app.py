@@ -672,17 +672,11 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     import os
     import matplotlib.pyplot as plt
 
-    # Filtro: remove caracteres que o FPDF latin-1 não suporta (como emojis complexos)
+    # Função limpar apenas para garantir que não trave com acentos imprevistos, 
+    # mas sem aquela substituição manual feia de emojis.
     def limpar(txt):
         if not txt: return ""
-        # Dicionário de tradução para evitar o erro de codificação
-        substituicoes = {
-            '✅': '[OK]', '💰': 'R$', '📝': 'Doc', '🚀': '->'
-        }
-        txt = str(txt)
-        for original, novo in substituicoes.items():
-            txt = txt.replace(original, novo)
-        return txt.encode('latin-1', 'ignore').decode('latin-1')
+        return str(txt).encode('latin-1', 'ignore').decode('latin-1')
 
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -692,80 +686,97 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_xy(10, 10)
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
-    pdf.cell(190, 8, "RELATÓREO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
+    pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASILIA", 0, 1, 'C')
+    pdf.cell(190, 8, "RELATORIO DE SITUACAO DAS FATURAS", 0, 1, 'C')
+    
+    # Destaque do nome da OSE na cor Verde SISAFA
     pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(0, 230, 118) # Verde Neon
     pdf.cell(190, 8, limpar(ose_nome.upper()), 0, 1, 'C')
-    pdf.cell(190, 8, "SISTEMA DE ACOMPANHAMENTO DE FATURAS DO HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
+    pdf.set_text_color(0, 0, 0) # Volta para preto
+    pdf.set_font("Arial", 'I', 10)
+    pdf.cell(190, 8, "Sistema de Acompanhamento de Faturas do HNB", 0, 1, 'C')
     pdf.ln(5)
 
-    # --- 2. PAINEL (Descido para Y=52 para não embolar com o cabeçalho longo) ---
+    # --- 2. PAINEL FINANCEIRO ESTILIZADO ---
     pdf.set_y(52)
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(190, 8, "Painel Financeiro", 0, 1, 'L')
     
-    # Cards reposicionados matematicamente abaixo do título do painel
-    pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, 62, 90, 20, 'F') 
-    pdf.rect(110, 62, 90, 20, 'F')
+    # Fundo mais escuro para simular os "Cards" do sistema
+    pdf.set_fill_color(40, 40, 40) # Cinza Escuro (Dark Mode)
+    pdf.rect(10, 62, 90, 22, 'F') 
+    pdf.rect(110, 62, 90, 22, 'F')
     
+    # Textos dos Cards em Branco e Verde Neon
+    pdf.set_text_color(255, 255, 255) # Branco
     pdf.set_font("Arial", '', 9)
-    pdf.text(15, 69, "Volume Total")
-    pdf.text(115, 69, "Total Faturas")
+    pdf.text(15, 70, "Volume Total")
+    pdf.text(115, 70, "Total Faturas")
     
-    pdf.set_font("Arial", 'B', 12)
-    pdf.text(15, 77, f"R$ {volume_total:,.2f}")
-    pdf.text(115, 77, f"{qtd_total} unidades")
+    pdf.set_text_color(0, 230, 118) # Verde Neon
+    pdf.set_font("Arial", 'B', 14)
+    pdf.text(15, 79, f"R$ {volume_total:,.2f}")
+    pdf.text(115, 79, f"{qtd_total} unidades")
+    pdf.set_text_color(0, 0, 0) # Reset para preto para o resto da página
 
-    # --- 3. GRÁFICO (Corrigido o mapeamento do Plotly Express) ---
+    # --- 3. GRÁFICO (EFEITO NEON/MODERNO) ---
     if fig_pie:
         try:
-            # Captura a estrutura real gerada pelo Plotly Express ('names')
             json_data = fig_pie.data[0].to_plotly_json()
             labels = json_data.get('names', json_data.get('labels', []))
             values = json_data.get('values', [])
             
-            # Paleta de cores moderna simulando o efeito do dashboard SISAFA
-            cores_sisafa = ['#00E676', '#2979FF', '#FF1744', '#FFEA00', '#AA00FF']
+            # Paleta de Cores Estilo "Neon Dashboard"
+            cores_neon = ['#00E676', '#2979FF', '#FF1744', '#FFEA00', '#D500F9']
             
-            plt.figure(figsize=(4.5, 2.2), dpi=120)
-            plt.pie(values, labels=labels, autopct='%1.1f%%', textprops={'fontsize': 7}, colors=cores_sisafa[:len(values)])
+            # Criação do gráfico com fundo transparente e fatias separadas (explode)
+            plt.figure(figsize=(5, 2.5), dpi=150)
+            
+            # O "explode" separa um pouco as fatias, dando um ar mais tecnológico
+            separacao = [0.03] * len(values) 
+            
+            wedges, texts, autotexts = plt.pie(
+                values, labels=labels, autopct='%1.1f%%', 
+                colors=cores_neon[:len(values)], explode=separacao,
+                textprops={'fontsize': 8, 'fontweight': 'bold', 'color': '#333333'},
+                wedgeprops={'linewidth': 1, 'edgecolor': 'white'}
+            )
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', transparent=True)
                 plt.close()
-                # Posicionado perfeitamente no vão livre entre os cards e a tabela
-                pdf.image(tmp.name, x=52, y=87, w=105)
+                pdf.image(tmp.name, x=45, y=90, w=120)
                 os.remove(tmp.name)
-        except Exception as e: 
-            pass
+        except: pass
 
     # --- 4. TABELA ---
-    pdf.set_y(150)
-    pdf.set_fill_color(200, 200, 200)
+    pdf.set_y(155)
+    pdf.set_fill_color(0, 230, 118) # Cabeçalho da tabela em Verde Neon
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(50, 8, "N Fatura", 1, 0, 'C', True)
+    pdf.cell(40, 8, "N Fatura", 1, 0, 'C', True)
     pdf.cell(40, 8, "Valor (R$)", 1, 0, 'C', True)
-    pdf.cell(100, 8, "Situacao", 1, 1, 'C', True)
+    pdf.cell(110, 8, "Situacao", 1, 1, 'C', True)
 
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
     for _, row in df_ose.sort_values(by='status').iterrows():
         if pdf.get_y() > 245:
             pdf.add_page()
             pdf.set_y(10)
         
-        pdf.cell(50, 7, limpar(str(row.get('Numero_da_fatura', 'SN'))), 1, 0, 'C')
+        pdf.cell(40, 7, limpar(str(row.get('Numero_da_fatura', 'SN'))), 1, 0, 'C')
         pdf.cell(40, 7, f"{float(row.get('v_liq_num', 0)):,.2f}", 1, 0, 'R')
-        pdf.cell(100, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
+        pdf.cell(110, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
-    # --- 5. RODAPÉ (QR Code redimensionado e totalmente visível) ---
+    # --- 5. RODAPÉ ---
     pdf.set_y(255) 
     if os.path.exists("mapeamento-de-processo.png"):
-        # Aumentado para w=32 e ajustado o Y para não ser cortado pela margem da página
         pdf.image("mapeamento-de-processo.png", x=10, y=252, w=32)
     pdf.set_xy(45, 254)
     pdf.set_font("Arial", 'I', 8)
-    msg = "Esperamos fortalecer a confiança mútua e a parceria com o hospital naval de brasília. Somos gratos pelo apoio e pela distinta cooperação.\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
+    msg = "Esperamos fortalecer a parceria e a confianca mutua com o Hospital Naval de Brasilia.\nHospital Naval de Brasilia - A Saude Naval no Planalto Central"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
