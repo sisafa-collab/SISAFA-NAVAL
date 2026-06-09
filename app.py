@@ -771,11 +771,11 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.cell(110, 7, limpar(str(row.get('etapa_nome', 'Indefinida'))), 1, 1, 'L')
 
     # --- 5. RODAPÉ ---
-    pdf.set_y(255) 
+    pdf.set_y(220) 
     if os.path.exists("mapeamento-de-processo.png"):
-        pdf.image("mapeamento-de-processo.png", x=10, y=252, w=32)
-    pdf.set_xy(45, 254)
-    pdf.set_font("Arial", 'I', 8)
+        pdf.image("mapeamento-de-processo.png", x=10, y=220, w=190, h=0)
+    pdf.set_xy(10, 270)
+    pdf.set_font("Arial", 'I', 14)
     msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
