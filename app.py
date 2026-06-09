@@ -728,7 +728,10 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
             values = json_data.get('values', [])
             
             # Paleta de Cores Estilo "Neon Dashboard"
-            cores_neon = ['#00E676', '#2979FF', '#FF1744', '#FFEA00', '#D500F9']
+            cores_neon = [
+                '#00E676', '#2979FF', '#FF1744', '#FFEA00', '#D500F9', 
+                '#00B8D4', '#FF9100', '#76FF03', '#F50057'
+            ]
             
             # Criação do gráfico com fundo transparente e fatias separadas (explode)
             plt.figure(figsize=(6, 3), dpi=150)
@@ -4193,34 +4196,38 @@ Cordialmente,
 
                 # BOTÃO 2: GERAR E BAIXAR O PDF OFICIAL
                 with col_btn2:
-                    if st.button("🖨️ Processar Dossiê em PDF", use_container_width=True, type="primary"):
+                    # Cria variáveis na memória do Streamlit se elas não existirem
+                    if "pdf_pronto" not in st.session_state:
+                        st.session_state["pdf_pronto"] = False
+                        st.session_state["pdf_bytes"] = None
+
+                    # Botão 1: Processar
+                    if st.button("🖨️ Processar Dossiê em PDF", use_container_width=True):
                         with st.spinner("Compilando dados e gráficos (aguarde)..."):
-                            try:
-                                # Chama a função (com o gráfico junto)
-                                pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
-                                
-                                # A MÁGICA: Converte o arquivo inteiro em texto!
-                                b64 = base64.b64encode(pdf_bytes).decode()
-                                nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
-                                
-                                # Cria um botão falso em HTML que força o navegador a baixar na hora
-                                btn_html = f'''
-                                <a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" 
-                                   style="display: block; text-align: center; background-color: #00e5ff; 
-                                          color: #1e3d59; padding: 10px; border-radius: 5px; font-weight: bold; 
-                                          text-decoration: none; margin-top: 10px; box-shadow: 0 4px 10px rgba(0, 229, 255, 0.4);">
-                                    📥 PDF PRONTO! CLIQUE AQUI PARA SALVAR
-                                </a>
-                                '''
-                                st.markdown(btn_html, unsafe_allow_html=True)
+                            # Gera o PDF
+                            pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
+                            
+                            # Salva na memória
+                            st.session_state["pdf_bytes"] = pdf_bytes
+                            st.session_state["pdf_pronto"] = True
+
+                    # Botão 2: O Download Nativo (Só aparece depois que processar)
+                    if st.session_state["pdf_pronto"]:
+                        nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
+                        
+                        st.download_button(
+                            label="📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR",
+                            data=st.session_state["pdf_bytes"],
+                            file_name=nome_arquivo,
+                            mime="application/pdf",
+                            use_container_width=True,
+                            type="primary"
+                        )
                                 
                             except Exception as e:
                                 st.error(f"Erro ao compilar: {e}")
         
-        
-
-
-
+    
 
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
