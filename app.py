@@ -776,7 +776,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.image("mapeamento-de-processo.png", x=10, y=180, w=70, h=0)
     pdf.set_xy(60, 230)
     pdf.set_font("Arial", 'I', 12)
-    msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília. Somos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
+    msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília.\nSomos gratos pelo apoio e pela distinta cooperação.\n\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
     pdf.multi_cell(150, 6, limpar(msg), 0, 'R')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
