@@ -686,8 +686,8 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.set_xy(10, 10)
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASILIA", 0, 1, 'C')
-    pdf.cell(190, 8, "RELATORIO DE SITUACAO DAS FATURAS", 0, 1, 'C')
+    pdf.cell(190, 8, "HOSPITAL NAVAL DE BRASÍLIA", 0, 1, 'C')
+    pdf.cell(190, 8, "RELATÓRIO DE SITUAÇÃO DAS FATURAS", 0, 1, 'C')
     
     # Destaque do nome da OSE na cor Verde SISAFA
     pdf.set_font("Arial", 'B', 12)
@@ -695,7 +695,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
     pdf.cell(190, 8, limpar(ose_nome.upper()), 0, 1, 'C')
     pdf.set_text_color(0, 0, 0) # Volta para preto
     pdf.set_font("Arial", 'I', 10)
-    pdf.cell(190, 8, "Sistema de Acompanhamento de Faturas do HNB", 0, 1, 'C')
+    pdf.cell(190, 8, "SISAFA NAVAL", 0, 1, 'C')
     pdf.ln(5)
 
     # --- 2. PAINEL FINANCEIRO ESTILIZADO ---
@@ -746,7 +746,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', transparent=True)
                 plt.close()
-                pdf.image(tmp.name, x=45, y=90, w=120)
+                pdf.image(tmp.name, x=60, y=110, w=120)
                 os.remove(tmp.name)
         except: pass
 
@@ -776,7 +776,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
         pdf.image("mapeamento-de-processo.png", x=10, y=252, w=32)
     pdf.set_xy(45, 254)
     pdf.set_font("Arial", 'I', 8)
-    msg = "Esperamos fortalecer a parceria e a confianca mutua com o Hospital Naval de Brasilia.\nHospital Naval de Brasilia - A Saude Naval no Planalto Central"
+    msg = "Esperamos fortalecer a confiança mútua e a parceria com o Hospital Naval de Brasília. Somos gratos pelo apoio e pela distinta cooperação.\nHospital Naval de Brasília - A Saúde Naval no Planalto Central!"
     pdf.multi_cell(150, 4, limpar(msg), 0, 'C')
 
     return pdf.output(dest='S').encode('latin-1', 'ignore')
