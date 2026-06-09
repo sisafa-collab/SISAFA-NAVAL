@@ -731,7 +731,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
             cores_neon = ['#00E676', '#2979FF', '#FF1744', '#FFEA00', '#D500F9']
             
             # Criação do gráfico com fundo transparente e fatias separadas (explode)
-            plt.figure(figsize=(5, 2.5), dpi=150)
+            plt.figure(figsize=(6, 3), dpi=150)
             
             # O "explode" separa um pouco as fatias, dando um ar mais tecnológico
             separacao = [0.03] * len(values) 
@@ -746,7 +746,7 @@ def gerar_relatorio_ose_pdf(ose_nome, df_ose, volume_total, qtd_total, fig_pie):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                 plt.savefig(tmp.name, bbox_inches='tight', transparent=True)
                 plt.close()
-                pdf.image(tmp.name, x=60, y=110, w=120)
+                pdf.image(tmp.name, x=30, y=90, w=120)
                 os.remove(tmp.name)
         except: pass
 
