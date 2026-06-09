@@ -4208,16 +4208,27 @@ Cordialmente,
                                 # 1. Gera o PDF
                                 pdf_bytes = gerar_relatorio_ose_pdf(ose_sel, df_ose_exec, volume_total_ose, qtd_total_ose, fig_pie)
                                 
-                                # 2. Desafoga a memória RAM do servidor na marra
+                                # 2. Desafoga a memória RAM do servidor
                                 plt.close('all')
                                 gc.collect()
                                 
-                                # 3. Converte a fundo para Base64 (Bypass do Streamlit)
+                                # 3. Converte a fundo para Base64
                                 b64 = base64.b64encode(pdf_bytes).decode()
                                 nome_arquivo = f"Dossie_{ose_sel.replace(' ', '_')}.pdf"
                                 
-                                # 4 e 5. Cria o HTML em linha ÚNICA (Sem espaços no início para não virar código na tela) e renderiza
-                                html_button = f'<a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" style="display: block; padding: 12px; background-color: #00E676; color: #1e1e1e; text-align: center; text-decoration: none; font-size: 16px; font-family: sans-serif; border-radius: 8px; font-weight: bold; width: 100%; box-sizing: border-box;">📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR</a>'
+                                # 4. Cria o Botão HTML encapsulado em uma <div> (Isto impede o Streamlit de ler como texto)
+                                html_button = (
+                                    f'<div style="text-align: center;">'
+                                    f'<a href="data:application/pdf;base64,{b64}" download="{nome_arquivo}" '
+                                    f'style="display: block; padding: 12px; background-color: #00E676; color: #1e1e1e; '
+                                    f'text-align: center; text-decoration: none; font-size: 16px; font-family: sans-serif; '
+                                    f'border-radius: 8px; font-weight: bold; width: 100%; box-sizing: border-box;">'
+                                    f'📥 PDF PRONTO! CLIQUE AQUI PARA BAIXAR'
+                                    f'</a>'
+                                    f'</div>'
+                                )
+                                
+                                # 5. Renderiza a estrutura blindada
                                 st.markdown(html_button, unsafe_allow_html=True)
                                 
                             except Exception as e:
