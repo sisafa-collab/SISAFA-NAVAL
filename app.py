@@ -4224,10 +4224,6 @@ Cordialmente,
                             type="primary"
                         )
                                 
-                            except Exception as e:
-                                st.error(f"Erro ao compilar: {e}")
-        
-    
 
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
