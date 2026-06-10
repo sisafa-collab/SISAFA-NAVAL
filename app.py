@@ -5621,6 +5621,44 @@ Cordialmente,
                 )
                 st.plotly_chart(fig_st6, use_container_width=True)
 
+                # =======================================================
+                # NOVO: CARDS NEON DE COMPETÊNCIA (Distribuição Financeira)
+                # =======================================================
+                if 'competencia_grafico' in df_status6.columns:
+                    st.markdown("#### 🗓️ Montante aguardando emissão de NF por Competência")
+                    
+                    # Agrupa os valores por competência e ordena do maior para o menor valor
+                    df_comp_st6 = df_status6.groupby('competencia_grafico')['v_liq'].sum().reset_index()
+                    df_comp_st6 = df_comp_st6.sort_values(by='v_liq', ascending=False)
+                    
+                    # Inicia um contêiner flexível (os cards se ajustam sozinhos na tela)
+                    html_cards = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; margin-bottom: 25px;">'
+                    
+                    # Paleta Neon SISAFA para os cards (Verde, Azul, Amarelo, Vermelho, Roxo)
+                    cores_neon = ['#00E676', '#2979FF', '#FFEA00', '#FF1744', '#D500F9']
+                    
+                    for i, row in enumerate(df_comp_st6.itertuples()):
+                        comp = str(row.competencia_grafico)
+                        valor = float(row.v_liq)
+                        cor = cores_neon[i % len(cores_neon)] # Alterna o brilho neon dinamicamente
+                        
+                        html_cards += f'''
+                        <div style="flex: 1; min-width: 150px; background-color: #1e1e1e; 
+                                    border: 1px solid {cor}; border-radius: 10px; padding: 15px; 
+                                    text-align: center; box-shadow: 0 0 15px {cor}40;">
+                            <div style="color: #cccccc; font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
+                                {comp.upper()}
+                            </div>
+                            <div style="color: {cor}; font-size: 19px; font-weight: 900; text-shadow: 0 0 10px {cor}80;">
+                                R$ {valor:,.2f}
+                            </div>
+                        </div>
+                        '''
+                    
+                    html_cards += '</div>'
+                    st.markdown(html_cards, unsafe_allow_html=True)
+                # =======================================================
+
                 with st.expander("📋 Ver lista COMPLETA das NFs pendentes por empresa"):
                     df_show_st6 = df_emp_st6.sort_values('v_liq', ascending=False).copy()
                     df_show_st6['v_liq'] = df_show_st6['v_liq'].apply(lambda x: f"R$ {x:,.2f}")
