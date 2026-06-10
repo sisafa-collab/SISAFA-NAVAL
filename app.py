@@ -5625,26 +5625,37 @@ Cordialmente,
                 # =======================================================
                 # NOVO: CARDS NEON DE COMPETÊNCIA (Distribuição Financeira)
                 # =======================================================
-                # Radar para encontrar o nome exato da coluna de competência na base atual
-                col_comp = None
-                for col in ['competencia_grafico', 'competencia', 'Competencia', 'mes_referencia', 'mes']:
-                    if col in df_status6.columns:
-                        col_comp = col
-                        break
-                
-                if col_comp:
+                if 'mes_competencia' in df_status6.columns and 'ano_competencia' in df_status6.columns:
                     st.markdown("#### 🗓️ Montante aguardando emissão de NF por Competência")
                     
-                    # Agrupa os valores pela coluna encontrada e ordena
-                    df_comp_st6 = df_status6.groupby(col_comp)['v_liq'].sum().reset_index()
+                    # Dicionário para deixar o mês com sigla padrão
+                    meses_map_neon = {
+                        1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN", 
+                        7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+                    }
+                    
+                    # Função para juntar Mês e Ano bonitinho (ex: MAR/2026)
+                    def montar_rotulo_comp(row):
+                        try:
+                            # Converte para int para evitar que o Pandas leia como '3.0'
+                            m = int(float(row['mes_competencia']))
+                            a = int(float(row['ano_competencia']))
+                            return f"{meses_map_neon.get(m, str(m))}/{a}"
+                        except:
+                            return f"{row['mes_competencia']}/{row['ano_competencia']}"
+                    
+                    # Cria a coluna temporária na base
+                    df_status6['comp_neon'] = df_status6.apply(montar_rotulo_comp, axis=1)
+                    
+                    # Agrupa os valores financeiros pela nova coluna montada e ordena
+                    df_comp_st6 = df_status6.groupby('comp_neon')['v_liq'].sum().reset_index()
                     df_comp_st6 = df_comp_st6.sort_values(by='v_liq', ascending=False)
                     
                     html_cards = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; margin-bottom: 25px;">'
                     cores_neon = ['#00E676', '#2979FF', '#FFEA00', '#FF1744', '#D500F9']
                     
                     for i, row in enumerate(df_comp_st6.itertuples()):
-                        # Extrai dinamicamente o valor da competência e do financeiro
-                        comp = str(getattr(row, col_comp))
+                        comp = str(row.comp_neon)
                         valor = float(row.v_liq)
                         cor = cores_neon[i % len(cores_neon)] 
                         
@@ -5664,8 +5675,8 @@ Cordialmente,
                     html_cards += '</div>'
                     st.markdown(html_cards, unsafe_allow_html=True)
                 else:
-                    # Se realmente não encontrar a coluna, ele avisa na tela em vez de sumir silenciosamente
-                    st.warning("⚠️ A coluna de 'Competência' não foi localizada nesta base de dados para gerar os cards.")
+                    st.warning("⚠️ As colunas 'mes_competencia' e 'ano_competencia' não foram localizadas nesta base.")
+                # =======================================================
                 # =======================================================
 
                 with st.expander("📋 Ver lista COMPLETA das NFs pendentes por empresa"):
