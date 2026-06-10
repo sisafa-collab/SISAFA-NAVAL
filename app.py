@@ -5659,20 +5659,11 @@ Cordialmente,
                         valor = float(row.v_liq)
                         cor = cores_neon[i % len(cores_neon)] 
                         
-                        html_cards += f'''
-                        <div style="flex: 1; min-width: 150px; background-color: #1e1e1e; 
-                                    border: 1px solid {cor}; border-radius: 10px; padding: 15px; 
-                                    text-align: center; box-shadow: 0 0 15px {cor}40;">
-                            <div style="color: #cccccc; font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">
-                                {comp.upper()}
-                            </div>
-                            <div style="color: {cor}; font-size: 19px; font-weight: 900; text-shadow: 0 0 10px {cor}80;">
-                                R$ {valor:,.2f}
-                            </div>
-                        </div>
-                        '''
-                    
-                    html_cards += '</div>'
+                        # HTML em linha contínua para o Streamlit não confundir com bloco de código
+                        html_cards += f'<div style="flex: 1; min-width: 150px; background-color: #1e1e1e; border: 1px solid {cor}; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 0 15px {cor}40;">'
+                        html_cards += f'<div style="color: #cccccc; font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">{comp.upper()}</div>'
+                        html_cards += f'<div style="color: {cor}; font-size: 19px; font-weight: 900; text-shadow: 0 0 10px {cor}80;">R$ {valor:,.2f}</div>'
+                        html_cards += f'</div>'
                     st.markdown(html_cards, unsafe_allow_html=True)
                 else:
                     st.warning("⚠️ As colunas 'mes_competencia' e 'ano_competencia' não foram localizadas nesta base.")
