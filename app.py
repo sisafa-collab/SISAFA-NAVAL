@@ -5622,25 +5622,31 @@ Cordialmente,
                 st.plotly_chart(fig_st6, use_container_width=True)
 
                 # =======================================================
+                # =======================================================
                 # NOVO: CARDS NEON DE COMPETÊNCIA (Distribuição Financeira)
                 # =======================================================
-                if 'competencia_grafico' in df_status6.columns:
+                # Radar para encontrar o nome exato da coluna de competência na base atual
+                col_comp = None
+                for col in ['competencia_grafico', 'competencia', 'Competencia', 'mes_referencia', 'mes']:
+                    if col in df_status6.columns:
+                        col_comp = col
+                        break
+                
+                if col_comp:
                     st.markdown("#### 🗓️ Montante aguardando emissão de NF por Competência")
                     
-                    # Agrupa os valores por competência e ordena do maior para o menor valor
-                    df_comp_st6 = df_status6.groupby('competencia_grafico')['v_liq'].sum().reset_index()
+                    # Agrupa os valores pela coluna encontrada e ordena
+                    df_comp_st6 = df_status6.groupby(col_comp)['v_liq'].sum().reset_index()
                     df_comp_st6 = df_comp_st6.sort_values(by='v_liq', ascending=False)
                     
-                    # Inicia um contêiner flexível (os cards se ajustam sozinhos na tela)
                     html_cards = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; margin-bottom: 25px;">'
-                    
-                    # Paleta Neon SISAFA para os cards (Verde, Azul, Amarelo, Vermelho, Roxo)
                     cores_neon = ['#00E676', '#2979FF', '#FFEA00', '#FF1744', '#D500F9']
                     
                     for i, row in enumerate(df_comp_st6.itertuples()):
-                        comp = str(row.competencia_grafico)
+                        # Extrai dinamicamente o valor da competência e do financeiro
+                        comp = str(getattr(row, col_comp))
                         valor = float(row.v_liq)
-                        cor = cores_neon[i % len(cores_neon)] # Alterna o brilho neon dinamicamente
+                        cor = cores_neon[i % len(cores_neon)] 
                         
                         html_cards += f'''
                         <div style="flex: 1; min-width: 150px; background-color: #1e1e1e; 
@@ -5657,6 +5663,9 @@ Cordialmente,
                     
                     html_cards += '</div>'
                     st.markdown(html_cards, unsafe_allow_html=True)
+                else:
+                    # Se realmente não encontrar a coluna, ele avisa na tela em vez de sumir silenciosamente
+                    st.warning("⚠️ A coluna de 'Competência' não foi localizada nesta base de dados para gerar os cards.")
                 # =======================================================
 
                 with st.expander("📋 Ver lista COMPLETA das NFs pendentes por empresa"):
