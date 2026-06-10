@@ -5637,7 +5637,6 @@ Cordialmente,
                     # Função para juntar Mês e Ano bonitinho (ex: MAR/2026)
                     def montar_rotulo_comp(row):
                         try:
-                            # Converte para int para evitar que o Pandas leia como '3.0'
                             m = int(float(row['mes_competencia']))
                             a = int(float(row['ano_competencia']))
                             return f"{meses_map_neon.get(m, str(m))}/{a}"
@@ -5651,22 +5650,31 @@ Cordialmente,
                     df_comp_st6 = df_status6.groupby('comp_neon')['v_liq'].sum().reset_index()
                     df_comp_st6 = df_comp_st6.sort_values(by='v_liq', ascending=False)
                     
-                    html_cards = '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; margin-bottom: 25px;">'
                     cores_neon = ['#00E676', '#2979FF', '#FFEA00', '#FF1744', '#D500F9']
+                    
+                    # TÁTICA BLINDADA: Lista para agrupar o HTML sem nenhuma quebra invisível
+                    elementos_html = ['<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; margin-bottom: 25px;">']
                     
                     for i, row in enumerate(df_comp_st6.itertuples()):
                         comp = str(row.comp_neon)
                         valor = float(row.v_liq)
                         cor = cores_neon[i % len(cores_neon)] 
                         
-                        # HTML em linha contínua para o Streamlit não confundir com bloco de código
-                        html_cards += f'<div style="flex: 1; min-width: 150px; background-color: #1e1e1e; border: 1px solid {cor}; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 0 15px {cor}40;">'
-                        html_cards += f'<div style="color: #cccccc; font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">{comp.upper()}</div>'
-                        html_cards += f'<div style="color: {cor}; font-size: 19px; font-weight: 900; text-shadow: 0 0 10px {cor}80;">R$ {valor:,.2f}</div>'
-                        html_cards += f'</div>'
-                    st.markdown(html_cards, unsafe_allow_html=True)
+                        # O CARD INTEIRO EM UMA ÚNICA VARIÁVEL (Garante 0 erros de Markdown)
+                        card = f'<div style="flex: 1; min-width: 150px; background-color: #1e1e1e; border: 1px solid {cor}; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 0 15px {cor}40;"><div style="color: #cccccc; font-size: 13px; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px;">{comp.upper()}</div><div style="color: {cor}; font-size: 19px; font-weight: 900; text-shadow: 0 0 10px {cor}80;">R$ {valor:,.2f}</div></div>'
+                        
+                        elementos_html.append(card)
+                    
+                    # FECHAMENTO OBRIGATÓRIO DA CAIXA (Era isso que estava faltando!)
+                    elementos_html.append('</div>')
+                    
+                    # Une tudo num bloco só e injeta no Streamlit
+                    html_final = "".join(elementos_html)
+                    st.markdown(html_final, unsafe_allow_html=True)
+                    
                 else:
                     st.warning("⚠️ As colunas 'mes_competencia' e 'ano_competencia' não foram localizadas nesta base.")
+                # =======================================================
                 # =======================================================
                 # =======================================================
 
