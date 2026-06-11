@@ -6893,3 +6893,186 @@ Cordialmente,
                                     st.error(f"Erro ao salvar na planilha: {e}")
                             else:
                                 st.warning("Preencha o assunto e a mensagem.")
+
+    # =========================================================================
+    # ========================== MÓDULO ADMIN =================================
+    # =========================================================================
+    elif st.session_state.modulo_ativo == "ADMIN":
+        st.header("⚙️ Painel de Administração do SISAFA")
+        st.markdown("Gestão centralizada de usuários e cadastro de contratos. **A exclusão de registros é bloqueada por segurança.**")
+        st.divider()
+
+        tab_usuarios, tab_contratos, tab_estatisticas = st.tabs(["👥 Gestão de Usuários", "📄 Tabela de Contratos (Tabela A)", "📊 Visão Estratégica"])
+
+        # -------------------------------------------------------------------------
+        # ABA 1: GESTÃO DE USUÁRIOS
+        # -------------------------------------------------------------------------
+        with tab_usuarios:
+            st.subheader("Controle de Acesso e Perfis")
+            
+            try:
+                aba_usuarios = sh.worksheet("SISAFA-NAVAL-Usuarios")
+                df_usuarios = pd.DataFrame(aba_usuarios.get_all_records())
+                
+                # Garantindo que os tipos de dados estão corretos para edição
+                df_usuarios['NIP'] = df_usuarios['NIP'].astype(str)
+                df_usuarios['Senha'] = df_usuarios['Senha'].astype(str)
+                
+                perfis_permitidos = ["Execução Financeira", "ADMIN", "Gerencial", "Fiscalização de Contrato", "SECOM", "Auditoria", "OSE", "FISCAL_GLOBAL"]
+                
+                with st.form("form_add_user"):
+                    st.markdown("#### ➕ Incluir Novo Usuário / OSE")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        novo_nip_cnpj = st.text_input("NIP ou CNPJ (Somente números)", help="Para militares use o NIP. Para OSE use o CNPJ (14 dígitos).")
+                        novo_nome = st.text_input("Nome / Razão Social")
+                        novo_perfil = st.selectbox("Perfil de Acesso", perfis_permitidos)
+                    with c2:
+                        novo_email = st.text_input("E-mail corporativo")
+                        nova_senha = st.text_input("Senha Inicial", type="password")
+                        confirmar_senha = st.text_input("Confirmar Senha", type="password")
+                        
+                    btn_add_user = st.form_submit_button("Cadastrar Usuário", use_container_width=True)
+                    
+                    if btn_add_user:
+                        if not novo_nip_cnpj or not novo_nome or not nova_senha:
+                            st.error("Preencha NIP/CNPJ, Nome e Senha obrigatoriamente.")
+                        elif nova_senha != confirmar_senha:
+                            st.error("As senhas não coincidem.")
+                        elif novo_nip_cnpj in df_usuarios['NIP'].values:
+                            st.error("Este NIP/CNPJ já está cadastrado no sistema!")
+                        else:
+                            # Adiciona no final da planilha
+                            aba_usuarios.append_row([novo_nip_cnpj, novo_nome, novo_perfil, novo_email, nova_senha])
+                            st.success(f"Usuário {novo_nome} cadastrado com sucesso!")
+                            time.sleep(1.5)
+                            st.rerun()
+                
+                st.write("")
+                st.markdown("#### ✏️ Edição em Massa (Reset de Senha e Troca de Perfil)")
+                st.info("Edite as células abaixo (dê dois cliques). Para salvar as alterações, clique no botão ao final da tabela. Adições de novas linhas pela tabela também são permitidas.")
+                
+                # O editor permite editar e adicionar, mas bloqueamos a exclusão (num_rows="dynamic" com validação no save)
+                df_usuarios_editado = st.data_editor(
+                    df_usuarios,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    column_config={
+                        "NIP": st.column_config.TextColumn("NIP / CNPJ", required=True),
+                        "PERFIL": st.column_config.SelectboxColumn("Perfil", options=perfis_permitidos, required=True),
+                        "Senha": st.column_config.TextColumn("Senha (Editável)", required=True)
+                    },
+                    hide_index=True,
+                    key="editor_usuarios"
+                )
+                
+                if st.button("💾 Salvar Alterações de Usuários", type="primary"):
+                    if len(df_usuarios_editado) < len(df_usuarios):
+                        st.error("⚠️ Operação Negada! A exclusão de usuários é bloqueada por segurança. Restaure a linha excluída ou recarregue a página.")
+                    else:
+                        aba_usuarios.clear()
+                        # Monta o cabeçalho
+                        aba_usuarios.update([df_usuarios_editado.columns.values.tolist()] + df_usuarios_editado.values.tolist())
+                        st.success("Tabela de Usuários atualizada com sucesso no banco de dados!")
+                        time.sleep(1.5)
+                        st.rerun()
+
+            except Exception as e:
+                st.error(f"Erro ao acessar a tabela de usuários: {e}")
+
+        # -------------------------------------------------------------------------
+        # ABA 2: TABELA DE CONTRATOS (TABELA A)
+        # -------------------------------------------------------------------------
+        with tab_contratos:
+            st.subheader("Gestão de Credenciamentos e Fiscais")
+            try:
+                aba_tabela_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
+                df_tab_a = pd.DataFrame(aba_tabela_a.get_all_records())
+                
+                # Padronizando CNPJ e NIPs como texto para não perder zeros à esquerda
+                for col in ['CNPJ', 'NIP do Gestor Titular', 'NIP do Gestor Substituto']:
+                    if col in df_tab_a.columns:
+                        df_tab_a[col] = df_tab_a[col].astype(str).str.replace('.0', '', regex=False)
+
+                st.info("Altere as informações dos Fiscais, E-mails e dados de Edital diretamente na tabela abaixo. A exclusão de linhas não será aceita no salvamento.")
+                
+                df_tab_a_editado = st.data_editor(
+                    df_tab_a,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    hide_index=True,
+                    key="editor_tabela_a"
+                )
+                
+                if st.button("💾 Salvar Alterações da Tabela de Contratos", type="primary"):
+                    if len(df_tab_a_editado) < len(df_tab_a):
+                        st.error("⚠️ Operação Negada! A exclusão de contratos é bloqueada para manter o histórico financeiro intacto.")
+                    else:
+                        aba_tabela_a.clear()
+                        aba_tabela_a.update([df_tab_a_editado.columns.values.tolist()] + df_tab_a_editado.values.tolist())
+                        st.success("Tabela de Contratos atualizada com sucesso no banco de dados!")
+                        time.sleep(1.5)
+                        st.rerun()
+                        
+            except Exception as e:
+                st.error(f"Erro ao acessar a Tabela A: {e}")
+
+        # -------------------------------------------------------------------------
+        # ABA 3: ESTATÍSTICAS E GRÁFICOS
+        # -------------------------------------------------------------------------
+        with tab_estatisticas:
+            st.subheader("Panorama de Fiscalização")
+            
+            try:
+                if 'df_tab_a' in locals() and not df_tab_a.empty:
+                    import plotly.express as px
+                    
+                    c1, c2 = st.columns(2)
+                    
+                    # Gráfico 1: Gestores Titulares
+                    with c1:
+                        if 'Gestor Titular' in df_tab_a.columns:
+                            df_titulares = df_tab_a['Gestor Titular'].value_counts().reset_index()
+                            df_titulares.columns = ['Fiscal Titular', 'Quantidade de Contratos']
+                            
+                            # Remove os vazios/não informados para não sujar o gráfico
+                            df_titulares = df_titulares[df_titulares['Fiscal Titular'].str.strip() != ""]
+                            
+                            fig_tit = px.pie(
+                                df_titulares, 
+                                values='Quantidade de Contratos', 
+                                names='Fiscal Titular',
+                                title="Distribuição de Contratos (Titulares)",
+                                hole=0.4,
+                                color_discrete_sequence=px.colors.sequential.Teal
+                            )
+                            fig_tit.update_traces(textposition='inside', textinfo='percent+value')
+                            st.plotly_chart(fig_tit, use_container_width=True)
+                        else:
+                            st.warning("Coluna 'Gestor Titular' não encontrada.")
+
+                    # Gráfico 2: Gestores Substitutos
+                    with c2:
+                        if 'Gestor Substituto' in df_tab_a.columns:
+                            df_subs = df_tab_a['Gestor Substituto'].value_counts().reset_index()
+                            df_subs.columns = ['Fiscal Substituto', 'Quantidade de Contratos']
+                            
+                            df_subs = df_subs[df_subs['Fiscal Substituto'].str.strip() != ""]
+                            
+                            fig_sub = px.pie(
+                                df_subs, 
+                                values='Quantidade de Contratos', 
+                                names='Fiscal Substituto',
+                                title="Distribuição de Contratos (Substitutos)",
+                                hole=0.4,
+                                color_discrete_sequence=px.colors.sequential.Burg
+                            )
+                            fig_sub.update_traces(textposition='inside', textinfo='percent+value')
+                            st.plotly_chart(fig_sub, use_container_width=True)
+                        else:
+                            st.warning("Coluna 'Gestor Substituto' não encontrada.")
+                else:
+                    st.info("Acesse a aba 'Tabela de Contratos' primeiro para carregar os dados gráficos.")
+                    
+            except Exception as e:
+                st.error(f"Erro ao gerar gráficos: {e}")
