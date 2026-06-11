@@ -6829,7 +6829,7 @@ Cordialmente,
                         df_minhas_faturas[col] = df_minhas_faturas[col].apply(limpar_v6_nuclear)
 
                 # =========================================================
-                # 3. DASHBOARD FINANCEIRO (MÉTRICAS E PREPARAÇÃO)
+                # 3. DASHBOARD FINANCEIRO (MÉTRICAS NEON)
                 # =========================================================
                 
                 # --- 1. DEFINIÇÃO DOS MAPAS (Nomes e Meses) ---
@@ -6844,7 +6844,7 @@ Cordialmente,
                     7: 'JUL', 8: 'AGO', 9: 'SET', 10: 'OUT', 11: 'NOV', 12: 'DEZ'
                 }
 
-                # --- 2. TRADUÇÃO DE STATUS (Cria a coluna Situação antes de tudo) ---
+                # --- 2. TRADUÇÃO DE STATUS ---
                 if 'status' in df_minhas_faturas.columns:
                     df_minhas_faturas['Situação'] = df_minhas_faturas['status'].map(mapa_nomes).fillna("N/A")
 
@@ -6859,21 +6859,113 @@ Cordialmente,
                 v_proc = df_minhas_faturas[df_minhas_faturas['status'] < 9]['valor_liquido'].sum()
                 v_pago = df_minhas_faturas[df_minhas_faturas['status'] == 9]['valor_liquido'].sum()
 
+                val_proc_fmt = f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                val_pago_fmt = f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                # --- INJEÇÃO DO CSS NEON ---
+                css_neon = """
+                <style>
+                /* Caixas do Resumo Financeiro */
+                .neon-box-aberto {
+                    background-color: #0e1117;
+                    border: 2px solid #00f3ff;
+                    border-radius: 10px;
+                    padding: 20px;
+                    box-shadow: 0 0 10px #00f3ff, inset 0 0 10px #00f3ff;
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                .neon-text-aberto {
+                    color: #00f3ff;
+                    text-shadow: 0 0 8px #00f3ff, 0 0 20px #00f3ff;
+                    font-size: 32px;
+                    font-weight: bold;
+                    margin: 0;
+                }
+                .neon-box-pago {
+                    background-color: #0e1117;
+                    border: 2px solid #39ff14;
+                    border-radius: 10px;
+                    padding: 20px;
+                    box-shadow: 0 0 10px #39ff14, inset 0 0 10px #39ff14;
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                .neon-text-pago {
+                    color: #39ff14;
+                    text-shadow: 0 0 8px #39ff14, 0 0 20px #39ff14;
+                    font-size: 32px;
+                    font-weight: bold;
+                    margin: 0;
+                }
+                /* Cards de Status (Menores) */
+                .neon-box-status {
+                    background-color: #0e1117;
+                    border: 1px solid #bc13fe;
+                    border-radius: 8px;
+                    padding: 15px;
+                    box-shadow: 0 0 8px #bc13fe;
+                    text-align: center;
+                    margin-bottom: 15px;
+                    transition: transform 0.2s;
+                }
+                .neon-box-status:hover {
+                    transform: scale(1.03);
+                    box-shadow: 0 0 15px #bc13fe, inset 0 0 10px #bc13fe;
+                }
+                .neon-text-status-val {
+                    color: #bc13fe;
+                    text-shadow: 0 0 5px #bc13fe, 0 0 15px #bc13fe;
+                    font-size: 26px;
+                    font-weight: bold;
+                    margin: 0;
+                }
+                /* Textos Genéricos */
+                .neon-text-title {
+                    color: #ffffff;
+                    font-size: 14px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    margin-bottom: 5px;
+                    opacity: 0.9;
+                }
+                /* Container do Gráfico */
+                .neon-chart-container {
+                    border: 2px solid #ff0055;
+                    border-radius: 15px;
+                    padding: 15px;
+                    box-shadow: 0 0 15px #ff0055, inset 0 0 10px #ff0055;
+                    background-color: #0e1117;
+                    margin-top: 15px;
+                }
+                </style>
+                """
+                st.markdown(css_neon, unsafe_allow_html=True)
+
+                # Renderização das Caixas Financeiras em HTML
                 st.markdown(f"### 💰 Resumo Financeiro")
                 m1, m2 = st.columns(2)
                 
                 with m1:
-                    val_proc_fmt = f"R$ {v_proc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    st.metric("Total em Aberto", val_proc_fmt)
+                    st.markdown(f'''
+                        <div class="neon-box-aberto">
+                            <div class="neon-text-title">Total em Aberto</div>
+                            <div class="neon-text-aberto">{val_proc_fmt}</div>
+                        </div>
+                    ''', unsafe_allow_html=True)
                 
                 with m2:
-                    val_pago_fmt = f"R$ {v_pago:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    st.metric("Total Pago (Liquidado)", val_pago_fmt)
+                    st.markdown(f'''
+                        <div class="neon-box-pago">
+                            <div class="neon-text-title">Total Pago (Liquidado)</div>
+                            <div class="neon-text-pago">{val_pago_fmt}</div>
+                        </div>
+                    ''', unsafe_allow_html=True)
 
                 st.divider()
 
                 # =========================================================
-                # 4. TABELA DETALHADA
+                # 4. TABELA DETALHADA (MANTIDA INTACTA)
                 # =========================================================
                 st.subheader("📑 Detalhamento das Faturas")
                 
@@ -6885,7 +6977,7 @@ Cordialmente,
                     'mes_sigla': 'Mês Competência', 
                     'ano_competencia': 'Ano',
                     'ne': 'NE', 'nf': 'NF', 'ob': 'OB', 
-                    'Situação': 'Situação da Fatura' # <-- Agora ele encontra essa coluna!
+                    'Situação': 'Situação da Fatura'
                 }
                 
                 cols_reais = [c for c in mapa_cols_exibicao.keys() if c in df_minhas_faturas.columns]
@@ -6902,33 +6994,71 @@ Cordialmente,
                 else:
                     st.info("Nenhuma fatura encontrada.")
 
+                st.divider()
+
                 # =========================================================
-                # 5. GRÁFICO DE PIZZA (AO FINAL DA PÁGINA)
+                # 5. DASHBOARD DE STATUS (CARDS NEON E GRÁFICO CHOCANTE)
                 # =========================================================
-                st.write("") 
+                st.markdown("### 📊 Situação das Faturas")
+
                 if not df_minhas_faturas.empty:
                     import plotly.express as px
                     
-                    st.markdown("#### 📊 Situação das faturas")
+                    # --- CARDS NEON DE CONTAGEM POR STATUS ---
+                    st.markdown("##### Quantidade de faturas por etapa")
+                    df_contagem = df_minhas_faturas['Situação'].value_counts().reset_index()
+                    df_contagem.columns = ['Situação', 'Quantidade']
+                    df_contagem = df_contagem.sort_values(by='Situação') # Ordena pela numeração do mapa
                     
-                    # Agrupamento dinâmico pela Situação (Texto)
+                    # Desenha as caixinhas em um grid de 3 colunas
+                    cols_cards = st.columns(3)
+                    for i, row in df_contagem.iterrows():
+                        col = cols_cards[i % 3]
+                        with col:
+                            st.markdown(f'''
+                                <div class="neon-box-status">
+                                    <div class="neon-text-title">{row['Situação']}</div>
+                                    <div class="neon-text-status-val">{row['Quantidade']}</div>
+                                </div>
+                            ''', unsafe_allow_html=True)
+                            
+                    st.write("") # Espaçamento
+                    
+                    # --- GRÁFICO DE PIZZA CHOCANTE (VOLUMES EM R$) ---
+                    st.markdown("##### Volume Financeiro (R$) por etapa")
+                    
                     df_status_grafico = df_minhas_faturas.groupby('Situação')['valor_liquido'].sum().reset_index()
+                    
+                    # Paleta de cores vibrantes estilo Cyberpunk/Neon
+                    cores_vibrantes = ['#00f3ff', '#39ff14', '#bc13fe', '#ff0055', '#ffea00', '#ff8a00', '#00ff9d', '#b000ff']
                     
                     fig = px.pie(
                         df_status_grafico, 
                         values='valor_liquido', 
                         names='Situação',
                         hole=0.4,
-                        color_discrete_sequence=px.colors.qualitative.Prism 
+                        color_discrete_sequence=cores_vibrantes 
+                    )
+                    
+                    # Ajustes no visual das fatias e layout transparente
+                    fig.update_traces(
+                        textposition='inside', 
+                        textinfo='percent+label',
+                        marker=dict(line=dict(color='#0e1117', width=3)) # Borda escura destaca as cores
                     )
                     
                     fig.update_layout(
-                        height=400,
-                        margin=dict(t=30, b=0, l=0, r=0),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
+                        height=450,
+                        margin=dict(t=20, b=10, l=10, r=10),
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(color="white")),
+                        paper_bgcolor='rgba(0,0,0,0)', # Fundo transparente
+                        plot_bgcolor='rgba(0,0,0,0)'   # Fundo transparente
                     )
                     
+                    # Envelopa o gráfico do Plotly no container CSS neon vermelho/rosa
+                    st.markdown('<div class="neon-chart-container">', unsafe_allow_html=True)
                     st.plotly_chart(fig, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
