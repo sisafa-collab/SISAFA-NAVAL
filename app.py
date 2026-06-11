@@ -6901,6 +6901,16 @@ Cordialmente,
         st.markdown("Gestão centralizada de usuários e cadastro de contratos. **A exclusão de registros é bloqueada por segurança.**")
         st.divider()
 
+        # Função interna para garantir os zeros à esquerda do NIP (8) e CNPJ (14)
+        def blindar_zeros(val):
+            s = str(val).replace('.0', '').strip()
+            if s.lower() in ['', 'nan', 'none']: 
+                return ""
+            if len(s) <= 8: 
+                return s.zfill(8) # Formata como NIP
+            else: 
+                return s.zfill(14) # Formata como CNPJ
+
         tab_usuarios, tab_contratos, tab_estatisticas = st.tabs(["👥 Gestão de Usuários", "📄 Tabela de Contratos", "📊 Visão Global"])
 
         # -------------------------------------------------------------------------
@@ -6913,9 +6923,13 @@ Cordialmente,
                 aba_usuarios = sh.worksheet("SISAFA-NAVAL-Usuarios")
                 df_usuarios = pd.DataFrame(aba_usuarios.get_all_records())
                 
-                # Garantindo que os tipos de dados estão corretos para edição
-                df_usuarios['NIP'] = df_usuarios['NIP'].astype(str)
-                df_usuarios['Senha'] = df_usuarios['Senha'].astype(str)
+                # Vacina dos Zeros e Tipagem de Texto
+                if 'NIP' in df_usuarios.columns:
+                    df_usuarios['NIP'] = df_usuarios['NIP'].apply(blindar_zeros)
+                if 'Senha' in df_usuarios.columns:
+                    df_usuarios['Senha'] = df_usuarios['Senha'].astype(str)
+                if 'PERFIL' in df_usuarios.columns:
+                    df_usuarios['PERFIL'] = df_usuarios['PERFIL'].astype(str)
                 
                 perfis_permitidos = ["Execução Financeira", "ADMIN", "Gerencial", "Fiscalização de Contrato", "SECOM", "Auditoria", "OSE", "FISCAL_GLOBAL"]
                 
@@ -6923,9 +6937,10 @@ Cordialmente,
                     st.markdown("#### ➕ Incluir Novo Usuário / OSE")
                     c1, c2 = st.columns(2)
                     with c1:
-                        novo_nip_cnpj = st.text_input("NIP ou CNPJ (Somente números)", help="Para militares use o NIP. Para OSE use o CNPJ (14 dígitos).")
+                        novo_nip_cnpj = st.text_input("NIP ou CNPJ (Somente números)", help="Para militares use o NIP. Para OSE use o CNPJ.")
                         novo_nome = st.text_input("Nome / Razão Social")
-                        novo_perfil = st.selectbox("Perfil de Acesso", perfis_permitidos)
+                        # Na criação mantemos o selectbox para facilitar
+                        novo_perfil = st.selectbox("Perfil de Acesso Primário", perfis_permitidos)
                     with c2:
                         novo_email = st.text_input("E-mail corporativo")
                         nova_senha = st.text_input("Senha Inicial", type="password")
@@ -6938,27 +6953,28 @@ Cordialmente,
                             st.error("Preencha NIP/CNPJ, Nome e Senha obrigatoriamente.")
                         elif nova_senha != confirmar_senha:
                             st.error("As senhas não coincidem.")
-                        elif novo_nip_cnpj in df_usuarios['NIP'].values:
+                        elif blindar_zeros(novo_nip_cnpj) in df_usuarios['NIP'].values:
                             st.error("Este NIP/CNPJ já está cadastrado no sistema!")
                         else:
-                            # Adiciona no final da planilha
-                            aba_usuarios.append_row([novo_nip_cnpj, novo_nome, novo_perfil, novo_email, nova_senha])
+                            nip_formatado = blindar_zeros(novo_nip_cnpj)
+                            aba_usuarios.append_row([nip_formatado, novo_nome, novo_perfil, novo_email, nova_senha])
                             st.success(f"Usuário {novo_nome} cadastrado com sucesso!")
                             time.sleep(1.5)
                             st.rerun()
                 
                 st.write("")
                 st.markdown("#### ✏️ Edição em Massa (Reset de Senha e Troca de Perfil)")
-                st.info("Edite as células abaixo (dê dois cliques). Para salvar as alterações, clique no botão ao final da tabela. Adições de novas linhas pela tabela também são permitidas.")
+                st.info("Edite as células abaixo. Você pode digitar múltiplos perfis separados por vírgula na coluna 'Perfil'.")
                 
-                # O editor permite editar e adicionar, mas bloqueamos a exclusão (num_rows="dynamic" com validação no save)
+                # Editor de Usuários Atualizado
                 df_usuarios_editado = st.data_editor(
                     df_usuarios,
                     num_rows="dynamic",
                     use_container_width=True,
                     column_config={
                         "NIP": st.column_config.TextColumn("NIP / CNPJ", required=True),
-                        "PERFIL": st.column_config.SelectboxColumn("Perfil", options=perfis_permitidos, required=True),
+                        # Transformado em TextColumn para permitir múltiplos perfis sem ficar em branco!
+                        "PERFIL": st.column_config.TextColumn("Perfil (Múltiplos? Use vírgula)", required=True),
                         "Senha": st.column_config.TextColumn("Senha (Editável)", required=True)
                     },
                     hide_index=True,
@@ -6970,7 +6986,8 @@ Cordialmente,
                         st.error("⚠️ Operação Negada! A exclusão de usuários é bloqueada por segurança. Restaure a linha excluída ou recarregue a página.")
                     else:
                         aba_usuarios.clear()
-                        # Monta o cabeçalho
+                        # Garante que os dados salvos mantenham o padrão de zeros
+                        df_usuarios_editado['NIP'] = df_usuarios_editado['NIP'].apply(blindar_zeros)
                         aba_usuarios.update([df_usuarios_editado.columns.values.tolist()] + df_usuarios_editado.values.tolist())
                         st.success("Tabela de Usuários atualizada com sucesso no banco de dados!")
                         time.sleep(1.5)
@@ -6988,17 +7005,25 @@ Cordialmente,
                 aba_tabela_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
                 df_tab_a = pd.DataFrame(aba_tabela_a.get_all_records())
                 
-                # Padronizando CNPJ e NIPs como texto para não perder zeros à esquerda
+                # Vacina dos Zeros ativada para todas as colunas de identificação
                 for col in ['CNPJ', 'NIP do Gestor Titular', 'NIP do Gestor Substituto']:
                     if col in df_tab_a.columns:
-                        df_tab_a[col] = df_tab_a[col].astype(str).str.replace('.0', '', regex=False)
+                        df_tab_a[col] = df_tab_a[col].apply(blindar_zeros)
 
                 st.info("Altere as informações dos Fiscais, E-mails e dados de Edital diretamente na tabela abaixo. A exclusão de linhas não será aceita no salvamento.")
                 
+                # Configurando as colunas para que o editor não as converta em números internamente
+                col_config_tab_a = {
+                    "CNPJ": st.column_config.TextColumn("CNPJ"),
+                    "NIP do Gestor Titular": st.column_config.TextColumn("NIP Titular"),
+                    "NIP do Gestor Substituto": st.column_config.TextColumn("NIP Substituto")
+                }
+
                 df_tab_a_editado = st.data_editor(
                     df_tab_a,
                     num_rows="dynamic",
                     use_container_width=True,
+                    column_config=col_config_tab_a,
                     hide_index=True,
                     key="editor_tabela_a"
                 )
@@ -7008,6 +7033,11 @@ Cordialmente,
                         st.error("⚠️ Operação Negada! A exclusão de contratos é bloqueada para manter o histórico financeiro intacto.")
                     else:
                         aba_tabela_a.clear()
+                        # Garante blindagem antes de jogar para a planilha
+                        for col in ['CNPJ', 'NIP do Gestor Titular', 'NIP do Gestor Substituto']:
+                            if col in df_tab_a_editado.columns:
+                                df_tab_a_editado[col] = df_tab_a_editado[col].apply(blindar_zeros)
+                                
                         aba_tabela_a.update([df_tab_a_editado.columns.values.tolist()] + df_tab_a_editado.values.tolist())
                         st.success("Tabela de Contratos atualizada com sucesso no banco de dados!")
                         time.sleep(1.5)
@@ -7034,7 +7064,6 @@ Cordialmente,
                             df_titulares = df_tab_a['Gestor Titular'].value_counts().reset_index()
                             df_titulares.columns = ['Fiscal Titular', 'Quantidade de Contratos']
                             
-                            # Remove os vazios/não informados para não sujar o gráfico
                             df_titulares = df_titulares[df_titulares['Fiscal Titular'].str.strip() != ""]
                             
                             fig_tit = px.pie(
