@@ -4301,7 +4301,7 @@ Cordialmente,
                             df_relatorio['Fatura (s)'] = df_rec['Numero_da_fatura']
                             df_relatorio['CNPJ'] = df_rec['cnpj']
                             df_relatorio['N°'] = ""  # Sempre Vazio
-                            df_relatorio['Empresa'] = df_rec['ose']
+                            df_relatorio['Empresa'] = ""  # Sempre Vazio
                             
                             # Mantém o valor limpo com as casas decimais
                             if 'valor_liquido' in df_rec.columns:
