@@ -6997,34 +6997,45 @@ Cordialmente,
                 st.divider()
 
                 # =========================================================
-                # 5. DASHBOARD DE STATUS (CARDS NEON E GRÁFICO CHOCANTE)
+                # 5. DASHBOARD DE STATUS 
                 # =========================================================
                 st.markdown("### 📊 Situação das Faturas")
 
                 if not df_minhas_faturas.empty:
                     import plotly.express as px
                     
-                    # --- CARDS NEON DE CONTAGEM POR STATUS ---
+                    # --- CARDS NEON DE CONTAGEM POR STATUS (TONS DE VERDE) ---
                     st.markdown("##### Quantidade de faturas por etapa")
                     df_contagem = df_minhas_faturas['Situação'].value_counts().reset_index()
                     df_contagem.columns = ['Situação', 'Quantidade']
-                    df_contagem = df_contagem.sort_values(by='Situação') # Ordena pela numeração do mapa
                     
-                    # Desenha as caixinhas em um grid de 3 colunas
+                    # Ordena pela numeração do mapa para manter a lógica do processo
+                    df_contagem = df_contagem.sort_values(by='Situação') 
+                    
+                    # Paleta de tons de verde neon (do mais limão ao mais esmeralda)
+                    tons_de_verde = [
+                        '#39ff14', '#00ff7f', '#32cd32', '#00fa9a', 
+                        '#7fff00', '#00ff00', '#adff2f', '#20b2aa', '#98fb98'
+                    ]
+                    
+                    # Desenha as caixinhas em um grid de 3 colunas com CSS inline dinâmico
                     cols_cards = st.columns(3)
                     for i, row in df_contagem.iterrows():
                         col = cols_cards[i % 3]
+                        # Pega uma cor diferente da lista baseada no índice
+                        cor_neon = tons_de_verde[i % len(tons_de_verde)] 
+                        
                         with col:
                             st.markdown(f'''
-                                <div class="neon-box-status">
-                                    <div class="neon-text-title">{row['Situação']}</div>
-                                    <div class="neon-text-status-val">{row['Quantidade']}</div>
+                                <div style="background-color: #0e1117; border: 1px solid {cor_neon}; border-radius: 8px; padding: 15px; box-shadow: 0 0 10px {cor_neon}, inset 0 0 5px {cor_neon}; text-align: center; margin-bottom: 15px; transition: transform 0.2s;">
+                                    <div style="color: #ffffff; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; opacity: 0.9;">{row['Situação']}</div>
+                                    <div style="color: {cor_neon}; text-shadow: 0 0 8px {cor_neon}, 0 0 15px {cor_neon}; font-size: 26px; font-weight: bold; margin: 0;">{row['Quantidade']}</div>
                                 </div>
                             ''', unsafe_allow_html=True)
                             
                     st.write("") # Espaçamento
                     
-                    # --- GRÁFICO DE PIZZA CHOCANTE (VOLUMES EM R$) ---
+                    # --- GRÁFICO DE PIZZA CHOCANTE (CORRIGIDO) ---
                     st.markdown("##### Volume Financeiro (R$) por etapa")
                     
                     df_status_grafico = df_minhas_faturas.groupby('Situação')['valor_liquido'].sum().reset_index()
@@ -7040,25 +7051,25 @@ Cordialmente,
                         color_discrete_sequence=cores_vibrantes 
                     )
                     
-                    # Ajustes no visual das fatias e layout transparente
+                    # Ajustes no visual das fatias (borda escura para dar contraste)
                     fig.update_traces(
                         textposition='inside', 
                         textinfo='percent+label',
-                        marker=dict(line=dict(color='#0e1117', width=3)) # Borda escura destaca as cores
+                        marker=dict(line=dict(color='#0e1117', width=2)) 
                     )
                     
+                    # O segredo do gráfico: forçar o fundo do Plotly a ser escuro para a legenda aparecer
                     fig.update_layout(
                         height=450,
                         margin=dict(t=20, b=10, l=10, r=10),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(color="white")),
-                        paper_bgcolor='rgba(0,0,0,0)', # Fundo transparente
-                        plot_bgcolor='rgba(0,0,0,0)'   # Fundo transparente
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+                        paper_bgcolor='#0e1117', # Fundo do container escuro
+                        plot_bgcolor='#0e1117',  # Fundo do gráfico escuro
+                        font=dict(color="white") # Garante que a legenda branca fique 100% visível
                     )
                     
-                    # Envelopa o gráfico do Plotly no container CSS neon vermelho/rosa
-                    st.markdown('<div class="neon-chart-container">', unsafe_allow_html=True)
+                    # Plota o gráfico direto, sem a div de HTML que estava esmagando o visual
                     st.plotly_chart(fig, use_container_width=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
 
 
         # --- 2. ABA: RELACIONAMENTO (PORTAL OSE) ---
