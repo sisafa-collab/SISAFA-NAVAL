@@ -6767,7 +6767,7 @@ Cordialmente,
                                 line-height: 1.2;
                                 text-shadow: 0 0 10px #2e6b54, 0 0 20px #2e6b54, 0 0 30px #2e6b54;
                             ">
-                                "AGRADECEMOS POR TODO APOIO E PELA DISTINTA COOPERAÇÃO!"
+                                AGRADECEMOS POR TODO APOIO E PELA DISTINTA COOPERAÇÃO!
                             </p>
                             <p style="
                                 color: #555; 
@@ -7175,7 +7175,7 @@ Cordialmente,
                                 line-height: 1.2;
                                 text-shadow: 0 0 10px #2e6b54, 0 0 20px #2e6b54, 0 0 30px #2e6b54;
                             ">
-                                "ESTAMOS À DISPOSIÇÃO PARA QUAISQUER ESCLARECIMENTOS."
+                                ESTAMOS À DISPOSIÇÃO PARA QUAISQUER ESCLARECIMENTOS.
                             </p>
                             <p style="
                                 color: #555; 
