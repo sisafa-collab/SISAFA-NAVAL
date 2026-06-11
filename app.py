@@ -6997,7 +6997,7 @@ Cordialmente,
                 st.divider()
 
                 # =========================================================
-                # 5. DASHBOARD DE STATUS 
+                # 5. DASHBOARD DE STATUS (CARDS NEON E GRÁFICO CHOCANTE)
                 # =========================================================
                 st.markdown("### 📊 Situação das Faturas")
 
@@ -7012,7 +7012,7 @@ Cordialmente,
                     # Ordena pela numeração do mapa para manter a lógica do processo
                     df_contagem = df_contagem.sort_values(by='Situação') 
                     
-                    # Paleta de tons de verde neon (do mais limão ao mais esmeralda)
+                    # Paleta de tons de verde neon
                     tons_de_verde = [
                         '#39ff14', '#00ff7f', '#32cd32', '#00fa9a', 
                         '#7fff00', '#00ff00', '#adff2f', '#20b2aa', '#98fb98'
@@ -7022,7 +7022,6 @@ Cordialmente,
                     cols_cards = st.columns(3)
                     for i, row in df_contagem.iterrows():
                         col = cols_cards[i % 3]
-                        # Pega uma cor diferente da lista baseada no índice
                         cor_neon = tons_de_verde[i % len(tons_de_verde)] 
                         
                         with col:
@@ -7033,15 +7032,15 @@ Cordialmente,
                                 </div>
                             ''', unsafe_allow_html=True)
                             
-                    st.write("") # Espaçamento
+                    st.write("") 
                     
-                    # --- GRÁFICO DE PIZZA CHOCANTE (CORRIGIDO) ---
+                    # --- GRÁFICO DE PIZZA (FUNDO BRANCO + CORES VIBRANTES) ---
                     st.markdown("##### Volume Financeiro (R$) por etapa")
                     
                     df_status_grafico = df_minhas_faturas.groupby('Situação')['valor_liquido'].sum().reset_index()
                     
-                    # Paleta de cores vibrantes estilo Cyberpunk/Neon
-                    cores_vibrantes = ['#00f3ff', '#39ff14', '#bc13fe', '#ff0055', '#ffea00', '#ff8a00', '#00ff9d', '#b000ff']
+                    # Paleta de cores super saturadas (neon adaptado para fundo claro)
+                    cores_vibrantes = ['#00e5ff', '#39ff14', '#d500f9', '#ff0055', '#ffea00', '#ff6a00', '#00e676', '#aa00ff']
                     
                     fig = px.pie(
                         df_status_grafico, 
@@ -7051,24 +7050,23 @@ Cordialmente,
                         color_discrete_sequence=cores_vibrantes 
                     )
                     
-                    # Ajustes no visual das fatias (borda escura para dar contraste)
+                    # Borda branca grossa nas fatias para destacar as cores e dar o efeito "clean"
                     fig.update_traces(
                         textposition='inside', 
                         textinfo='percent+label',
-                        marker=dict(line=dict(color='#0e1117', width=2)) 
+                        marker=dict(line=dict(color='white', width=3)) 
                     )
                     
-                    # O segredo do gráfico: forçar o fundo do Plotly a ser escuro para a legenda aparecer
+                    # Forçando o fundo para branco e ajustando a cor da fonte para preto
                     fig.update_layout(
                         height=450,
                         margin=dict(t=20, b=10, l=10, r=10),
                         legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-                        paper_bgcolor='#0e1117', # Fundo do container escuro
-                        plot_bgcolor='#0e1117',  # Fundo do gráfico escuro
-                        font=dict(color="white") # Garante que a legenda branca fique 100% visível
+                        paper_bgcolor='white', # Fundo externo branco
+                        plot_bgcolor='white',  # Fundo interno branco
+                        font=dict(color="#0e1117") # Fonte escura para leitura perfeita no branco
                     )
                     
-                    # Plota o gráfico direto, sem a div de HTML que estava esmagando o visual
                     st.plotly_chart(fig, use_container_width=True)
 
 
