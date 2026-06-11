@@ -4290,6 +4290,12 @@ Cordialmente,
                                 mapa_termos = dict(zip(df_tab_a['cnpj_limpo'], df_tab_a['Termo de credenciamento']))
                             else:
                                 mapa_termos = {}
+                        
+                            # Dicionário de Meses (Número -> SIGLA)
+                            mapa_meses_sigla = {
+                                1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+                                7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+                            }
 
                             # 5. Constrói o Dataframe final com o layout e as colunas exatas exigidas
                             df_relatorio = pd.DataFrame()
@@ -4299,7 +4305,7 @@ Cordialmente,
                             df_relatorio['Termo de Credenciamento'] = df_rec['cnpj_limpo'].map(mapa_termos).fillna("Não localizado")
                             df_relatorio['NUP'] = df_rec['nup']
                             df_relatorio['Fatura (s)'] = df_rec['Numero_da_fatura']
-                            df_relatorio['CNPJ'] = df_rec['cnpj']
+                            df_relatorio['CNPJ'] = df_rec['cnpj_str'].astype(str)
                             df_relatorio['N°'] = ""  # Sempre Vazio
                             df_relatorio['Empresa'] = ""  # Sempre Vazio
                             
