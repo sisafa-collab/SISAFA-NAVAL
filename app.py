@@ -1083,10 +1083,9 @@ else:
     # O cabeçalho que já está funcionando na sua imagem {3D5F733A-7B21-4666-8803-61A278617E8F}.png
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
-    # --- MÓDULOS ESPECÍFICOS ---
+    # --- DESENVOLVIMENTO DOS MÓDULOS ESPECÍFICOS ---
 
-   
-    if st.session_state.modulo_ativo == "SECOM" or st.session_state.modulo_ativo == "ADMIN":
+    if st.session_state.modulo_ativo == "SECOM":
         st.header("📥 Cadastro de Faturas (SECOM)")
         aba_a = sh.worksheet(ABA_TABELA_A)
         oses = {r[0].strip(): r[1].strip() for r in aba_a.get_all_values()[1:] if r[0]}
@@ -1174,7 +1173,7 @@ else:
 
                 
 
-    elif st.session_state.modulo_ativo == "AUDITORIA" or st.session_state.modulo_ativo == "ADMIN":
+    elif st.session_state.modulo_ativo == "AUDITORIA":
         st.header("⚖️ Divisão de Auditoria em Saúde ⚕️")
         
         # 1. 🧼 Limpeza de espaços (Garante que não haja "mes_competencia ")
@@ -3093,7 +3092,7 @@ else:
                 st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
 
 
-    elif "EXECUÇÃO" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
+    elif "EXECUÇÃO" in st.session_state.modulo_ativo:
         st.header("💰 Execução Financeira")
 
         # Criando as abas
@@ -4399,7 +4398,7 @@ Cordialmente,
     # =================================================================
     # MÓDULO 4: FISCALIZAÇÃO DE CONTRATOS (Ajustado para FISCAL/FISCAL_GLOBAL)
     # =================================================================
-    elif "FISCAL" in st.session_state.modulo_ativo or st.session_state.modulo_ativo == "ADMIN":
+    elif "FISCAL" in st.session_state.modulo_ativo:
         st.header("📋 Fiscalização de Contratos (OSE)")
         
         # --- 1. DEFINIÇÃO DOS MAPAS (A BASE DO TREINO) ---
@@ -5155,7 +5154,7 @@ Cordialmente,
 
 
 
-    elif st.session_state.modulo_ativo == "GERENCIAL" or st.session_state.modulo_ativo == "ADMIN":
+    elif st.session_state.modulo_ativo == "GERENCIAL":
         st.header("📈 Análise Estratégica")
 
         # --- 1. DEFINIÇÕES GLOBAIS ---
@@ -6902,7 +6901,7 @@ Cordialmente,
         st.markdown("Gestão centralizada de usuários e cadastro de contratos. **A exclusão de registros é bloqueada por segurança.**")
         st.divider()
 
-        tab_usuarios, tab_contratos, tab_estatisticas = st.tabs(["👥 Gestão de Usuários", "📄 Tabela de Contratos (Tabela A)", "📊 Visão Estratégica"])
+        tab_usuarios, tab_contratos, tab_estatisticas = st.tabs(["👥 Gestão de Usuários", "📄 Tabela de Contratos", "📊 Visão Global"])
 
         # -------------------------------------------------------------------------
         # ABA 1: GESTÃO DE USUÁRIOS
