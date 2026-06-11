@@ -4306,7 +4306,7 @@ Cordialmente,
                             # 5. Constrói o Dataframe final com o layout e as colunas exatas exigidas
                             df_relatorio = pd.DataFrame()
                             df_relatorio['Ano'] = df_rec['ano_competencia']
-                            df_relatorio['Mês'] = df_rec['mes_competencia']
+                            df_relatorio['Mês'] = pd.to_numeric(df_rec['mes_competencia'], errors='coerce').map(mapa_meses_sigla)
                             df_relatorio['Local/ Especialidade'] = ""  # Sempre Vazio
                             df_relatorio['Termo de Credenciamento'] = df_rec['cnpj_limpo'].map(mapa_termos).fillna("Não localizado")
                             df_relatorio['NUP'] = df_rec['nup']
