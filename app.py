@@ -4278,6 +4278,12 @@ Cordialmente,
                             # 3. Resgata os dados completos dos processos que bateram no log
                             df_rec = df[df['nup'].isin(nups_recebidos)].copy()
 
+                        # Vacina de Strings (CNPJ) para todos os dataframes
+                        def fix_cnpj(val):
+                            return str(val).split('.')[0].strip().zfill(14)
+
+                        df_rec['cnpj_str'] = df_rec['cnpj'].apply(fix_cnpj)
+
                             # 4. Puxa Tabela A para buscar o Termo de Credenciamento via CNPJ
                             aba_tab_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
                             df_tab_a = pd.DataFrame(aba_tab_a.get_all_records())
