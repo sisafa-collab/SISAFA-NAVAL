@@ -4303,11 +4303,19 @@ Cordialmente,
                             df_relatorio['N°'] = ""  # Sempre Vazio
                             df_relatorio['Empresa'] = df_rec['ose']
                             
-                            # Mantém o valor limpo com as casas decimais (excelente para planilhas)
+                            # Mantém o valor limpo com as casas decimais
                             if 'valor_liquido' in df_rec.columns:
                                 df_relatorio['Valor'] = df_rec['valor_liquido'].apply(lambda x: str(x).replace('R$', '').strip())
                             else:
                                 df_relatorio['Valor'] = ""
+
+                            # =================================================================
+                            # 🛡️ VACINA ANTI-CARACTERES INVISÍVEIS (Sanitização para o Excel)
+                            # =================================================================
+                            # Varre todas as colunas de texto e remove caracteres de controle ilegais do XML
+                            for col in df_relatorio.columns:
+                                if df_relatorio[col].dtype == object:
+                                    df_relatorio[col] = df_relatorio[col].astype(str).str.replace(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]', '', regex=True)
 
                             # 6. Conversão para Excel em Memória
                             from io import BytesIO
