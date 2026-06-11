@@ -4331,8 +4331,6 @@ Cordialmente,
                     except Exception as e:
                         st.error(f"Ocorreu um erro na compilação dos dados: {e}")
 
-
-
         # --- ABA 5: CONSULTAS (Rastreabilidade Total) ---
         with tab5:
             st.subheader("🔍 Consultas")
