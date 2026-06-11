@@ -4301,93 +4301,93 @@ Cordialmente,
                             else: st.write("Nenhuma ação específica registrada.")
                         except: st.error("Erro ao carregar logs.")
 
-            # =================================================================
-            # 🗃️ APOIO ADMINISTRATIVO: PLANILHA DE CONTROLE OSE
-            # =================================================================
-            st.divider()
-            st.header("🗃️ Apoio Administrativo: Planilha de Controle de OSE")
-            st.info("Gere uma planilha automatizada com todas as faturas que deram entrada na Execução Financeira em uma data específica.")
+        # =================================================================
+        # 🗃️ APOIO ADMINISTRATIVO: PLANILHA DE CONTROLE OSE
+        # =================================================================
+        st.divider()
+        st.header("🗃️ Apoio Administrativo: Planilha de Controle de OSE")
+        st.info("Gere uma planilha automatizada com todas as faturas que deram entrada na Execução Financeira em uma data específica.")
 
-            c_data, c_vazio = st.columns([1, 2])
-            with c_data:
-                data_selecionada = st.date_input("Selecione a data do recebimento:")
+        c_data, c_vazio = st.columns([1, 2])
+        with c_data:
+            data_selecionada = st.date_input("Selecione a data do recebimento:")
 
-            if st.button("🔍 Processar Dados e Gerar Planilha", use_container_width=True):
-                with st.spinner("Mapeando logs, cruzando processos e contratos..."):
-                    try:
-                        # 1. Puxar aba de logs
-                        aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
-                        df_logs = pd.DataFrame(aba_logs.get_all_records())
+        if st.button("🔍 Processar Dados e Gerar Planilha", use_container_width=True):
+            with st.spinner("Mapeando logs, cruzando processos e contratos..."):
+                try:
+                    # 1. Puxar aba de logs
+                    aba_logs = sh.worksheet("SISAFA-NAVAL-logs_acoes")
+                    df_logs = pd.DataFrame(aba_logs.get_all_records())
 
-                        # 2. Filtrar logs pela ação e data escolhida
-                        # Converte a coluna data_hora (10/06/2026 19:11:13) apenas para data (10/06/2026)
-                        df_logs['data_valida'] = pd.to_datetime(df_logs['data_hora'], dayfirst=True, errors='coerce').dt.date
+                    # 2. Filtrar logs pela ação e data escolhida
+                    # Converte a coluna data_hora (10/06/2026 19:11:13) apenas para data (10/06/2026)
+                    df_logs['data_valida'] = pd.to_datetime(df_logs['data_hora'], dayfirst=True, errors='coerce').dt.date
+                    
+                    df_filtro_logs = df_logs[
+                        (df_logs['acao'] == "RECEBIMENTO_FINANCEIRO") & 
+                        (df_logs['data_valida'] == data_selecionada)
+                    ]
+
+                    nups_recebidos = df_filtro_logs['nup'].unique()
+
+                    if len(nups_recebidos) == 0:
+                        st.warning(f"Nenhum processo foi recebido pela Execução Financeira no dia {data_selecionada.strftime('%d/%m/%Y')}.")
+                    else:
+                        # 3. Resgata os dados completos dos processos que bateram no log
+                        df_rec = df[df['nup'].isin(nups_recebidos)].copy()
+
+                        # 4. Puxa Tabela A para buscar o Termo de Credenciamento via CNPJ
+                        aba_tab_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
+                        df_tab_a = pd.DataFrame(aba_tab_a.get_all_records())
                         
-                        df_filtro_logs = df_logs[
-                            (df_logs['acao'] == "RECEBIMENTO_FINANCEIRO") & 
-                            (df_logs['data_valida'] == data_selecionada)
-                        ]
-
-                        nups_recebidos = df_filtro_logs['nup'].unique()
-
-                        if len(nups_recebidos) == 0:
-                            st.warning(f"Nenhum processo foi recebido pela Execução Financeira no dia {data_selecionada.strftime('%d/%m/%Y')}.")
+                        # Blindagem de zeros no CNPJ para o cruzamento bater 100%
+                        df_rec['cnpj_limpo'] = df_rec['cnpj'].astype(str).str.replace('.0', '', regex=False).str.zfill(14)
+                        if 'CNPJ' in df_tab_a.columns:
+                            df_tab_a['cnpj_limpo'] = df_tab_a['CNPJ'].astype(str).str.replace('.0', '', regex=False).str.zfill(14)
+                            # Dicionário de "Procv" (Chave: CNPJ -> Valor: Termo)
+                            mapa_termos = dict(zip(df_tab_a['cnpj_limpo'], df_tab_a['Termo de credenciamento']))
                         else:
-                            # 3. Resgata os dados completos dos processos que bateram no log
-                            df_rec = df[df['nup'].isin(nups_recebidos)].copy()
+                            mapa_termos = {}
 
-                            # 4. Puxa Tabela A para buscar o Termo de Credenciamento via CNPJ
-                            aba_tab_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
-                            df_tab_a = pd.DataFrame(aba_tab_a.get_all_records())
-                            
-                            # Blindagem de zeros no CNPJ para o cruzamento bater 100%
-                            df_rec['cnpj_limpo'] = df_rec['cnpj'].astype(str).str.replace('.0', '', regex=False).str.zfill(14)
-                            if 'CNPJ' in df_tab_a.columns:
-                                df_tab_a['cnpj_limpo'] = df_tab_a['CNPJ'].astype(str).str.replace('.0', '', regex=False).str.zfill(14)
-                                # Dicionário de "Procv" (Chave: CNPJ -> Valor: Termo)
-                                mapa_termos = dict(zip(df_tab_a['cnpj_limpo'], df_tab_a['Termo de credenciamento']))
-                            else:
-                                mapa_termos = {}
+                        # 5. Constrói o Dataframe final com o layout e as colunas exatas exigidas
+                        df_relatorio = pd.DataFrame()
+                        df_relatorio['Ano'] = df_rec['ano_competencia']
+                        df_relatorio['Mês'] = df_rec['mes_competencia']
+                        df_relatorio['Local/ Especialidade'] = ""  # Sempre Vazio
+                        df_relatorio['Termo de Credenciamento'] = df_rec['cnpj_limpo'].map(mapa_termos).fillna("Não localizado")
+                        df_relatorio['NUP'] = df_rec['nup']
+                        df_relatorio['Fatura (s)'] = df_rec['Numero_da_fatura']
+                        df_relatorio['CNPJ'] = df_rec['cnpj']
+                        df_relatorio['N°'] = ""  # Sempre Vazio
+                        df_relatorio['Empresa'] = df_rec['ose']
+                        
+                        # Mantém o valor limpo com as casas decimais (excelente para planilhas)
+                        if 'valor_liquido' in df_rec.columns:
+                            df_relatorio['Valor'] = df_rec['valor_liquido'].apply(lambda x: str(x).replace('R$', '').strip())
+                        else:
+                            df_relatorio['Valor'] = ""
 
-                            # 5. Constrói o Dataframe final com o layout e as colunas exatas exigidas
-                            df_relatorio = pd.DataFrame()
-                            df_relatorio['Ano'] = df_rec['ano_competencia']
-                            df_relatorio['Mês'] = df_rec['mes_competencia']
-                            df_relatorio['Local/ Especialidade'] = ""  # Sempre Vazio
-                            df_relatorio['Termo de Credenciamento'] = df_rec['cnpj_limpo'].map(mapa_termos).fillna("Não localizado")
-                            df_relatorio['NUP'] = df_rec['nup']
-                            df_relatorio['Fatura (s)'] = df_rec['Numero_da_fatura']
-                            df_relatorio['CNPJ'] = df_rec['cnpj']
-                            df_relatorio['N°'] = ""  # Sempre Vazio
-                            df_relatorio['Empresa'] = df_rec['ose']
-                            
-                            # Mantém o valor limpo com as casas decimais (excelente para planilhas)
-                            if 'valor_liquido' in df_rec.columns:
-                                df_relatorio['Valor'] = df_rec['valor_liquido'].apply(lambda x: str(x).replace('R$', '').strip())
-                            else:
-                                df_relatorio['Valor'] = ""
+                        # 6. Conversão para Excel em Memória
+                        from io import BytesIO
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            df_relatorio.to_excel(writer, index=False, sheet_name='Controle OSE')
+                        
+                        excel_data = output.getvalue()
 
-                            # 6. Conversão para Excel em Memória
-                            from io import BytesIO
-                            output = BytesIO()
-                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                df_relatorio.to_excel(writer, index=False, sheet_name='Controle OSE')
-                            
-                            excel_data = output.getvalue()
+                        st.success(f"✅ Sucesso! {len(df_relatorio)} processo(s) localizado(s) e formatado(s).")
+                        
+                        st.download_button(
+                            label="📥 BAIXAR PLANILHA DE CONTROLE (Excel / LibreOffice)",
+                            data=excel_data,
+                            file_name=f"Controle_OSE_{data_selecionada.strftime('%d-%m-%Y')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="primary"
+                        )
 
-                            st.success(f"✅ Sucesso! {len(df_relatorio)} processo(s) localizado(s) e formatado(s).")
-                            
-                            st.download_button(
-                                label="📥 BAIXAR PLANILHA DE CONTROLE (Excel / LibreOffice)",
-                                data=excel_data,
-                                file_name=f"Controle_OSE_{data_selecionada.strftime('%d-%m-%Y')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True,
-                                type="primary"
-                            )
-
-                    except Exception as e:
-                        st.error(f"Ocorreu um erro na compilação dos dados: {e}")
+                except Exception as e:
+                    st.error(f"Ocorreu um erro na compilação dos dados: {e}")
 
 
 
