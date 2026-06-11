@@ -6757,6 +6757,32 @@ Cordialmente,
                         unsafe_allow_html=True
                     )
 
+            st.markdown("""
+                        <div style="text-align: center; padding: 30px; border-top: 2px solid #2e6b54; margin-top: 40px; background-color: rgba(46, 107, 84, 0.05); border-radius: 0 0 15px 15px;">
+                            <p style="
+                                color: #2e6b54; 
+                                font-weight: 900; 
+                                font-size: 1.8rem; 
+                                letter-spacing: 3px; 
+                                line-height: 1.2;
+                                text-shadow: 0 0 10px #2e6b54, 0 0 20px #2e6b54, 0 0 30px #2e6b54;
+                            ">
+                                "AGRADECEMOS POR TODO APOIO E PELA DISTINTA COOPERAÇÃO!"
+                            </p>
+                            <p style="
+                                color: #555; 
+                                font-size: 1.1rem; 
+                                font-weight: 700; 
+                                margin-top: -10px;
+                                text-transform: uppercase;
+                                letter-spacing: 1px;
+                            ">
+                                Hospital Naval de Brasília - A Saúde Naval no Planalto Central!
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+
             # =========================================================
             # 1. SEÇÃO FISCAL (AGORA COM E-MAILS E NIP)
             # =========================================================
@@ -6957,7 +6983,7 @@ Cordialmente,
                 with m2:
                     st.markdown(f'''
                         <div class="neon-box-pago">
-                            <div class="neon-text-title">Total Pago (Liquidado)</div>
+                            <div class="neon-text-title">Total Pago (Bruto)</div>
                             <div class="neon-text-pago">{val_pago_fmt}</div>
                         </div>
                     ''', unsafe_allow_html=True)
