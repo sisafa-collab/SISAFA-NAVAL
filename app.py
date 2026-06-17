@@ -6474,7 +6474,7 @@ Cordialmente,
                         # Gráfico Evolução T1
                         fig_evol_t1 = px.line(
                             evol_t1, x='mes_str', y='pct', color='cat_T1', markers=True,
-                            title="Evolução Temporal (da Nota de Empenho à Liquidação) %",
+                            title="Evolução Temporal (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳)",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T1': ['Ideal', 'Atenção', 'Crítico']}
                         )
@@ -6488,7 +6488,7 @@ Cordialmente,
                         # Gráfico Evolução T2
                         fig_evol_t2 = px.line(
                             evol_t2, x='mes_str', y='pct', color='cat_T2', markers=True,
-                            title="Evolução Temporal (da Liquidação ao Pagamento) %",
+                            title="Evolução Temporal (do momento da liquidação no SIAFI ao efetivo pagamento⏳)",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T2': ['Ideal', 'Atenção', 'Crítico']}
                         )
