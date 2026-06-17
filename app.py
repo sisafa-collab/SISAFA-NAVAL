@@ -6301,11 +6301,11 @@ Cordialmente,
 
             try:
                 # 1. CARGA E MAPEAMENTO DE CIVIS
+                # 1. CARGA E MAPEAMENTO DE CIVIS
                 aba_a = sh.worksheet("SISAFA-NAVAL-Tabela-A")
                 df_tabela_a = pd.DataFrame(aba_a.get_all_records())
                 nomes_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
 
-                # CORREÇÃO 2: drop_duplicates garante que 1 NUP = 1 OSE, evitando inflacionar os dias
                 df_mapeamento = df[df['ose'].isin(nomes_civis)][['nup', 'ose']].drop_duplicates(subset=['nup']).copy()
                 nups_civis = df_mapeamento['nup'].astype(str).unique().tolist()
 
@@ -6321,18 +6321,58 @@ Cordialmente,
                 df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
                 df_civis = df_civis[df_civis['nup'].isin(nups_analise_final)]
                 
-                # CORREÇÃO 1: Removido o dayfirst=True e format='mixed'. 
-                # O Pandas lê o ISO "2026-06-17" nativamente com perfeição, sem inverter dias e meses!
                 df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
 
-                # Filtro de Mês/Evolução
+                # =========================================================================
+                # ⚙️ MOTOR PARALELO (CRIADOR DO EVOL_T1 E EVOL_T2)
+                # Deve rodar antes do filtro de mês para pegar a linha do tempo completa
+                # =========================================================================
+                evol_t1 = pd.DataFrame()
+                evol_t2 = pd.DataFrame()
+
+                if not df_civis.empty:
+                    df_full_evol = df_civis.copy().sort_values(['nup', 'timestamp'])
+                    df_full_evol['data_saida'] = df_full_evol.groupby('nup')['timestamp'].shift(-1)
+                    df_full_evol['data_saida'] = df_full_evol['data_saida'].fillna(pd.Timestamp.now())
+                    df_full_evol['dias'] = (df_full_evol['data_saida'] - df_full_evol['timestamp']).dt.total_seconds() / 86400
+                    df_full_evol['dias'] = df_full_evol['dias'].clip(lower=0)
+
+                    df_pivot_full = df_full_evol.pivot_table(index='nup', columns='status_destino', values='dias', aggfunc='sum').reset_index()
+                    for s in ['6', '7', '8']:
+                        if s not in df_pivot_full.columns: df_pivot_full[s] = 0
+                    df_pivot_full['tempo_liquidacao'] = df_pivot_full['6'].fillna(0) + df_pivot_full['7'].fillna(0)
+
+                    # Define o "Mês de Conclusão" de cada NUP
+                    df_9 = df_full_evol[df_full_evol['status_destino'] == '9'].drop_duplicates('nup', keep='last')
+                    meses_pt = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
+                    df_9['mes_dt'] = df_9['timestamp'].dt.to_period('M').dt.to_timestamp()
+                    df_9['mes_str'] = df_9['timestamp'].dt.month.map(meses_pt) + df_9['timestamp'].dt.year.astype(str)
+
+                    df_pivot_full = df_pivot_full.merge(df_9[['nup', 'mes_dt', 'mes_str']], on='nup', how='inner')
+
+                    # Categorização blindada para os gráficos de linha
+                    cats = ['Ideal', 'Atenção', 'Crítico']
+                    df_pivot_full['cat_T1'] = pd.Categorical(pd.cut(df_pivot_full['tempo_liquidacao'], bins=[-1, 20, 30, float('inf')], labels=cats), categories=cats, ordered=True)
+                    df_pivot_full['cat_T2'] = pd.Categorical(pd.cut(df_pivot_full['8'], bins=[-1, 3, 10, float('inf')], labels=cats), categories=cats, ordered=True)
+
+                    # Agrupamento Percentual
+                    evol_t1 = df_pivot_full.groupby(['mes_dt', 'mes_str', 'cat_T1'], observed=False).size().reset_index(name='qtd')
+                    evol_t1['pct'] = evol_t1.groupby(['mes_dt', 'mes_str'], observed=False)['qtd'].transform(lambda x: (x / x.sum()) * 100).fillna(0)
+                    evol_t1 = evol_t1.sort_values('mes_dt')
+
+                    evol_t2 = df_pivot_full.groupby(['mes_dt', 'mes_str', 'cat_T2'], observed=False).size().reset_index(name='qtd')
+                    evol_t2['pct'] = evol_t2.groupby(['mes_dt', 'mes_str'], observed=False)['qtd'].transform(lambda x: (x / x.sum()) * 100).fillna(0)
+                    evol_t2 = evol_t2.sort_values('mes_dt')
+                # =========================================================================
+
+                # 4. VOLTA AO FLUXO NORMAL (Filtro para a Pizza e Métricas)
                 df_civis['mes_ano'] = df_civis['timestamp'].dt.strftime('%m/%Y')
                 opcoes_meses = ["Todos"] + sorted(df_civis['mes_ano'].unique().tolist(), 
                                                  key=lambda x: pd.to_datetime(x, format='%m/%Y'), 
                                                  reverse=True)
                 
-                sel_mes_micro = st.selectbox("📅 Selecione o Período para Evolução:", opcoes_meses, key="filt_micro_evol")
+                sel_mes_micro = st.selectbox("📅 Selecione o Período da Carga de Trabalho para Análise Local:", opcoes_meses, key="filt_micro_evol")
 
                 if sel_mes_micro != "Todos":
                     df_civis = df_civis[df_civis['mes_ano'] == sel_mes_micro]
@@ -6342,17 +6382,14 @@ Cordialmente,
                     st.dataframe(df_civis[['nup', 'status_destino', 'timestamp']].sort_values('timestamp'), use_container_width=True)
 
                 if df_civis.empty:
-                    st.warning(f"Sem faturas concluídas para o período {sel_mes_micro}.")
+                    st.warning(f"Sem faturas processadas no período {sel_mes_micro}.")
                 else:
-                    # 4. CÁLCULO DE PERMANÊNCIA
+                    # CÁLCULO DE PERMANÊNCIA (Para as métricas e Pizzas)
                     df_civis = df_civis.sort_values(['nup', 'timestamp'])
                     df_civis['data_saida'] = df_civis.groupby('nup')['timestamp'].shift(-1)
                     df_civis['data_saida'] = df_civis['data_saida'].fillna(pd.Timestamp.now())
                     
-                    # Cálculo limpo dos dias
                     df_civis['dias'] = (df_civis['data_saida'] - df_civis['timestamp']).dt.total_seconds() / 86400
-                    
-                    # BLINDAGEM FINAL: Se algum usuário digitar data no futuro por acidente, a conta mínima zera (clip(lower=0))
                     df_civis['dias'] = df_civis['dias'].clip(lower=0)
 
                     df_civis = df_civis.merge(df_mapeamento, on='nup', how='left')
@@ -6362,9 +6399,10 @@ Cordialmente,
                         if s not in df_pivot.columns: df_pivot[s] = 0
 
                     # --- DEFINIÇÃO DE CORES SISAFA ---
-                    cor_ideal = '#16A085'   # Verde SISAFA
-                    cor_atencao = '#F39C12' # Amarelo/Laranja SISAFA
-                    cor_critico = '#C0392B' # Vermelho SISAFA
+                    cor_ideal = '#00E676'   
+                    cor_atencao = '#FFEA00' 
+                    cor_critico = '#FF1744' 
+                    mapa_cores_grafico = {'Ideal': cor_ideal, 'Atenção': cor_atencao, 'Crítico': cor_critico}
 
                     # --- 1️⃣ LIQUIDAÇÃO (Fases 6 e 7) ---
                     df_pivot['tempo_liquidacao'] = df_pivot['6'].fillna(0) + df_pivot['7'].fillna(0)
@@ -6386,10 +6424,10 @@ Cordialmente,
 
                     fig_liq = px.pie(
                         values=[ideal_l, atencao_l, critico_l],
-                        names=['Ideal (≤20d)', 'Atenção (21-30d)', 'Crítico (>30d)'],
+                        names=['Ideal', 'Atenção', 'Crítico'],
                         hole=0.6,
-                        color=['Ideal (≤20d)', 'Atenção (21-30d)', 'Crítico (>30d)'],
-                        color_discrete_map={'Ideal (≤20d)': cor_ideal, 'Atenção (21-30d)': cor_atencao, 'Crítico (>30d)': cor_critico}
+                        color=['Ideal', 'Atenção', 'Crítico'],
+                        color_discrete_map=mapa_cores_grafico
                     )
                     fig_liq.update_traces(textposition='inside', textinfo='percent')
                     fig_liq.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
@@ -6416,17 +6454,15 @@ Cordialmente,
 
                     fig_pag = px.pie(
                         values=[ideal_p, atencao_p, critico_p],
-                        names=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
+                        names=['Ideal', 'Atenção', 'Crítico'],
                         hole=0.6,
-                        color=['Ideal (≤3d)', 'Atenção (4-10d)', 'Crítico (>10d)'],
-                        color_discrete_map={'Ideal (≤3d)': cor_ideal, 'Atenção (4-10d)': cor_atencao, 'Crítico (>10d)': cor_critico}
+                        color=['Ideal', 'Atenção', 'Crítico'],
+                        color_discrete_map=mapa_cores_grafico
                     )
                     fig_pag.update_traces(textposition='inside', textinfo='percent')
                     fig_pag.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
                                           legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05))
                     st.plotly_chart(fig_pag, use_container_width=True)
-
-
 
                     # =================================================================
                     # 📈 NOVO: GRÁFICOS DE EVOLUÇÃO (LINHA DO TEMPO)
@@ -6438,7 +6474,7 @@ Cordialmente,
                         # Gráfico Evolução T1
                         fig_evol_t1 = px.line(
                             evol_t1, x='mes_str', y='pct', color='cat_T1', markers=True,
-                            title="Evolução Temporal (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳) %",
+                            title="Evolução Temporal (da Nota de Empenho à Liquidação) %",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T1': ['Ideal', 'Atenção', 'Crítico']}
                         )
@@ -6452,7 +6488,7 @@ Cordialmente,
                         # Gráfico Evolução T2
                         fig_evol_t2 = px.line(
                             evol_t2, x='mes_str', y='pct', color='cat_T2', markers=True,
-                            title="Evolução Temporal (do momento da liquidação no SIAFI ao efetivo pagamento⏳) %",
+                            title="Evolução Temporal (da Liquidação ao Pagamento) %",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T2': ['Ideal', 'Atenção', 'Crítico']}
                         )
