@@ -6291,6 +6291,7 @@ Cordialmente,
                     st.error(f"Erro no processamento PM4PY: {e}")
 
             # =================================================================
+            # =================================================================
             # 🕵️ ANÁLISE MICROPROCESSUAL: CICLO DE PAGAMENTO (APENAS STATUS 9)
             # =================================================================
             st.divider()
@@ -6303,7 +6304,8 @@ Cordialmente,
                 df_tabela_a = pd.DataFrame(aba_a.get_all_records())
                 nomes_civis = df_tabela_a[df_tabela_a['Tipo'] == 'CIVIL']['Razão Social'].tolist()
 
-                df_mapeamento = df[df['ose'].isin(nomes_civis)][['nup', 'ose']].copy()
+                # CORREÇÃO 2: drop_duplicates garante que 1 NUP = 1 OSE, evitando inflacionar os dias
+                df_mapeamento = df[df['ose'].isin(nomes_civis)][['nup', 'ose']].drop_duplicates(subset=['nup']).copy()
                 nups_civis = df_mapeamento['nup'].astype(str).unique().tolist()
 
                 # 2. FILTRO DE CONCLUSÃO (STATUS 9)
@@ -6318,8 +6320,9 @@ Cordialmente,
                 df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
                 df_civis = df_civis[df_civis['nup'].isin(nups_analise_final)]
                 
-                # ---> AQUI ESTÁ O AJUSTE DE DATA (dayfirst=True adicionado) <---
-                df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', dayfirst=True, errors='coerce')
+                # CORREÇÃO 1: Removido o dayfirst=True e format='mixed'. 
+                # O Pandas lê o ISO "2026-06-17" nativamente com perfeição, sem inverter dias e meses!
+                df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
 
                 # Filtro de Mês/Evolução
@@ -6333,7 +6336,6 @@ Cordialmente,
                 if sel_mes_micro != "Todos":
                     df_civis = df_civis[df_civis['mes_ano'] == sel_mes_micro]
 
-                # ---> AQUI ENTRA O PAINEL DE AUDITORIA <---
                 with st.expander("🔍 Auditoria da Seleção (Ver dados brutos)"):
                     st.write(f"Exibindo histórico base considerado para o período: **{sel_mes_micro}**")
                     st.dataframe(df_civis[['nup', 'status_destino', 'timestamp']].sort_values('timestamp'), use_container_width=True)
@@ -6345,7 +6347,12 @@ Cordialmente,
                     df_civis = df_civis.sort_values(['nup', 'timestamp'])
                     df_civis['data_saida'] = df_civis.groupby('nup')['timestamp'].shift(-1)
                     df_civis['data_saida'] = df_civis['data_saida'].fillna(pd.Timestamp.now())
+                    
+                    # Cálculo limpo dos dias
                     df_civis['dias'] = (df_civis['data_saida'] - df_civis['timestamp']).dt.total_seconds() / 86400
+                    
+                    # BLINDAGEM FINAL: Se algum usuário digitar data no futuro por acidente, a conta mínima zera (clip(lower=0))
+                    df_civis['dias'] = df_civis['dias'].clip(lower=0)
 
                     df_civis = df_civis.merge(df_mapeamento, on='nup', how='left')
                     df_pivot = df_civis.pivot_table(index=['nup', 'ose'], columns='status_destino', values='dias', aggfunc='sum').reset_index()
@@ -6370,7 +6377,7 @@ Cordialmente,
                     c1.metric("Média Global", f"{m_liq:.1f} dias")
                     c2.metric("Menor tempo 😎", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
                     c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
+                    c4.metric("Qtd Processos", f"{qtd_total} NUPs")
 
                     ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 20])
                     atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 20) & (df_pivot['tempo_liquidacao'] <= 30)])
@@ -6400,7 +6407,7 @@ Cordialmente,
                     c1.metric("Média Global", f"{m_pag:.1f} dias")
                     c2.metric("Menor tempo 😎", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
                     c3.metric("Maior tempo 🤯", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
+                    c4.metric("Qtd Processos", f"{qtd_total} NUPs")
 
                     ideal_p = len(df_pivot[df_pivot['8'] <= 3])
                     atencao_p = len(df_pivot[(df_pivot['8'] > 3) & (df_pivot['8'] <= 10)])
