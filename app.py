@@ -6287,6 +6287,7 @@ Cordialmente,
                             except Exception as e_vis:
                                 st.warning("Visualização do mapa indisponível.")
 
+
                 except Exception as e:
                     st.error(f"Erro no processamento PM4PY: {e}")
 
@@ -6424,6 +6425,45 @@ Cordialmente,
                     fig_pag.update_layout(margin=dict(t=20, b=20, l=0, r=0), height=350, showlegend=True,
                                           legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05))
                     st.plotly_chart(fig_pag, use_container_width=True)
+
+
+
+                    # =================================================================
+                    # 📈 NOVO: GRÁFICOS DE EVOLUÇÃO (LINHA DO TEMPO)
+                    # =================================================================
+                    st.divider()
+                    st.markdown("#### 📈 Evolução da Eficiência (liquidação e pagamento)")
+                    
+                    if not evol_t1.empty and not evol_t2.empty:
+                        # Gráfico Evolução T1
+                        fig_evol_t1 = px.line(
+                            evol_t1, x='mes_str', y='pct', color='cat_T1', markers=True,
+                            title="Evolução Temporal (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳) %",
+                            color_discrete_map=mapa_cores_grafico,
+                            category_orders={'cat_T1': ['Ideal', 'Atenção', 'Crítico']}
+                        )
+                        fig_evol_t1.update_traces(line_shape='spline', line_width=3, marker_size=8)
+                        fig_evol_t1.update_layout(yaxis_title="Percentual (%)", xaxis_title="Mês de Conclusão",
+                                                  hovermode='x unified', yaxis_ticksuffix="%",
+                                                  legend_title_text="Desempenho", margin=dict(t=40, b=20, l=10, r=10))
+                        
+                        st.plotly_chart(fig_evol_t1, use_container_width=True)
+
+                        # Gráfico Evolução T2
+                        fig_evol_t2 = px.line(
+                            evol_t2, x='mes_str', y='pct', color='cat_T2', markers=True,
+                            title="Evolução Temporal (do momento da liquidação no SIAFI ao efetivo pagamento⏳) %",
+                            color_discrete_map=mapa_cores_grafico,
+                            category_orders={'cat_T2': ['Ideal', 'Atenção', 'Crítico']}
+                        )
+                        fig_evol_t2.update_traces(line_shape='spline', line_width=3, marker_size=8)
+                        fig_evol_t2.update_layout(yaxis_title="Percentual (%)", xaxis_title="Mês de Conclusão",
+                                                  hovermode='x unified', yaxis_ticksuffix="%",
+                                                  legend_title_text="Desempenho", margin=dict(t=40, b=20, l=10, r=10))
+                        
+                        st.plotly_chart(fig_evol_t2, use_container_width=True)
+                    else:
+                        st.info("Volume de dados insuficiente para gerar a curva de tendência temporal.")
 
             except Exception as e:
                 st.error(f"Erro na análise microprocessual: {e}")
