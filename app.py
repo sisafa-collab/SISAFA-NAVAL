@@ -6416,7 +6416,7 @@ Cordialmente,
                     c1.metric("Média Global", f"{m_liq:.1f} dias")
                     c2.metric("Menor tempo 😎", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
                     c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} NUPs")
+                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
                     ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 20])
                     atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 20) & (df_pivot['tempo_liquidacao'] <= 30)])
@@ -6446,7 +6446,7 @@ Cordialmente,
                     c1.metric("Média Global", f"{m_pag:.1f} dias")
                     c2.metric("Menor tempo 😎", f"{min_pag['8']:.1f} d", help=f"OSE: {min_pag['ose']}")
                     c3.metric("Maior tempo 🤯", f"{max_pag['8']:.1f} d", help=f"OSE: {max_pag['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} NUPs")
+                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
 
                     ideal_p = len(df_pivot[df_pivot['8'] <= 3])
                     atencao_p = len(df_pivot[(df_pivot['8'] > 3) & (df_pivot['8'] <= 10)])
