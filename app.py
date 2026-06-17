@@ -6290,8 +6290,6 @@ Cordialmente,
                 except Exception as e:
                     st.error(f"Erro no processamento PM4PY: {e}")
 
-
-
             # =================================================================
             # 🕵️ ANÁLISE MICROPROCESSUAL: CICLO DE PAGAMENTO (APENAS STATUS 9)
             # =================================================================
@@ -6320,7 +6318,8 @@ Cordialmente,
                 df_civis['nup'] = df_civis['nup'].astype(str).str.strip()
                 df_civis = df_civis[df_civis['nup'].isin(nups_analise_final)]
                 
-                df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', errors='coerce')
+                # ---> AQUI ESTÁ O AJUSTE DE DATA (dayfirst=True adicionado) <---
+                df_civis['timestamp'] = pd.to_datetime(df_civis['timestamp'], format='mixed', dayfirst=True, errors='coerce')
                 df_civis = df_civis.dropna(subset=['timestamp'])
 
                 # Filtro de Mês/Evolução
@@ -6333,6 +6332,11 @@ Cordialmente,
 
                 if sel_mes_micro != "Todos":
                     df_civis = df_civis[df_civis['mes_ano'] == sel_mes_micro]
+
+                # ---> AQUI ENTRA O PAINEL DE AUDITORIA <---
+                with st.expander("🔍 Auditoria da Seleção (Ver dados brutos)"):
+                    st.write(f"Exibindo histórico base considerado para o período: **{sel_mes_micro}**")
+                    st.dataframe(df_civis[['nup', 'status_destino', 'timestamp']].sort_values('timestamp'), use_container_width=True)
 
                 if df_civis.empty:
                     st.warning(f"Sem faturas concluídas para o período {sel_mes_micro}.")
