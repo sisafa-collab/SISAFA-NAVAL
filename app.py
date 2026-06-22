@@ -6413,10 +6413,10 @@ Cordialmente,
 
                     st.markdown("#### 1️⃣ Eficiência na Liquidação (do momento da entrega da Nota de Empenho aos fiscais de contrato à efetiva liquidação ⏳)")
                     c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Média Global", f"{m_liq:.1f} dias")
-                    c2.metric("Menor tempo 😎", f"{min_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {min_liq['ose']}")
-                    c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d", help=f"OSE: {max_liq['ose']}")
-                    c4.metric("Qtd Processos", f"{qtd_total} faturas")
+                    c1.metric("Média Global", f"{m_liq:.1f} d.")
+                    c2.metric("Menor tempo 😎", f"{min_liq['tempo_liquidacao']:.1f} d.", help=f"OSE: {min_liq['ose']}")
+                    c3.metric("Maior tempo 🤯", f"{max_liq['tempo_liquidacao']:.1f} d.", help=f"OSE: {max_liq['ose']}")
+                    c4.metric("Qtd Processos", f"{qtd_total} fts.")
 
                     ideal_l = len(df_pivot[df_pivot['tempo_liquidacao'] <= 20])
                     atencao_l = len(df_pivot[(df_pivot['tempo_liquidacao'] > 20) & (df_pivot['tempo_liquidacao'] <= 30)])
@@ -6424,7 +6424,7 @@ Cordialmente,
 
                     fig_liq = px.pie(
                         values=[ideal_l, atencao_l, critico_l],
-                        names=['Ideal', 'Atenção', 'Crítico'],
+                        names=['Ideal (t <= 20d)', 'Atenção (20d < t < 30d.)', 'Crítico (t > 30d.)'],
                         hole=0.6,
                         color=['Ideal', 'Atenção', 'Crítico'],
                         color_discrete_map=mapa_cores_grafico
@@ -6454,7 +6454,7 @@ Cordialmente,
 
                     fig_pag = px.pie(
                         values=[ideal_p, atencao_p, critico_p],
-                        names=['Ideal', 'Atenção', 'Crítico'],
+                        names=['Ideal (t <= 3 d.)', 'Atenção (3d. < t <= 10 d.)', 'Crítico (t > 10d.)'],
                         hole=0.6,
                         color=['Ideal', 'Atenção', 'Crítico'],
                         color_discrete_map=mapa_cores_grafico
