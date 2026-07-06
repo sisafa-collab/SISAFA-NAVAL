@@ -1492,10 +1492,10 @@ else:
                             st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
 
 
-                    st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**")
+                    st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**, Competência: **{mes_competencia}/{ano_competencia}**")
                     
                     # --- 🛠️ GAVETA DE CORREÇÃO DE NUP/VALOR ---
-                    with st.expander("⚙️ Corrigir Dados Básicos (NUP ou Valor Apresentado)", expanded=False):
+                    with st.expander("⚙️ Corrigir Dados Básicos (NUP, Valor Apresentado, nº da fatura e competência)", expanded=False):
                         st.warning("⚠️ Altere aqui para corrigir os dados. Jamais reclame do retrabalho! Confira o Adicional de Compensação por Disponibilidade no Bilhete de Pagamento ❤️‍🔥⚓")
                         ce1, ce2 = st.columns(2)
                         
@@ -1506,21 +1506,38 @@ else:
                                                                 format="%.2f", 
                                                                 key=f"edit_v_apres_{nup_audit}")
                         
-                        if st.button("💾 SALVAR CORREÇÃO NO PROCESSO", use_container_width=True):
-                            with st.spinner("Atualizando base..."):
+                        # Segunda linha: Fatura e Competência
+                        # (Atenção: certifique-se de que as variáveis mes_comp e ano_comp estão declaradas no seu loop antes de chamá-las aqui)
+                        ce3, ce4, ce5 = st.columns([2, 1, 1])
+                        nova_fatura = ce3.text_input("Corrigir Nº Fatura:", value=str(num_fat), key=f"edit_fat_{nup_audit}")
+                        novo_mes = ce4.text_input("Corrigir Mês Comp.:", value=str(mes_comp), key=f"edit_mes_{nup_audit}")
+                        novo_ano = ce5.text_input("Corrigir Ano Comp.:", value=str(ano_comp), key=f"edit_ano_{nup_audit}")
+
+                        if st.button("💾 SALVAR CORREÇÕES NO PROCESSO", use_container_width=True, key=f"btn_salvar_{nup_audit}"):
+                            with st.spinner("Atualizando base de dados..."):
                                 try:
                                     aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
                                     celula = aba_proc.find(str(nup_audit))
+                                    
                                     if celula:
-                                        # Coluna 2 = NUP | Coluna 15 = Valor Apresentado
-                                        aba_proc.update_cell(celula.row, 2, str(novo_nup))
-                                        aba_proc.update_cell(celula.row, 6, str(novo_valor_apres))
-                                        aba_proc.update_cell(celula.row, 8, str(novo_valor_apres))
+                                        # Atualizações conforme a ordem das suas colunas
+                                        aba_proc.update_cell(celula.row, 2, str(novo_nup))            # Coluna 2 = NUP
+                                        aba_proc.update_cell(celula.row, 5, str(nova_fatura))         # Coluna 5 = Numero_da_fatura
+                                        aba_proc.update_cell(celula.row, 6, str(novo_valor_apres))    # Coluna 6 = valor_apresentado
+                                        aba_proc.update_cell(celula.row, 8, str(novo_valor_apres))    # Coluna 8 = valor_liquido (iguala ao apresentado)
+                                        aba_proc.update_cell(celula.row, 9, str(novo_mes))            # Coluna 9 = mes_competencia
+                                        aba_proc.update_cell(celula.row, 10, str(novo_ano))           # Coluna 10 = ano_competencia
 
-                                        registrar_acao(nup_audit, num_fat, "CORRECAO_CADASTRO", f"NUP: {novo_nup} | Valor: {novo_valor_apres}")
-                                        st.success("✅ Cadastro corrigido!")
+                                        # Atualiza o registro de ação com todas as modificações
+                                        detalhes_log = (f"NUP: {novo_nup} | Valor: R${novo_valor_apres} | "
+                                                        f"Fat: {nova_fatura} | Comp: {novo_mes}/{novo_ano}")
+                                        
+                                        registrar_acao(nup_audit, nova_fatura, "CORRECAO_CADASTRO", detalhes_log)
+                                        
+                                        st.success("✅ Cadastro corrigido com sucesso!")
                                         time.sleep(1)
                                         st.rerun()
+                                        
                                 except Exception as e:
                                     st.error(f"Erro na correção: {e}")
 
