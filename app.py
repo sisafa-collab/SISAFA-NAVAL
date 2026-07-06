@@ -1454,7 +1454,9 @@ else:
                     dados_nup = df_mesa[df_mesa['nup'] == nup_audit].iloc[0]
                     num_fat = dados_nup['Numero_da_fatura']
                     v_apres = limpar_valor(dados_nup['valor_apresentado'])
-                    
+                    mes_comp = dados_nup['mes_competencia']
+                    ano_comp = dados_nup['ano_competencia']
+
                     st.session_state["nup_ativo"] = nup_audit
                     st.session_state["valores_detalhados_ativo"] = valores_detalhados
                     st.session_state["just_glosa_ativo"] = just_glosa 
@@ -1492,7 +1494,7 @@ else:
                             st.session_state[key_glosas] = [{"paciente": "", "valor": 0.0, "cod": "", "tipo": "Administrativa", "just": "", "desc_glosa": ""}]
 
 
-                    st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**, Competência: **{mes_competencia}/{ano_competencia}**")
+                    st.markdown(f"#### 📝 Analisando Fatura: **{num_fat}**, Valor apresentado (R$): **{v_apres}**, Competência: **{mes_comp}/{ano_comp}**")
                     
                     # --- 🛠️ GAVETA DE CORREÇÃO DE NUP/VALOR ---
                     with st.expander("⚙️ Corrigir Dados Básicos (NUP, Valor Apresentado, nº da fatura e competência)", expanded=False):
