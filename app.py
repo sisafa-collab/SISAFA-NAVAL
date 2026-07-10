@@ -4982,10 +4982,16 @@ Cordialmente,
                         st.divider()
                         st.markdown("##### 📄 2. Certificado de Prestação de Serviço (PDF Oficial)")
 
-                        # --- MISTÉRIO RESOLVIDO! PUXANDO DA MEMÓRIA ---
-                        # O debug revelou que a variável correta é 'nome_usuario'
-                        nome_bruto = st.session_state.get('nome_usuario', 'OPERADOR NÃO IDENTIFICADO')
+                        # --- MISTÉRIO RESOLVIDO! PUXANDO DA MEMÓRIA (COM REDUNDÂNCIA) ---
+                        # Tenta buscar em todas as chaves possíveis que vimos no rastreamento
+                        nome_bruto = st.session_state.get('user_full_name', 
+                                     st.session_state.get('nome_usuario', 
+                                     st.session_state.get('nome', 'OPERADOR NÃO IDENTIFICADO')))
                         
+                        # Failsafe: Se por acaso a variável vier vazia, garante que não quebre
+                        if not nome_bruto:
+                            nome_bruto = "OPERADOR NÃO IDENTIFICADO"
+                            
                         # BLINDAGEM TÁTICA: O FPDF não aceita emojis ("🫡🇧🇷"). 
                         # Isso vai limpar os emojis e acentos incompatíveis antes de jogar no PDF.
                         usuario_logado = str(nome_bruto).encode('latin-1', 'ignore').decode('latin-1').strip().upper()
@@ -5100,7 +5106,6 @@ Cordialmente,
                             pdf.cell(140, 5, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
                             pdf.cell(140, 5, "", border=0, ln=2)
-                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "JOHN WAYNE MAIA JUNIOR", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Suboficial - Escrevente", border=0, ln=2, align='C')
@@ -5122,7 +5127,6 @@ Cordialmente,
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(140, 5, "AGENTE FISCAL", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
