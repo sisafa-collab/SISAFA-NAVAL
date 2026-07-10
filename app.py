@@ -4982,39 +4982,13 @@ Cordialmente,
                         st.divider()
                         st.markdown("##### 📄 2. Certificado de Prestação de Serviço (PDF Oficial)")
 
-                        # --- BUSCA AUTOMÁTICA DO NOME DO USUÁRIO NA ABA DE USUÁRIOS ---
-                        # Aqui pegamos o que está salvo na sessão após o login (NIP, E-mail ou username)
-                        usuario_sessao = st.session_state.get('usuario', 
-                                         st.session_state.get('nip', 
-                                         st.session_state.get('username', '')))
+                        # --- MISTÉRIO RESOLVIDO! PUXANDO DA MEMÓRIA ---
+                        # O debug revelou que a variável correta é 'nome_usuario'
+                        nome_bruto = st.session_state.get('nome_usuario', 'OPERADOR NÃO IDENTIFICADO')
                         
-                        usuario_logado = "OPERADOR NÃO IDENTIFICADO" # Valor padrão caso a sessão esteja vazia
-                        
-                        # ==========================================
-                        # 🛠️ MODO DE RASTREAMENTO (DEBUG SISAFA)
-                        # ==========================================
-                        st.info("🔍 Inspecionando a Memória do Streamlit:")
-                        st.write(st.session_state)
-                        # ==========================================
-                        
-                        if usuario_sessao:
-                            try:
-                                # Carrega a aba de usuários
-                                aba_usuarios = sh.worksheet("SISAFA-NAVAL-Usuarios")
-                                df_usuarios = pd.DataFrame(aba_usuarios.get_all_records())
-                                df_usuarios.columns = df_usuarios.columns.str.strip()
-                                
-                                # Busca o usuário logado cruzando o NIP ou E-mail da sessão
-                                filtro_usuario = (df_usuarios['NIP'].astype(str).str.strip() == str(usuario_sessao).strip()) | \
-                                                 (df_usuarios['E-mail'].astype(str).str.strip() == str(usuario_sessao).strip())
-                                
-                                linha_usuario = df_usuarios[filtro_usuario]
-                                
-                                if not linha_usuario.empty:
-                                    # Puxa o NOME certinho da coluna
-                                    usuario_logado = str(linha_usuario.iloc[0]['NOME']).strip().upper()
-                            except Exception as e:
-                                st.warning(f"⚠️ Não foi possível consultar a aba de usuários: {e}")
+                        # BLINDAGEM TÁTICA: O FPDF não aceita emojis ("🫡🇧🇷"). 
+                        # Isso vai limpar os emojis e acentos incompatíveis antes de jogar no PDF.
+                        usuario_logado = str(nome_bruto).encode('latin-1', 'ignore').decode('latin-1').strip().upper()
 
                         # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
@@ -5083,22 +5057,22 @@ Cordialmente,
                             pdf.cell(180, 6, "DADOS BÁSICOS", border=1, ln=True, align='C', fill=True)
                             
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(60, 7, "  SERVIDOR (A) AUXILIAR ADMINISTRATIVO", border=1)
+                            pdf.cell(60, 7, "  AUXILIAR ADMINISTRATIVO", border=1)
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {usuario_logado}", border=1, ln=True)
                             
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(60, 7, "  Empresa", border=1)
+                            pdf.cell(60, 7, "  EMPRESA", border=1)
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {empresa_razao}", border=1, ln=True)
 
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(60, 7, "  Termo de credenciamento", border=1)
+                            pdf.cell(60, 7, "  TERMO DE CREDENCIAMENTO", border=1)
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {termo_cred}", border=1, ln=True)
                             
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(60, 7, "  Código da OM / CNPJ", border=1)
+                            pdf.cell(60, 7, "  CÓDIGO / CNPJ DA OM", border=1)
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, "  87700 / 00.394.502/0060-02", border=1, ln=True)
                             pdf.ln(6)
@@ -5126,9 +5100,11 @@ Cordialmente,
                             pdf.cell(140, 5, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
                             pdf.cell(140, 5, "", border=0, ln=2)
+                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "JOHN WAYNE MAIA JUNIOR", border=0, ln=2, align='C')
-                            pdf.cell(140, 4, "Suboficial - ES | CPF: 083.037.477-97", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "Suboficial - Escrevente", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "CPF: 083.037.477-97", border=0, ln=2, align='C')
 
                             # --- 2. AGENTE FISCAL ---
                             y_atual = y_atual + altura_ass
@@ -5147,9 +5123,11 @@ Cordialmente,
                             pdf.cell(140, 5, "AGENTE FISCAL", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
                             pdf.cell(140, 5, "", border=0, ln=2)
+                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
-                            pdf.cell(140, 4, "Capitão de Mar e Guerra (Md) | CPF: 964.533.386-53", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "Capitão de Mar e Guerra (Md)", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "CPF: 964.533.386-53", border=0, ln=2, align='C')
 
                             pdf.set_y(y_atual + altura_ass + 5)
                             
@@ -5157,15 +5135,15 @@ Cordialmente,
                             # TABELA DE CONSIDERAÇÕES JURÍDICAS
                             # ==========================================
                             pdf.set_font('Times', 'B', 9)
-                            pdf.cell(180, 5, "CONSIDERAÇÕES DO SISAFA NAVAL:", border=0, ln=True, align='L')
+                            pdf.cell(180, 5, "CONSIDERAÇÕES ADICIONAIS:", border=0, ln=True, align='L')
                             
-                            pdf.set_font('Times', '', 8)
+                            pdf.set_font('Times', '', 12)
                             texto_consideracoes = (
                                 "O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no "
                                 "Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em "
                                 "tempo hábil, sendo a decisão de encaminhamento para às OSE um ato discricionário do Sistema de "
                                 "Regulação da Diretoria de Saúde da Marinha (DSM), regido por normativos próprios, em consonância "
-                                "aos princípios da administração pública.\n\n"
+                                "aos princípios da administração pública.\n"
                                 "Nesse contexto, cumpre destacar que a verificação do direito adquirido pelo credor, em atendimento ao "
                                 "contido no § 1º do Art. 63 da Lei 4.320/64 foi realizada pela Divisão de Auditoria em Saúde deste "
                                 "nosocômio, por intermédio da apuração dos saldos a pagar, da interposição de eventuais glosas e da "
@@ -5188,9 +5166,9 @@ Cordialmente,
                             
                             dados_controle = [
                                 ("NUP DA FATURA", str(nup_fatura)),
-                                ("NOTA DE EMPENHO (NE)", str(ne_alvo)),
-                                ("OPERADOR RESP", str(usuario_logado)),
-                                ("EMISSÃO SISAFA", str(data_atual))
+                                ("NOTA DE EMPENHO", str(ne_alvo)),
+                                ("OPERADOR (A)", str(usuario_logado)),
+                                ("EMISSÃO NO SISAFA", str(data_atual))
                             ]
                             
                             for rotulo, valor in dados_controle:
@@ -5208,13 +5186,13 @@ Cordialmente,
                             pdf.set_x(110)
                             pdf.set_font('Times', 'B', 8)
                             pdf.cell(28.3, 9, " LF:", border=1, align='L')
-                            pdf.cell(28.3, 9, " NE:", border=1, align='L')
-                            pdf.cell(28.4, 9, " SI:", border=1, align='L', ln=True)
+                            pdf.cell(28.3, 9, " SI:", border=1, align='L')
+                            pdf.cell(28.4, 9, " NP:", border=1, align='L', ln=True)
                             
                             pdf.set_x(110)
-                            pdf.cell(28.3, 9, " NF:", border=1, align='L')
-                            pdf.cell(28.3, 9, " DA:", border=1, align='L')
-                            pdf.cell(28.4, 9, " CC:", border=1, align='L', ln=True)
+                            pdf.cell(28.3, 9, " DR:", border=1, align='L')
+                            pdf.cell(28.3, 9, " DR:", border=1, align='L')
+                            pdf.cell(28.4, 9, " OB:", border=1, align='L', ln=True)
 
                             return pdf.output(dest='S').encode('latin1')
 
