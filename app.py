@@ -5084,9 +5084,9 @@ Cordialmente,
                             pdf.ln(6)
                             
                             # ==========================================
-                            # TABELA DE ASSINATURAS (ESTRUTURA SOLICITADA)
+                            # TABELA DE ASSINATURAS (ESTRUTURA CORRIGIDA)
                             # ==========================================
-                            altura_ass = 25
+                            altura_ass = 30  # Aumentado para 30mm para suportar todas as linhas com o CPF
                             
                             # --- 1. AGENTE FINANCEIRO ---
                             x_atual = pdf.get_x()
@@ -5094,54 +5094,57 @@ Cordialmente,
                             
                             # Bloco Esquerdo (Data)
                             pdf.rect(x_atual, y_atual, 40, altura_ass)
-                            pdf.set_xy(x_atual, y_atual + 5)
+                            pdf.set_xy(x_atual, y_atual + 8)  # Ajustado o recuo do topo para centralizar a data verticalmente
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(40, 5, "DATA", border=0, ln=2, align='C')
-                            pdf.cell(40, 8, "_____/_____/_______", border=0, ln=2, align='C')
+                            pdf.cell(40, 6, "_____/_____/_______", border=0, ln=2, align='C')
                             
                             # Bloco Direito (Assinatura)
                             pdf.rect(x_atual + 40, y_atual, 140, altura_ass)
                             pdf.set_xy(x_atual + 40, y_atual + 2)
                             pdf.set_font('Times', 'B', 9)
-                            pdf.cell(140, 5, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(140, 5, "", border=0, ln=2)
+                            pdf.cell(140, 4, "", border=0, ln=2)  # Espaço em branco estratégico para a rubrica física
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "JOHN WAYNE MAIA JUNIOR", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Suboficial - Escrevente", border=0, ln=2, align='C')
+                            pdf.set_font('Times', 'I', 8.5) # Um tom levemente itálico menor para o CPF ficar elegante
                             pdf.cell(140, 4, "CPF: 083.037.477-97", border=0, ln=2, align='C')
 
                             # --- 2. AGENTE FISCAL ---
-                            y_atual = y_atual + altura_ass
+                            y_atual = y_atual + altura_ass  # Desloca exatamente o novo tamanho da caixa anterior
                             
                             # Bloco Esquerdo (Data)
                             pdf.rect(x_atual, y_atual, 40, altura_ass)
-                            pdf.set_xy(x_atual, y_atual + 5)
+                            pdf.set_xy(x_atual, y_atual + 8)  # Centraliza verticalmente na segunda caixa
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(40, 5, "DATA", border=0, ln=2, align='C')
-                            pdf.cell(40, 8, "_____/_____/_______", border=0, ln=2, align='C')
+                            pdf.cell(40, 6, "_____/_____/_______", border=0, ln=2, align='C')
                             
                             # Bloco Direito (Assinatura)
                             pdf.rect(x_atual + 40, y_atual, 140, altura_ass)
                             pdf.set_xy(x_atual + 40, y_atual + 2)
                             pdf.set_font('Times', 'B', 9)
-                            pdf.cell(140, 5, "AGENTE FISCAL", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "AGENTE FISCAL", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(140, 5, "", border=0, ln=2)
+                            pdf.cell(140, 4, "", border=0, ln=2)  # Espaço para o visto da capitã
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Capitão de Mar e Guerra (Md)", border=0, ln=2, align='C')
+                            pdf.set_font('Times', 'I', 8.5)
                             pdf.cell(140, 4, "CPF: 964.533.386-53", border=0, ln=2, align='C')
 
+                            # Empurra o cursor do PDF de forma correta para a tabela de considerações que vem logo abaixo
                             pdf.set_y(y_atual + altura_ass + 5)
                             
                             # ==========================================
                             # TABELA DE CONSIDERAÇÕES JURÍDICAS
                             # ==========================================
-                            pdf.set_font('Times', 'B', 9)
+                            pdf.set_font('Times', 'B', 12)
                             pdf.cell(180, 5, "CONSIDERAÇÕES ADICIONAIS:", border=0, ln=True, align='L')
                             
-                            pdf.set_font('Times', '', 12)
+                            pdf.set_font('Times', '', 10)
                             texto_consideracoes = (
                                 "O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no "
                                 "Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em "
@@ -5166,7 +5169,7 @@ Cordialmente,
                             # --- ESQUERDA: CONTROLE INTERNO ---
                             pdf.set_xy(15, y_rodape)
                             pdf.set_font('Times', 'B', 7)
-                            pdf.cell(90, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO NAVAL", border=1, ln=True, align='C', fill=True)
+                            pdf.cell(90, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO", border=1, ln=True, align='C', fill=True)
                             
                             dados_controle = [
                                 ("NUP DA FATURA", str(nup_fatura)),
@@ -5185,7 +5188,7 @@ Cordialmente,
                             # --- DIREITA: CARIMBO DE PROCESSAMENTO ---
                             pdf.set_xy(110, y_rodape)
                             pdf.set_font('Times', 'B', 7)
-                            pdf.cell(85, 4, "CARIMBO / VISTO DE PROCESSAMENTO", border=1, ln=True, align='C', fill=True)
+                            pdf.cell(85, 4, "VISTO DE PROCESSAMENTO", border=1, ln=True, align='C', fill=True)
                             
                             pdf.set_x(110)
                             pdf.set_font('Times', 'B', 8)
