@@ -4976,118 +4976,176 @@ Cordialmente,
                                 st.warning("⚠️ Informe o número da NF.")
                         
                         # ==========================================
-                        # NOVA SESSÃO: GERADOR DE CERTIFICADO DE NF
+                        # ==========================================
+                        # NOVO GERADOR DE CERTIFICADO DE NF (FPDF)
                         # ==========================================
                         st.divider()
-                        st.markdown("##### 📄 2. Certificado de Prestação de Serviço")
-                        
-                        # 1. Preparação das Variáveis Automáticas (Substituindo as marcações vermelhas)
+                        st.markdown("##### 📄 2. Certificado de Prestação de Serviço (PDF Oficial)")
+
+                        # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
+                        empresa_empenho = ose_txt
+                        usuario_logado = st.session_state.get("usuario_nome", "NOME DO USUÁRIO NÃO IDENTIFICADO")
                         
-                        # O nome da empresa já existe no seu código na variável 'ose_txt'
-                        empresa_empenho = ose_txt 
-                        
-                        # Substitua por como você armazena o nome do usuário logado na sessão
-                        usuario_logado = st.session_state.get("nome_usuario_logado", "NOME DO AUXILIAR ADMINISTRATIVO") 
-                        
-                        # Variáveis de gestão (você pode mapear da sua Tabela-A se tiver)
-                        gestor_contrato = email_titular if email_titular else "NOME DO GESTOR TITULAR"
-                        gestor_substituto = email_substituto if email_substituto else "NOME DO GESTOR SUBSTITUTO"
-                        
-                        # 2. Template HTML do Certificado 
-                        # Este template formata visualmente o documento para impressão limpa e estruturada
-                        html_certificado = f"""
-                        <html>
-                        <head>
-                            <meta charset="utf-8">
-                            <style>
-                                body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }}
-                                .header {{ text-align: center; font-weight: bold; margin-bottom: 20px; }}
-                                .title {{ text-align: center; font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 30px; text-decoration: underline; }}
-                                .box {{ border: 1px solid #000; padding: 15px; margin-bottom: 20px; text-align: justify; font-weight: bold; }}
-                                table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-                                th, td {{ border: 1px solid #000; padding: 10px; text-align: center; vertical-align: middle; }}
-                                .footer-text {{ font-size: 12px; text-align: justify; margin-top: 30px; }}
-                                .signature-block {{ text-align: center; margin-top: 20px; }}
-                            </style>
-                        </head>
-                        <body>
-                            <div class="header">
-                                CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)
-                            </div>
+                        # Resgate completo da Tabela-A (Nome + E-mail)
+                        if not linha_ose.empty:
+                            nome_titular = str(linha_ose.iloc[0].get('Nome do Gestor Titular', 'NÃO CADASTRADO')).strip()
+                            mail_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', '')).strip()
+                            gestor_contrato = f"{nome_titular} ({mail_titular})" if mail_titular else nome_titular
                             
-                            <div class="box">
-                                CERTIFICO QUE O SERVIÇO A QUE SE REFERE O PRESENTE TÍTULO DE CRÉDITO FOI
-                                EFETIVAMENTE PRESTADO E ATENDE ÀS ESPECIFICAÇÕES DO DOCUMENTO DE ORIGEM.
-                            </div>
+                            nome_substituto = str(linha_ose.iloc[0].get('Nome do Gestor Substituto', 'NÃO CADASTRADO')).strip()
+                            mail_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', '')).strip()
+                            gestor_substituto = f"{nome_substituto} ({mail_substituto})" if mail_substituto else nome_substituto
+                        else:
+                            gestor_contrato = "NOME DO GESTOR TITULAR (email@dominio.com)"
+                            gestor_substituto = "NOME DO GESTOR SUBSTITUTO (email@dominio.com)"
 
-                            <table>
-                                <tr>
-                                    <td><strong>DATA</strong><br>{data_atual}</td>
-                                    <td><strong>GESTOR/RESPONSÁVEL</strong><br>{gestor_contrato}</td>
-                                    <td><strong>GESTOR/SUBSTITUTO</strong><br>{gestor_substituto}</td>
-                                </tr>
-                            </table>
+                        # Captura uma amostra de NUP do DataFrame da NE alvo
+                        nup_exemplo = df_ne_fisc['nup'].iloc[0] if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
 
-                            <table>
-                                <tr>
-                                    <td colspan="2" style="background-color: #f0f0f0;"><strong>DADOS BÁSICOS</strong></td>
-                                </tr>
-                                <tr>
-                                    <td width="30%"><strong>SERVIDOR (A) AUXILIAR ADMINISTRATIVO</strong></td>
-                                    <td>{usuario_logado}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Empresa / Termo de credenciamento</strong></td>
-                                    <td>{empresa_empenho}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Código da OM / CNPJ</strong></td>
-                                    <td>87700 / 00.394.502/0060-02</td>
-                                </tr>
-                            </table>
+                        # 2. Construção da Classe do PDF customizada
+                        class CertificadoPDF(FPDF):
+                            def header(self):
+                                # Marca d'água centralizada no fundo da folha A4 (Largura: 210mm, Altura: 297mm)
+                                if os.path.exists(caminho_logo_relatorio):
+                                    # Posiciona a imagem de forma suave no centro do documento
+                                    self.image(caminho_logo_relatorio, x=35, y=78, w=140)
+                                    
+                            def footer(self):
+                                pass # O rodapé será tratado de forma fixa no escopo do documento
 
-                            <div style="display: flex; justify-content: space-between; margin-top: 40px;">
-                                <div class="signature-block" style="width: 45%;">
-                                    <strong>AGENTE FINANCEIRO</strong><br><br>
-                                    JOHN WAYNE MAIA JUNIOR<br>
-                                    Suboficial - ES<br>
-                                    CPF: 083.037.477-97
-                                </div>
-                                <div class="signature-block" style="width: 45%;">
-                                    <strong>AGENTE FISCAL</strong><br><br>
-                                    DIANA MARQUES FERNANDES<br>
-                                    Capitão de Mar e Guerra (Md)<br>
-                                    CPF: 964.533.386-53
-                                </div>
-                            </div>
+                        # 3. Lógica de Geração do Arquivo PDF Binário
+                        def gerar_pdf_certificado():
+                            pdf = CertificadoPDF(orientation='P', unit='mm', format='A4')
+                            pdf.set_margins(15, 15, 15)
+                            pdf.add_page()
+                            pdf.set_auto_page_break(auto=True, margin=15)
+                            
+                            # TÍTULO PRINCIPAL
+                            pdf.set_font('Arial', 'B', 12)
+                            pdf.cell(180, 8, 'CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)', border=0, ln=True, align='C')
+                            pdf.ln(4)
+                            
+                            # BOX DE CERTIFICAÇÃO (Texto Destacado)
+                            pdf.set_fill_color(245, 245, 245)
+                            pdf.set_font('Arial', 'B', 10)
+                            texto_certifico = "CERTIFICO QUE O SERVIÇO A QUE SE REFERE O PRESENTE TÍTULO DE CRÉDITO FOI EFETIVAMENTE PRESTADO E ATENDE ÀS ESPECIFICAÇÕES DO DOCUMENTO DE ORIGEM."
+                            pdf.multi_cell(180, 6, texto_certifico, border=1, align='J', fill=True)
+                            pdf.ln(5)
+                            
+                            # TABELA 1: DATAS E RESPONSÁVEIS
+                            # Largura total disponível: 180mm -> 3 colunas de 60mm
+                            pdf.set_font('Arial', 'B', 9)
+                            x_inicial = pdf.get_x()
+                            y_inicial = pdf.get_y()
+                            
+                            pdf.multi_cell(40, 5, f"DATA\n\n{data_atual}", border=1, align='C')
+                            pdf.set_xy(x_inicial + 40, y_inicial)
+                            pdf.multi_cell(70, 5, f"GESTOR / RESPONSÁVEL\n\n{gestor_contrato}", border=1, align='C')
+                            pdf.set_xy(x_inicial + 110, y_inicial)
+                            pdf.multi_cell(70, 5, f"GESTOR / SUBSTITUTO\n\n{gestor_substituto}", border=1, align='C')
+                            pdf.ln(6)
+                            
+                            # TABELA 2: DADOS BÁSICOS DO PROCESSO
+                            pdf.set_font('Arial', 'B', 10)
+                            pdf.cell(180, 6, "DADOS BÁSICOS", border=1, ln=True, align='C', fill=True)
+                            
+                            pdf.set_font('Arial', '', 9)
+                            # Linha Auxiliar
+                            pdf.cell(60, 7, "  SERVIDOR (A) AUXILIAR ADMINISTRATIVO", border=1)
+                            pdf.set_font('Arial', 'B', 9)
+                            pdf.cell(120, 7, f"  {usuario_logado}", border=1, ln=True)
+                            
+                            # Linha Empresa
+                            pdf.set_font('Arial', '', 9)
+                            pdf.cell(60, 7, "  Empresa / Termo de credenciamento", border=1)
+                            pdf.set_font('Arial', 'B', 9)
+                            pdf.cell(120, 7, f"  {empresa_empenho}", border=1, ln=True)
+                            
+                            # Linha OM
+                            pdf.set_font('Arial', '', 9)
+                            pdf.cell(60, 7, "  Código da OM / CNPJ", border=1)
+                            pdf.set_font('Arial', 'B', 9)
+                            pdf.cell(120, 7, "  87700 / 00.394.502/0060-02", border=1, ln=True)
+                            pdf.ln(8)
+                            
+                            # BLOCO DE ASSINATURAS CO-ALINHADAS
+                            y_assinatura = pdf.get_y()
+                            # Agente Financeiro (Esquerda)
+                            pdf.set_xy(15, y_assinatura)
+                            pdf.set_font('Arial', 'B', 10)
+                            pdf.cell(85, 5, "AGENTE FINANCEIRO", border=0, ln=True, align='C')
+                            pdf.set_x(15)
+                            pdf.set_font('Arial', '', 9)
+                            pdf.multi_cell(85, 4, "\n\n___________________________________\nJOHN WAYNE MAIA JUNIOR\nSuboficial - ES\nCPF: 083.037.477-97", border=0, align='C')
+                            
+                            # Agente Fiscal (Direita)
+                            pdf.set_xy(110, y_assinatura)
+                            pdf.set_font('Arial', 'B', 10)
+                            pdf.cell(85, 5, "AGENTE FISCAL", border=0, ln=True, align='C')
+                            pdf.set_xy(110, y_assinatura + 5)
+                            pdf.set_font('Arial', '', 9)
+                            pdf.multi_cell(85, 4, "\n\n___________________________________\nDIANA MARQUES FERNANDES\nCapitão de Mar e Guerra (Md)\nCPF: 964.533.386-53", border=0, align='C')
+                            pdf.ln(6)
+                            
+                            # TABELA DE CONSIDERAÇÕES JURÍDICAS/ADMINISTRATIVAS
+                            pdf.set_font('Arial', 'B', 9)
+                            pdf.cell(180, 5, "CONSIDERAÇÕES DO SISAFA NAVAL:", border=0, ln=True, align='L')
+                            
+                            pdf.set_font('Arial', '', 8)
+                            texto_consideracoes = (
+                                "O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no "
+                                "Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em "
+                                "tempo hábil, sendo a decisão de encaminhamento para às OSE um ato discricionário do Sistema de "
+                                "Regulação da Diretoria de Saúde da Marinha (DSM), regido por normativos próprios, em consonância "
+                                "aos princípios da administração pública.\n\n"
+                                "Nesse contexto, cumpre destacar que a verificação do direito adquirido pelo credor, em atendimento ao "
+                                "contido no § 1º do Art. 63 da Lei 4.320/64 foi realizada pela Divisão de Auditoria em Saúde deste "
+                                "nosocômio, por intermédio da apuração dos saldos a pagar, da interposição de eventuais glosas e da "
+                                "adequada classificação do(s) centro(s) de custo(s) correspondente(s). O acompanhamento das "
+                                "atividades realizadas à fiscalização técnica e administrativa é realizada pelo(a) gestor(a) titular e/ou "
+                                "substituto, conforme o preconizado no art. 21 do Decreto 11.246/22."
+                            )
+                            # Envelopado em tabela de contenção limpa
+                            pdf.multi_cell(180, 4.2, texto_consideracoes, border=1, align='J')
+                            pdf.ln(5)
+                            
+                            # TABELA DO CANTO INFERIOR DIREITO (METADADOS DE VALIDAÇÃO)
+                            # Posicionamento ancorado dinamicamente para garantir o canto inferior direito
+                            pdf.set_xy(110, pdf.get_y())
+                            pdf.set_font('Arial', 'B', 7)
+                            pdf.cell(85, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO NAVAL", border=1, ln=True, align='C', fill=True)
+                            
+                            dados_controle = [
+                                ("CHAVE DE VALIDAÇÃO SISAFA", f"NFP-{ne_alvo}-{data_atual.replace('/', '')}"),
+                                ("NUP REFERÊNCIA", str(nup_exemplo)),
+                                ("NOTA DE EMPENHO (NE)", str(ne_alvo)),
+                                ("OPERADOR RESPONSÁVEL", str(usuario_logado).upper()),
+                                ("EMISSÃO DO SISTEMA", f"{data_atual} ÀS {datetime.now().strftime('%H:%M:%S')}")
+                            ]
+                            
+                            for rotulo, valor in dados_controle:
+                                pdf.set_x(110)
+                                pdf.set_font('Arial', 'B', 7)
+                                pdf.cell(35, 4.5, f" {rotulo}", border=1)
+                                pdf.set_font('Arial', '', 7)
+                                pdf.cell(50, 4.5, f" {valor}", border=1, ln=True)
+                                
+                            return pdf.output(dest='S').encode('latin1')
 
-                            <div class="footer-text">
-                                <strong>CONSIDERAÇÕES:</strong><br>
-                                O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no
-                                Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em
-                                tempo hábil, sendo a decisão de encaminhamento para às OSE um ato discricionário do Sistema de
-                                Regulação da Diretoria de Saúde da Marinha (DSM), regido por normativos próprios, em consonância
-                                aos princípios da administração pública.<br><br>
-                                Nesse contexto, cumpre destacar que a verificação do direito adquirido pelo credor, em atendimento ao
-                                contido no § 1º do Art. 63 da Lei 4.320/64 foi realizada pela Divisão de Auditoria em Saúde deste
-                                nosocômio, por intermédio da apuração dos saldos a pagar, da interposição de eventuais glosas e da
-                                adequada classificação do(s) centro(s) de custo(s) correspondente(s). O acompanhamento das
-                                atividades realizadas à fiscalização técnica e administrativa é realizada pelo(a) gestor(a) titular e/ou
-                                substituto, conforme o preconizado no art. 21 do Decreto 11.246/22.
-                            </div>
-                        </body>
-                        </html>
-                        """
-                        
-                        # 3. Botão de download 
-                        st.download_button(
-                            label="📄 Produzir certificado de NF",
-                            data=html_certificado,
-                            file_name=f"Certificado_NF_{ne_alvo}.html",
-                            mime="text/html",
-                            use_container_width=True
-                        )
+                        # 4. Renderização Segura do Botão de Download no Streamlit
+                        try:
+                            pdf_data = gerar_pdf_certificado()
+                            st.download_button(
+                                label="🖨️ Produzir certificado de NF (PDF)",
+                                data=pdf_data,
+                                file_name=f"Certificado_NF_{ne_alvo}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True,
+                                key=f"btn_pdf_download_{ne_alvo}"
+                            )
+                        except Exception as e:
+                            st.error(f"Erro ao gerar estrutura do PDF: {e}")
 
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
