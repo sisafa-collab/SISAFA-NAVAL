@@ -4982,20 +4982,32 @@ Cordialmente,
                         st.divider()
                         st.markdown("##### 📄 2. Certificado de Prestação de Serviço (PDF Oficial)")
 
-                        # --- RESOLUÇÃO DEFINITIVA DO NOME DO USUÁRIO ---
-                        # Tenta pegar da sessão
-                        nome_padrao = st.session_state.get('nome', 
-                                      st.session_state.get('username', 
-                                      st.session_state.get('usuario', '')))
-                        if isinstance(nome_padrao, dict): 
-                            nome_padrao = nome_padrao.get('nome', '')
+                        # --- BUSCA AUTOMÁTICA DO NOME DO USUÁRIO NA ABA DE USUÁRIOS ---
+                        # Aqui pegamos o que está salvo na sessão após o login (NIP, E-mail ou username)
+                        usuario_sessao = st.session_state.get('usuario', 
+                                         st.session_state.get('nip', 
+                                         st.session_state.get('username', '')))
                         
-                        # Cria um campo na tela: Se o sistema não achar, o usuário digita na hora!
-                        usuario_logado = st.text_input("Operador Administrativo (Nome que sairá no PDF):", 
-                                                       value=str(nome_padrao).upper(), 
-                                                       key=f"input_operador_{ne_alvo}")
-                        if not usuario_logado.strip():
-                            usuario_logado = "NOME DO OPERADOR NÃO INFORMADO"
+                        usuario_logado = "OPERADOR NÃO IDENTIFICADO" # Valor padrão caso a sessão esteja vazia
+                        
+                        if usuario_sessao:
+                            try:
+                                # Carrega a aba de usuários
+                                aba_usuarios = sh.worksheet("SISAFA-NAVAL-Usuarios")
+                                df_usuarios = pd.DataFrame(aba_usuarios.get_all_records())
+                                df_usuarios.columns = df_usuarios.columns.str.strip()
+                                
+                                # Busca o usuário logado cruzando o NIP ou E-mail da sessão
+                                filtro_usuario = (df_usuarios['NIP'].astype(str).str.strip() == str(usuario_sessao).strip()) | \
+                                                 (df_usuarios['E-mail'].astype(str).str.strip() == str(usuario_sessao).strip())
+                                
+                                linha_usuario = df_usuarios[filtro_usuario]
+                                
+                                if not linha_usuario.empty:
+                                    # Puxa o NOME certinho da coluna
+                                    usuario_logado = str(linha_usuario.iloc[0]['NOME']).strip().upper()
+                            except Exception as e:
+                                st.warning(f"⚠️ Não foi possível consultar a aba de usuários: {e}")
 
                         # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
@@ -5035,7 +5047,7 @@ Cordialmente,
                             pdf.add_page()
                             pdf.set_auto_page_break(auto=True, margin=15)
                             
-                            # TÍTULO PRINCIPAL (Usando Times para tom Formal/Oficial)
+                            # TÍTULO PRINCIPAL (Fonte Times Oficial)
                             pdf.set_font('Times', 'B', 12)
                             pdf.cell(180, 8, 'CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)', border=0, ln=True, align='C')
                             pdf.ln(4)
@@ -5066,7 +5078,7 @@ Cordialmente,
                             pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  SERVIDOR (A) AUXILIAR ADMINISTRATIVO", border=1)
                             pdf.set_font('Times', 'B', 9)
-                            pdf.cell(120, 7, f"  {str(usuario_logado).upper()}", border=1, ln=True)
+                            pdf.cell(120, 7, f"  {usuario_logado}", border=1, ln=True)
                             
                             pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  Empresa", border=1)
@@ -5087,7 +5099,7 @@ Cordialmente,
                             # ==========================================
                             # TABELA DE ASSINATURAS (ESTRUTURA SOLICITADA)
                             # ==========================================
-                            altura_ass = 25 # Altura de cada bloco de assinatura
+                            altura_ass = 25
                             
                             # --- 1. AGENTE FINANCEIRO ---
                             x_atual = pdf.get_x()
@@ -5106,13 +5118,13 @@ Cordialmente,
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(140, 5, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(140, 5, "", border=0, ln=2) # Espaço para assinatura física
+                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "JOHN WAYNE MAIA JUNIOR", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Suboficial - ES | CPF: 083.037.477-97", border=0, ln=2, align='C')
 
                             # --- 2. AGENTE FISCAL ---
-                            y_atual = y_atual + altura_ass # Desce para a próxima linha
+                            y_atual = y_atual + altura_ass
                             
                             # Bloco Esquerdo (Data)
                             pdf.rect(x_atual, y_atual, 40, altura_ass)
@@ -5127,7 +5139,7 @@ Cordialmente,
                             pdf.set_font('Times', 'B', 9)
                             pdf.cell(140, 5, "AGENTE FISCAL", border=0, ln=2, align='C')
                             pdf.set_font('Times', '', 9)
-                            pdf.cell(140, 5, "", border=0, ln=2) # Espaço para assinatura física
+                            pdf.cell(140, 5, "", border=0, ln=2)
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Capitão de Mar e Guerra (Md) | CPF: 964.533.386-53", border=0, ln=2, align='C')
@@ -5170,7 +5182,7 @@ Cordialmente,
                             dados_controle = [
                                 ("NUP DA FATURA", str(nup_fatura)),
                                 ("NOTA DE EMPENHO (NE)", str(ne_alvo)),
-                                ("OPERADOR RESP", str(usuario_logado).upper()),
+                                ("OPERADOR RESP", str(usuario_logado)),
                                 ("EMISSÃO SISAFA", str(data_atual))
                             ]
                             
