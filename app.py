@@ -5152,11 +5152,11 @@ Cordialmente,
                                 "Regulação da Diretoria de Saúde da Marinha (DSM), regido por normativos próprios, em consonância "
                                 "aos princípios da administração pública.\n"
                                 "Nesse contexto, cumpre destacar que a verificação do direito adquirido pelo credor, em atendimento ao "
-                                "contido no § 1º do Art. 63 da Lei 4.320/64 foi realizada pela Divisão de Auditoria em Saúde deste "
+                                "contido no § 1º do Art. 63 da Lei 4.320/64, foi realizada pela Divisão de Auditoria em Saúde deste "
                                 "nosocômio, por intermédio da apuração dos saldos a pagar, da interposição de eventuais glosas e da "
-                                "adequada classificação do(s) centro(s) de custo(s) correspondente(s). O acompanhamento das "
-                                "atividades realizadas à fiscalização técnica e administrativa é realizada pelo(a) gestor(a) titular e/ou "
-                                "substituto, conforme o preconizado no art. 21 do Decreto 11.246/22."
+                                "adequada classificação do (s) centro (s) de custo (s) correspondente (s). O acompanhamento das "
+                                "atividades realizadas referente à fiscalização técnica e administrativa é realizada pelo (a) gestor (a) titular e/ou "
+                                "substituto (a), conforme o preconizado no art. 21 do Decreto 11.246/22."
                             )
                             pdf.multi_cell(180, 4.2, texto_consideracoes, border=1, align='J')
                             pdf.ln(5)
