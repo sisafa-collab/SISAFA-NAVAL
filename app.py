@@ -4984,35 +4984,47 @@ Cordialmente,
 
                         # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
-                        empresa_empenho = ose_txt
-                        usuario_logado = st.session_state.get("usuario_nome", "NOME DO USUÁRIO NÃO IDENTIFICADO")
                         
-                        # Resgate completo da Tabela-A (Nome + E-mail)
+                        # --- CAPTURA BLINDADA DO USUÁRIO LOGADO ---
+                        # Busca a variável de sessão, tentando os nomes mais comuns para evitar erro
+                        usuario_logado = st.session_state.get('nome', 
+                                         st.session_state.get('username', 
+                                         st.session_state.get('usuario', 'OPERADOR NÃO IDENTIFICADO')))
+                        if isinstance(usuario_logado, dict): # Caso o usuário seja um dicionário (ex: st.session_state.usuario['nome'])
+                            usuario_logado = usuario_logado.get('nome', 'OPERADOR NÃO IDENTIFICADO')
+                        
+                        # --- RESGATE COMPLETO DA TABELA-A ---
                         if not linha_ose.empty:
-                            nome_titular = str(linha_ose.iloc[0].get('Nome do Gestor Titular', 'NÃO CADASTRADO')).strip()
+                            # Nomes dos Gestores e E-mails exatos como na sua base
+                            nome_titular = str(linha_ose.iloc[0].get('Gestor Titular', 'NÃO CADASTRADO')).strip()
                             mail_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', '')).strip()
-                            gestor_contrato = f"{nome_titular} ({mail_titular})" if mail_titular else nome_titular
+                            gestor_contrato = f"{nome_titular}\n{mail_titular}" if mail_titular else nome_titular
                             
-                            nome_substituto = str(linha_ose.iloc[0].get('Nome do Gestor Substituto', 'NÃO CADASTRADO')).strip()
+                            nome_substituto = str(linha_ose.iloc[0].get('Gestor Substituto', 'NÃO CADASTRADO')).strip()
                             mail_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', '')).strip()
-                            gestor_substituto = f"{nome_substituto} ({mail_substituto})" if mail_substituto else nome_substituto
+                            gestor_substituto = f"{nome_substituto}\n{mail_substituto}" if mail_substituto else nome_substituto
+                            
+                            # Dados da Empresa (Separados)
+                            empresa_razao = str(linha_ose.iloc[0].get('Razão Social', ose_txt)).strip()
+                            termo_cred = str(linha_ose.iloc[0].get('Termo de credenciamento', 'NÃO INFORMADO')).strip()
                         else:
-                            gestor_contrato = "NOME DO GESTOR TITULAR (email@dominio.com)"
-                            gestor_substituto = "NOME DO GESTOR SUBSTITUTO (email@dominio.com)"
+                            gestor_contrato = "GESTOR TITULAR\nemail@dominio.com"
+                            gestor_substituto = "GESTOR SUBSTITUTO\nemail@dominio.com"
+                            empresa_razao = ose_txt
+                            termo_cred = "NÃO INFORMADO"
 
-                        # Captura uma amostra de NUP do DataFrame da NE alvo
-                        nup_exemplo = df_ne_fisc['nup'].iloc[0] if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
+                        # Captura o NUP da Fatura
+                        nup_fatura = df_ne_fisc['nup'].iloc[0] if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
 
                         # 2. Construção da Classe do PDF customizada
                         class CertificadoPDF(FPDF):
                             def header(self):
-                                # Marca d'água centralizada no fundo da folha A4 (Largura: 210mm, Altura: 297mm)
+                                # Marca d'água centralizada (Logo Relatório)
                                 if os.path.exists(caminho_logo_relatorio):
-                                    # Posiciona a imagem de forma suave no centro do documento
                                     self.image(caminho_logo_relatorio, x=35, y=78, w=140)
                                     
                             def footer(self):
-                                pass # O rodapé será tratado de forma fixa no escopo do documento
+                                pass 
 
                         # 3. Lógica de Geração do Arquivo PDF Binário
                         def gerar_pdf_certificado():
@@ -5026,7 +5038,7 @@ Cordialmente,
                             pdf.cell(180, 8, 'CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)', border=0, ln=True, align='C')
                             pdf.ln(4)
                             
-                            # BOX DE CERTIFICAÇÃO (Texto Destacado)
+                            # BOX DE CERTIFICAÇÃO
                             pdf.set_fill_color(245, 245, 245)
                             pdf.set_font('Arial', 'B', 10)
                             texto_certifico = "CERTIFICO QUE O SERVIÇO A QUE SE REFERE O PRESENTE TÍTULO DE CRÉDITO FOI EFETIVAMENTE PRESTADO E ATENDE ÀS ESPECIFICAÇÕES DO DOCUMENTO DE ORIGEM."
@@ -5034,7 +5046,6 @@ Cordialmente,
                             pdf.ln(5)
                             
                             # TABELA 1: DATAS E RESPONSÁVEIS
-                            # Largura total disponível: 180mm -> 3 colunas de 60mm
                             pdf.set_font('Arial', 'B', 9)
                             x_inicial = pdf.get_x()
                             y_inicial = pdf.get_y()
@@ -5050,17 +5061,23 @@ Cordialmente,
                             pdf.set_font('Arial', 'B', 10)
                             pdf.cell(180, 6, "DADOS BÁSICOS", border=1, ln=True, align='C', fill=True)
                             
-                            pdf.set_font('Arial', '', 9)
                             # Linha Auxiliar
+                            pdf.set_font('Arial', '', 9)
                             pdf.cell(60, 7, "  SERVIDOR (A) AUXILIAR ADMINISTRATIVO", border=1)
                             pdf.set_font('Arial', 'B', 9)
-                            pdf.cell(120, 7, f"  {usuario_logado}", border=1, ln=True)
+                            pdf.cell(120, 7, f"  {str(usuario_logado).upper()}", border=1, ln=True)
                             
-                            # Linha Empresa
+                            # Linha Empresa (Separada)
                             pdf.set_font('Arial', '', 9)
-                            pdf.cell(60, 7, "  Empresa / Termo de credenciamento", border=1)
+                            pdf.cell(60, 7, "  Empresa", border=1)
                             pdf.set_font('Arial', 'B', 9)
-                            pdf.cell(120, 7, f"  {empresa_empenho}", border=1, ln=True)
+                            pdf.cell(120, 7, f"  {empresa_razao}", border=1, ln=True)
+
+                            # Linha Termo de Credenciamento (Separada)
+                            pdf.set_font('Arial', '', 9)
+                            pdf.cell(60, 7, "  Termo de credenciamento", border=1)
+                            pdf.set_font('Arial', 'B', 9)
+                            pdf.cell(120, 7, f"  {termo_cred}", border=1, ln=True)
                             
                             # Linha OM
                             pdf.set_font('Arial', '', 9)
@@ -5088,7 +5105,7 @@ Cordialmente,
                             pdf.multi_cell(85, 4, "\n\n___________________________________\nDIANA MARQUES FERNANDES\nCapitão de Mar e Guerra (Md)\nCPF: 964.533.386-53", border=0, align='C')
                             pdf.ln(6)
                             
-                            # TABELA DE CONSIDERAÇÕES JURÍDICAS/ADMINISTRATIVAS
+                            # TABELA DE CONSIDERAÇÕES JURÍDICAS
                             pdf.set_font('Arial', 'B', 9)
                             pdf.cell(180, 5, "CONSIDERAÇÕES DO SISAFA NAVAL:", border=0, ln=True, align='L')
                             
@@ -5106,34 +5123,54 @@ Cordialmente,
                                 "atividades realizadas à fiscalização técnica e administrativa é realizada pelo(a) gestor(a) titular e/ou "
                                 "substituto, conforme o preconizado no art. 21 do Decreto 11.246/22."
                             )
-                            # Envelopado em tabela de contenção limpa
                             pdf.multi_cell(180, 4.2, texto_consideracoes, border=1, align='J')
                             pdf.ln(5)
                             
-                            # TABELA DO CANTO INFERIOR DIREITO (METADADOS DE VALIDAÇÃO)
-                            # Posicionamento ancorado dinamicamente para garantir o canto inferior direito
-                            pdf.set_xy(110, pdf.get_y())
+                            # ==========================================
+                            # RODAPÉ: CONTROLE (ESQ) E CARIMBO (DIR)
+                            # ==========================================
+                            y_rodape = pdf.get_y()
+                            
+                            # --- ESQUERDA: CONTROLE INTERNO ---
+                            pdf.set_xy(15, y_rodape)
                             pdf.set_font('Arial', 'B', 7)
-                            pdf.cell(85, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO NAVAL", border=1, ln=True, align='C', fill=True)
+                            pdf.cell(90, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO NAVAL", border=1, ln=True, align='C', fill=True)
                             
                             dados_controle = [
-                                ("CHAVE DE VALIDAÇÃO SISAFA", f"NFP-{ne_alvo}-{data_atual.replace('/', '')}"),
-                                ("NUP REFERÊNCIA", str(nup_exemplo)),
+                                ("NUP DA FATURA", str(nup_fatura)),
                                 ("NOTA DE EMPENHO (NE)", str(ne_alvo)),
-                                ("OPERADOR RESPONSÁVEL", str(usuario_logado).upper()),
-                                ("EMISSÃO DO SISTEMA", f"{data_atual} ÀS {datetime.now().strftime('%H:%M:%S')}")
+                                ("OPERADOR RESP", str(usuario_logado).upper()),
+                                ("EMISSÃO SISAFA", str(data_atual))
                             ]
                             
                             for rotulo, valor in dados_controle:
-                                pdf.set_x(110)
+                                pdf.set_x(15)
                                 pdf.set_font('Arial', 'B', 7)
-                                pdf.cell(35, 4.5, f" {rotulo}", border=1)
+                                pdf.cell(30, 4.5, f" {rotulo}", border=1)
                                 pdf.set_font('Arial', '', 7)
-                                pdf.cell(50, 4.5, f" {valor}", border=1, ln=True)
-                                
+                                pdf.cell(60, 4.5, f" {valor}", border=1, ln=True)
+
+                            # --- DIREITA: CARIMBO DE PROCESSAMENTO ---
+                            pdf.set_xy(110, y_rodape)
+                            pdf.set_font('Arial', 'B', 7)
+                            pdf.cell(85, 4, "CARIMBO / VISTO DE PROCESSAMENTO", border=1, ln=True, align='C', fill=True)
+                            
+                            # Linha 1 dos quadradinhos (LF, NE, SI)
+                            pdf.set_x(110)
+                            pdf.set_font('Arial', 'B', 8)
+                            pdf.cell(28.3, 9, " LF:", border=1, align='L')
+                            pdf.cell(28.3, 9, " NE:", border=1, align='L')
+                            pdf.cell(28.4, 9, " SI:", border=1, align='L', ln=True)
+                            
+                            # Linha 2 dos quadradinhos (NF, DA, CC - Expansível)
+                            pdf.set_x(110)
+                            pdf.cell(28.3, 9, " NF:", border=1, align='L')
+                            pdf.cell(28.3, 9, " DA:", border=1, align='L')
+                            pdf.cell(28.4, 9, " CC:", border=1, align='L', ln=True)
+
                             return pdf.output(dest='S').encode('latin1')
 
-                        # 4. Renderização Segura do Botão de Download no Streamlit
+                        # 4. Renderização Segura do Botão de Download
                         try:
                             pdf_data = gerar_pdf_certificado()
                             st.download_button(
