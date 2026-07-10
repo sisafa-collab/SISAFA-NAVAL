@@ -4974,6 +4974,120 @@ Cordialmente,
                                 st.rerun()
                             else:
                                 st.warning("⚠️ Informe o número da NF.")
+                        
+                        # ==========================================
+                        # NOVA SESSÃO: GERADOR DE CERTIFICADO DE NF
+                        # ==========================================
+                        st.divider()
+                        st.markdown("##### 📄 2. Certificado de Prestação de Serviço")
+                        
+                        # 1. Preparação das Variáveis Automáticas (Substituindo as marcações vermelhas)
+                        data_atual = datetime.now().strftime("%d/%m/%Y")
+                        
+                        # O nome da empresa já existe no seu código na variável 'ose_txt'
+                        empresa_empenho = ose_txt 
+                        
+                        # Substitua por como você armazena o nome do usuário logado na sessão
+                        usuario_logado = st.session_state.get("nome_usuario_logado", "NOME DO AUXILIAR ADMINISTRATIVO") 
+                        
+                        # Variáveis de gestão (você pode mapear da sua Tabela-A se tiver)
+                        gestor_contrato = email_titular if email_titular else "NOME DO GESTOR TITULAR"
+                        gestor_substituto = email_substituto if email_substituto else "NOME DO GESTOR SUBSTITUTO"
+                        
+                        # 2. Template HTML do Certificado 
+                        # Este template formata visualmente o documento para impressão limpa e estruturada
+                        html_certificado = f"""
+                        <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <style>
+                                body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }}
+                                .header {{ text-align: center; font-weight: bold; margin-bottom: 20px; }}
+                                .title {{ text-align: center; font-size: 18px; font-weight: bold; margin-top: 30px; margin-bottom: 30px; text-decoration: underline; }}
+                                .box {{ border: 1px solid #000; padding: 15px; margin-bottom: 20px; text-align: justify; font-weight: bold; }}
+                                table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+                                th, td {{ border: 1px solid #000; padding: 10px; text-align: center; vertical-align: middle; }}
+                                .footer-text {{ font-size: 12px; text-align: justify; margin-top: 30px; }}
+                                .signature-block {{ text-align: center; margin-top: 20px; }}
+                            </style>
+                        </head>
+                        <body>
+                            <div class="header">
+                                CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)
+                            </div>
+                            
+                            <div class="box">
+                                CERTIFICO QUE O SERVIÇO A QUE SE REFERE O PRESENTE TÍTULO DE CRÉDITO FOI
+                                EFETIVAMENTE PRESTADO E ATENDE ÀS ESPECIFICAÇÕES DO DOCUMENTO DE ORIGEM.
+                            </div>
+
+                            <table>
+                                <tr>
+                                    <td><strong>DATA</strong><br>{data_atual}</td>
+                                    <td><strong>GESTOR/RESPONSÁVEL</strong><br>{gestor_contrato}</td>
+                                    <td><strong>GESTOR/SUBSTITUTO</strong><br>{gestor_substituto}</td>
+                                </tr>
+                            </table>
+
+                            <table>
+                                <tr>
+                                    <td colspan="2" style="background-color: #f0f0f0;"><strong>DADOS BÁSICOS</strong></td>
+                                </tr>
+                                <tr>
+                                    <td width="30%"><strong>SERVIDOR (A) AUXILIAR ADMINISTRATIVO</strong></td>
+                                    <td>{usuario_logado}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Empresa / Termo de credenciamento</strong></td>
+                                    <td>{empresa_empenho}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Código da OM / CNPJ</strong></td>
+                                    <td>87700 / 00.394.502/0060-02</td>
+                                </tr>
+                            </table>
+
+                            <div style="display: flex; justify-content: space-between; margin-top: 40px;">
+                                <div class="signature-block" style="width: 45%;">
+                                    <strong>AGENTE FINANCEIRO</strong><br><br>
+                                    JOHN WAYNE MAIA JUNIOR<br>
+                                    Suboficial - ES<br>
+                                    CPF: 083.037.477-97
+                                </div>
+                                <div class="signature-block" style="width: 45%;">
+                                    <strong>AGENTE FISCAL</strong><br><br>
+                                    DIANA MARQUES FERNANDES<br>
+                                    Capitão de Mar e Guerra (Md)<br>
+                                    CPF: 964.533.386-53
+                                </div>
+                            </div>
+
+                            <div class="footer-text">
+                                <strong>CONSIDERAÇÕES:</strong><br>
+                                O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no
+                                Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em
+                                tempo hábil, sendo a decisão de encaminhamento para às OSE um ato discricionário do Sistema de
+                                Regulação da Diretoria de Saúde da Marinha (DSM), regido por normativos próprios, em consonância
+                                aos princípios da administração pública.<br><br>
+                                Nesse contexto, cumpre destacar que a verificação do direito adquirido pelo credor, em atendimento ao
+                                contido no § 1º do Art. 63 da Lei 4.320/64 foi realizada pela Divisão de Auditoria em Saúde deste
+                                nosocômio, por intermédio da apuração dos saldos a pagar, da interposição de eventuais glosas e da
+                                adequada classificação do(s) centro(s) de custo(s) correspondente(s). O acompanhamento das
+                                atividades realizadas à fiscalização técnica e administrativa é realizada pelo(a) gestor(a) titular e/ou
+                                substituto, conforme o preconizado no art. 21 do Decreto 11.246/22.
+                            </div>
+                        </body>
+                        </html>
+                        """
+                        
+                        # 3. Botão de download 
+                        st.download_button(
+                            label="📄 Produzir certificado de NF",
+                            data=html_certificado,
+                            file_name=f"Certificado_NF_{ne_alvo}.html",
+                            mime="text/html",
+                            use_container_width=True
+                        )
 
                     with col_f2:
                         st.markdown("#### 📧 2. Solicitação de Nota Fiscal")
