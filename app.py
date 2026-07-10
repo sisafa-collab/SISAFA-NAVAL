@@ -4990,6 +4990,13 @@ Cordialmente,
                         
                         usuario_logado = "OPERADOR NÃO IDENTIFICADO" # Valor padrão caso a sessão esteja vazia
                         
+                        # ==========================================
+                        # 🛠️ MODO DE RASTREAMENTO (DEBUG SISAFA)
+                        # ==========================================
+                        st.info("🔍 Inspecionando a Memória do Streamlit:")
+                        st.write(st.session_state)
+                        # ==========================================
+                        
                         if usuario_sessao:
                             try:
                                 # Carrega a aba de usuários
