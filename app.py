@@ -4982,20 +4982,26 @@ Cordialmente,
                         st.divider()
                         st.markdown("##### 📄 2. Certificado de Prestação de Serviço (PDF Oficial)")
 
+                        # --- RESOLUÇÃO DEFINITIVA DO NOME DO USUÁRIO ---
+                        # Tenta pegar da sessão
+                        nome_padrao = st.session_state.get('nome', 
+                                      st.session_state.get('username', 
+                                      st.session_state.get('usuario', '')))
+                        if isinstance(nome_padrao, dict): 
+                            nome_padrao = nome_padrao.get('nome', '')
+                        
+                        # Cria um campo na tela: Se o sistema não achar, o usuário digita na hora!
+                        usuario_logado = st.text_input("Operador Administrativo (Nome que sairá no PDF):", 
+                                                       value=str(nome_padrao).upper(), 
+                                                       key=f"input_operador_{ne_alvo}")
+                        if not usuario_logado.strip():
+                            usuario_logado = "NOME DO OPERADOR NÃO INFORMADO"
+
                         # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
                         
-                        # --- CAPTURA BLINDADA DO USUÁRIO LOGADO ---
-                        # Busca a variável de sessão, tentando os nomes mais comuns para evitar erro
-                        usuario_logado = st.session_state.get('nome', 
-                                         st.session_state.get('username', 
-                                         st.session_state.get('usuario', 'OPERADOR NÃO IDENTIFICADO')))
-                        if isinstance(usuario_logado, dict): # Caso o usuário seja um dicionário (ex: st.session_state.usuario['nome'])
-                            usuario_logado = usuario_logado.get('nome', 'OPERADOR NÃO IDENTIFICADO')
-                        
                         # --- RESGATE COMPLETO DA TABELA-A ---
                         if not linha_ose.empty:
-                            # Nomes dos Gestores e E-mails exatos como na sua base
                             nome_titular = str(linha_ose.iloc[0].get('Gestor Titular', 'NÃO CADASTRADO')).strip()
                             mail_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', '')).strip()
                             gestor_contrato = f"{nome_titular}\n{mail_titular}" if mail_titular else nome_titular
@@ -5004,7 +5010,6 @@ Cordialmente,
                             mail_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', '')).strip()
                             gestor_substituto = f"{nome_substituto}\n{mail_substituto}" if mail_substituto else nome_substituto
                             
-                            # Dados da Empresa (Separados)
                             empresa_razao = str(linha_ose.iloc[0].get('Razão Social', ose_txt)).strip()
                             termo_cred = str(linha_ose.iloc[0].get('Termo de credenciamento', 'NÃO INFORMADO')).strip()
                         else:
@@ -5013,16 +5018,13 @@ Cordialmente,
                             empresa_razao = ose_txt
                             termo_cred = "NÃO INFORMADO"
 
-                        # Captura o NUP da Fatura
                         nup_fatura = df_ne_fisc['nup'].iloc[0] if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
 
                         # 2. Construção da Classe do PDF customizada
                         class CertificadoPDF(FPDF):
                             def header(self):
-                                # Marca d'água centralizada (Logo Relatório)
                                 if os.path.exists(caminho_logo_relatorio):
                                     self.image(caminho_logo_relatorio, x=35, y=78, w=140)
-                                    
                             def footer(self):
                                 pass 
 
@@ -5033,20 +5035,20 @@ Cordialmente,
                             pdf.add_page()
                             pdf.set_auto_page_break(auto=True, margin=15)
                             
-                            # TÍTULO PRINCIPAL
-                            pdf.set_font('Arial', 'B', 12)
+                            # TÍTULO PRINCIPAL (Usando Times para tom Formal/Oficial)
+                            pdf.set_font('Times', 'B', 12)
                             pdf.cell(180, 8, 'CERTIFICADO DE PRESTAÇÃO DE SERVIÇO (HOSPITAL CREDENCIADO)', border=0, ln=True, align='C')
                             pdf.ln(4)
                             
                             # BOX DE CERTIFICAÇÃO
                             pdf.set_fill_color(245, 245, 245)
-                            pdf.set_font('Arial', 'B', 10)
+                            pdf.set_font('Times', 'B', 10)
                             texto_certifico = "CERTIFICO QUE O SERVIÇO A QUE SE REFERE O PRESENTE TÍTULO DE CRÉDITO FOI EFETIVAMENTE PRESTADO E ATENDE ÀS ESPECIFICAÇÕES DO DOCUMENTO DE ORIGEM."
                             pdf.multi_cell(180, 6, texto_certifico, border=1, align='J', fill=True)
                             pdf.ln(5)
                             
                             # TABELA 1: DATAS E RESPONSÁVEIS
-                            pdf.set_font('Arial', 'B', 9)
+                            pdf.set_font('Times', 'B', 9)
                             x_inicial = pdf.get_x()
                             y_inicial = pdf.get_y()
                             
@@ -5058,58 +5060,87 @@ Cordialmente,
                             pdf.ln(6)
                             
                             # TABELA 2: DADOS BÁSICOS DO PROCESSO
-                            pdf.set_font('Arial', 'B', 10)
+                            pdf.set_font('Times', 'B', 10)
                             pdf.cell(180, 6, "DADOS BÁSICOS", border=1, ln=True, align='C', fill=True)
                             
-                            # Linha Auxiliar
-                            pdf.set_font('Arial', '', 9)
+                            pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  SERVIDOR (A) AUXILIAR ADMINISTRATIVO", border=1)
-                            pdf.set_font('Arial', 'B', 9)
+                            pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {str(usuario_logado).upper()}", border=1, ln=True)
                             
-                            # Linha Empresa (Separada)
-                            pdf.set_font('Arial', '', 9)
+                            pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  Empresa", border=1)
-                            pdf.set_font('Arial', 'B', 9)
+                            pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {empresa_razao}", border=1, ln=True)
 
-                            # Linha Termo de Credenciamento (Separada)
-                            pdf.set_font('Arial', '', 9)
+                            pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  Termo de credenciamento", border=1)
-                            pdf.set_font('Arial', 'B', 9)
+                            pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, f"  {termo_cred}", border=1, ln=True)
                             
-                            # Linha OM
-                            pdf.set_font('Arial', '', 9)
+                            pdf.set_font('Times', '', 9)
                             pdf.cell(60, 7, "  Código da OM / CNPJ", border=1)
-                            pdf.set_font('Arial', 'B', 9)
+                            pdf.set_font('Times', 'B', 9)
                             pdf.cell(120, 7, "  87700 / 00.394.502/0060-02", border=1, ln=True)
-                            pdf.ln(8)
-                            
-                            # BLOCO DE ASSINATURAS CO-ALINHADAS
-                            y_assinatura = pdf.get_y()
-                            # Agente Financeiro (Esquerda)
-                            pdf.set_xy(15, y_assinatura)
-                            pdf.set_font('Arial', 'B', 10)
-                            pdf.cell(85, 5, "AGENTE FINANCEIRO", border=0, ln=True, align='C')
-                            pdf.set_x(15)
-                            pdf.set_font('Arial', '', 9)
-                            pdf.multi_cell(85, 4, "\n\n___________________________________\nJOHN WAYNE MAIA JUNIOR\nSuboficial - ES\nCPF: 083.037.477-97", border=0, align='C')
-                            
-                            # Agente Fiscal (Direita)
-                            pdf.set_xy(110, y_assinatura)
-                            pdf.set_font('Arial', 'B', 10)
-                            pdf.cell(85, 5, "AGENTE FISCAL", border=0, ln=True, align='C')
-                            pdf.set_xy(110, y_assinatura + 5)
-                            pdf.set_font('Arial', '', 9)
-                            pdf.multi_cell(85, 4, "\n\n___________________________________\nDIANA MARQUES FERNANDES\nCapitão de Mar e Guerra (Md)\nCPF: 964.533.386-53", border=0, align='C')
                             pdf.ln(6)
                             
+                            # ==========================================
+                            # TABELA DE ASSINATURAS (ESTRUTURA SOLICITADA)
+                            # ==========================================
+                            altura_ass = 25 # Altura de cada bloco de assinatura
+                            
+                            # --- 1. AGENTE FINANCEIRO ---
+                            x_atual = pdf.get_x()
+                            y_atual = pdf.get_y()
+                            
+                            # Bloco Esquerdo (Data)
+                            pdf.rect(x_atual, y_atual, 40, altura_ass)
+                            pdf.set_xy(x_atual, y_atual + 5)
+                            pdf.set_font('Times', 'B', 9)
+                            pdf.cell(40, 5, "DATA", border=0, ln=2, align='C')
+                            pdf.cell(40, 8, "_____/_____/_______", border=0, ln=2, align='C')
+                            
+                            # Bloco Direito (Assinatura)
+                            pdf.rect(x_atual + 40, y_atual, 140, altura_ass)
+                            pdf.set_xy(x_atual + 40, y_atual + 2)
+                            pdf.set_font('Times', 'B', 9)
+                            pdf.cell(140, 5, "AGENTE FINANCEIRO", border=0, ln=2, align='C')
+                            pdf.set_font('Times', '', 9)
+                            pdf.cell(140, 5, "", border=0, ln=2) # Espaço para assinatura física
+                            pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "JOHN WAYNE MAIA JUNIOR", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "Suboficial - ES | CPF: 083.037.477-97", border=0, ln=2, align='C')
+
+                            # --- 2. AGENTE FISCAL ---
+                            y_atual = y_atual + altura_ass # Desce para a próxima linha
+                            
+                            # Bloco Esquerdo (Data)
+                            pdf.rect(x_atual, y_atual, 40, altura_ass)
+                            pdf.set_xy(x_atual, y_atual + 5)
+                            pdf.set_font('Times', 'B', 9)
+                            pdf.cell(40, 5, "DATA", border=0, ln=2, align='C')
+                            pdf.cell(40, 8, "_____/_____/_______", border=0, ln=2, align='C')
+                            
+                            # Bloco Direito (Assinatura)
+                            pdf.rect(x_atual + 40, y_atual, 140, altura_ass)
+                            pdf.set_xy(x_atual + 40, y_atual + 2)
+                            pdf.set_font('Times', 'B', 9)
+                            pdf.cell(140, 5, "AGENTE FISCAL", border=0, ln=2, align='C')
+                            pdf.set_font('Times', '', 9)
+                            pdf.cell(140, 5, "", border=0, ln=2) # Espaço para assinatura física
+                            pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "Capitão de Mar e Guerra (Md) | CPF: 964.533.386-53", border=0, ln=2, align='C')
+
+                            pdf.set_y(y_atual + altura_ass + 5)
+                            
+                            # ==========================================
                             # TABELA DE CONSIDERAÇÕES JURÍDICAS
-                            pdf.set_font('Arial', 'B', 9)
+                            # ==========================================
+                            pdf.set_font('Times', 'B', 9)
                             pdf.cell(180, 5, "CONSIDERAÇÕES DO SISAFA NAVAL:", border=0, ln=True, align='L')
                             
-                            pdf.set_font('Arial', '', 8)
+                            pdf.set_font('Times', '', 8)
                             texto_consideracoes = (
                                 "O presente certificado objetiva ao pagamento de procedimento ou serviço de saúde não disponível no "
                                 "Serviço de Saúde da Marinha na área de abrangência ou que supera sua capacidade de absorção em "
@@ -5133,7 +5164,7 @@ Cordialmente,
                             
                             # --- ESQUERDA: CONTROLE INTERNO ---
                             pdf.set_xy(15, y_rodape)
-                            pdf.set_font('Arial', 'B', 7)
+                            pdf.set_font('Times', 'B', 7)
                             pdf.cell(90, 4, "CONTROLE INTERNO DE AUTENTICAÇÃO NAVAL", border=1, ln=True, align='C', fill=True)
                             
                             dados_controle = [
@@ -5145,24 +5176,22 @@ Cordialmente,
                             
                             for rotulo, valor in dados_controle:
                                 pdf.set_x(15)
-                                pdf.set_font('Arial', 'B', 7)
+                                pdf.set_font('Times', 'B', 7)
                                 pdf.cell(30, 4.5, f" {rotulo}", border=1)
-                                pdf.set_font('Arial', '', 7)
+                                pdf.set_font('Times', '', 7)
                                 pdf.cell(60, 4.5, f" {valor}", border=1, ln=True)
 
                             # --- DIREITA: CARIMBO DE PROCESSAMENTO ---
                             pdf.set_xy(110, y_rodape)
-                            pdf.set_font('Arial', 'B', 7)
+                            pdf.set_font('Times', 'B', 7)
                             pdf.cell(85, 4, "CARIMBO / VISTO DE PROCESSAMENTO", border=1, ln=True, align='C', fill=True)
                             
-                            # Linha 1 dos quadradinhos (LF, NE, SI)
                             pdf.set_x(110)
-                            pdf.set_font('Arial', 'B', 8)
+                            pdf.set_font('Times', 'B', 8)
                             pdf.cell(28.3, 9, " LF:", border=1, align='L')
                             pdf.cell(28.3, 9, " NE:", border=1, align='L')
                             pdf.cell(28.4, 9, " SI:", border=1, align='L', ln=True)
                             
-                            # Linha 2 dos quadradinhos (NF, DA, CC - Expansível)
                             pdf.set_x(110)
                             pdf.cell(28.3, 9, " NF:", border=1, align='L')
                             pdf.cell(28.3, 9, " DA:", border=1, align='L')
