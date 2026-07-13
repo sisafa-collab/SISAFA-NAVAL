@@ -4996,28 +4996,42 @@ Cordialmente,
                         # Isso vai limpar os emojis e acentos incompatíveis antes de jogar no PDF.
                         usuario_logado = str(nome_bruto).encode('latin-1', 'ignore').decode('latin-1').strip().upper()
 
+                        # ==========================================
+                        # FUNÇÃO TÁTICA DE LIMPEZA PARA O FPDF
+                        # ==========================================
+                        def limpar_texto_fpdf(texto):
+                            if texto is None or str(texto).strip() == "" or str(texto).lower() == 'nan':
+                                return ""
+                            texto = str(texto)
+                            # 1. Troca traços especiais do Word/Web pelo hífen padrão do teclado
+                            texto = texto.replace('\u2013', '-').replace('\u2014', '-')
+                            # 2. Troca aspas "inteligentes" tortas pelas aspas retas normais
+                            texto = texto.replace('\u201c', '"').replace('\u201d', '"').replace('\u2018', "'").replace('\u2019', "'")
+                            # 3. Blinda contra qualquer outro emoji ou caractere não-latino
+                            return texto.encode('latin-1', 'ignore').decode('latin-1').strip()
+
                         # 1. Preparação das Variáveis Dinâmicas
                         data_atual = datetime.now().strftime("%d/%m/%Y")
                         
-                        # --- RESGATE COMPLETO DA TABELA-A ---
+                        # --- RESGATE COMPLETO DA TABELA-A (AGORA BLINDADO) ---
                         if not linha_ose.empty:
-                            nome_titular = str(linha_ose.iloc[0].get('Gestor Titular', 'NÃO CADASTRADO')).strip()
-                            mail_titular = str(linha_ose.iloc[0].get('E-mail do Gestor Titular', '')).strip()
+                            nome_titular = limpar_texto_fpdf(linha_ose.iloc[0].get('Gestor Titular', 'NÃO CADASTRADO'))
+                            mail_titular = limpar_texto_fpdf(linha_ose.iloc[0].get('E-mail do Gestor Titular', ''))
                             gestor_contrato = f"{nome_titular}\n{mail_titular}" if mail_titular else nome_titular
                             
-                            nome_substituto = str(linha_ose.iloc[0].get('Gestor Substituto', 'NÃO CADASTRADO')).strip()
-                            mail_substituto = str(linha_ose.iloc[0].get('E-mail do Gestor Substituto', '')).strip()
+                            nome_substituto = limpar_texto_fpdf(linha_ose.iloc[0].get('Gestor Substituto', 'NÃO CADASTRADO'))
+                            mail_substituto = limpar_texto_fpdf(linha_ose.iloc[0].get('E-mail do Gestor Substituto', ''))
                             gestor_substituto = f"{nome_substituto}\n{mail_substituto}" if mail_substituto else nome_substituto
                             
-                            empresa_razao = str(linha_ose.iloc[0].get('Razão Social', ose_txt)).strip()
-                            termo_cred = str(linha_ose.iloc[0].get('Termo de credenciamento', 'NÃO INFORMADO')).strip()
+                            empresa_razao = limpar_texto_fpdf(linha_ose.iloc[0].get('Razão Social', ose_txt))
+                            termo_cred = limpar_texto_fpdf(linha_ose.iloc[0].get('Termo de credenciamento', 'NÃO INFORMADO'))
                         else:
                             gestor_contrato = "GESTOR TITULAR\nemail@dominio.com"
                             gestor_substituto = "GESTOR SUBSTITUTO\nemail@dominio.com"
-                            empresa_razao = ose_txt
+                            empresa_razao = limpar_texto_fpdf(ose_txt)
                             termo_cred = "NÃO INFORMADO"
 
-                        nup_fatura = df_ne_fisc['nup'].iloc[0] if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
+                        nup_fatura = limpar_texto_fpdf(df_ne_fisc['nup'].iloc[0]) if not df_ne_fisc.empty else "NUP NÃO ENCONTRADO"
 
                         # 2. Construção da Classe do PDF customizada
                         class CertificadoPDF(FPDF):
