@@ -1414,7 +1414,7 @@ else:
                 # 1. Preparação dos dados
                 df_total_auditagem['valor_limpo'] = df_total_auditagem['valor_apresentado'].apply(limpar_valor)
                 df_total_auditagem['dt_mov'] = pd.to_datetime(df_total_auditagem.iloc[:, 13], dayfirst=True, errors='coerce')
-                
+                df_total_auditagem['nup'] = df_total_auditagem['nup'].astype(str)
                 hoje = datetime.now()
                 df_total_auditagem['dias_auditoria'] = (hoje - df_total_auditagem['dt_mov']).dt.days
                 
