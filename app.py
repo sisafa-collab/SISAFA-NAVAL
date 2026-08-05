@@ -969,9 +969,16 @@ if not st.session_state.logged_in:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         logo_path = carregar_imagem(caminho_logo)
-        if logo_path: 
-            st.image(logo_path, use_container_width=True)
-        else:
+        
+        try:
+            # Tenta desenhar a imagem normalmente
+            if logo_path: 
+                st.image(logo_path, use_container_width=True)
+            else:
+                st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
+        
+        except Exception:
+            # BLINDAGEM: Se a imagem falhar, estiver corrompida ou não existir, ele engole o erro e desenha o texto alternativo!
             st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
