@@ -1040,7 +1040,12 @@ if not st.session_state.logged_in:
 elif st.session_state.modulo_ativo is None:
     col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
     with col_l2:
-        if os.path.exists(caminho_logo): st.image(caminho_logo, use_container_width=True)
+        try:
+            if os.path.exists(caminho_logo): 
+                st.image(caminho_logo, use_container_width=True)
+        except Exception:
+            # BLINDAGEM: Se o arquivo existir mas estiver corrompido, exibe apenas a âncora e não derruba o app
+            st.markdown("<h2 style='text-align: center;'>⚓</h2>", unsafe_allow_html=True)
     
     st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Olá, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
