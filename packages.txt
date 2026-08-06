@@ -1,3 +1,1 @@
 graphviz
-zlib1g-dev
-libjpeg-dev
