@@ -1039,7 +1039,7 @@ elif st.session_state.modulo_ativo is None:
             st.markdown("<h2 style='text-align: center;'>⚓ SISAFA-NAVAL</h2>", unsafe_allow_html=True)
     
     nome_operador = st.session_state.get('user_full_name', 'Comandante')
-    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}!</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}</h3>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
 
     
@@ -6565,7 +6565,7 @@ Cordialmente,
                                 pm4py.save_vis_dfg(dfg, sa, ea, "mapa_prod.png")
                                 st.image("mapa_prod.png", caption=f"Fluxo Minerado - {mes_sel}", use_container_width=True)
                             except Exception as e_vis:
-                                st.warning("Visualização do mapa indisponível.")
+                                st.error(f"🚨 Motivo da falha no mapa: {e_vis}")
 
 
                 except Exception as e:

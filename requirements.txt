@@ -5,6 +5,7 @@ oauth2client
 pandas
 plotly
 pm4py
+graphviz
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
