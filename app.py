@@ -25,7 +25,7 @@ import kaleido
 st.set_page_config(
     page_title="SISAFA NAVAL ⚓", 
     layout="centered", 
-    page_icon=icone,
+    page_icon="⚓",
     initial_sidebar_state="expanded" 
 )
 # =================================================================
@@ -964,25 +964,13 @@ if not st.session_state.logged_in:
         
         # BLINDAGEM BASE64: Converte a logo em texto base64 para o HTML renderizar direto
         if logo_path and os.path.exists(logo_path):
-            with open(logo_path, "rb") as f:
+            with open(caminho_logo, "rb") as f:
                 data_logo = base64.b64encode(f.read()).decode()
             st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{data_logo}" style="max-width: 100%; height: auto;"></div>', unsafe_allow_html=True)
+        # SE a imagem não existir, ele desenha o texto (Mas NUNCA os dois ao mesmo tempo!)
         else:
-            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align: center;'>⚓ SISAFA-NAVAL</h2>", unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        try:
-            # Tenta desenhar a imagem normalmente
-            if logo_path: 
-                st.image(logo_path, use_container_width=True)
-            else:
-                st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
-        
-        except Exception:
-            # BLINDAGEM: Se a imagem falhar, estiver corrompida ou não existir, ele engole o erro e desenha o texto alternativo!
-            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
-        
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Formulário de Login
