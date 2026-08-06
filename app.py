@@ -970,6 +970,16 @@ if not st.session_state.logged_in:
     with col2:
         logo_path = carregar_imagem(caminho_logo)
         
+        # BLINDAGEM BASE64: Converte a logo em texto base64 para o HTML renderizar direto
+        if logo_path and os.path.exists(logo_path):
+            with open(logo_path, "rb") as f:
+                data_logo = base64.b64encode(f.read()).decode()
+            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{data_logo}" style="max-width: 100%; height: auto;"></div>', unsafe_allow_html=True)
+        else:
+            st.markdown("<h1 style='text-align: center;'>⚓ SISAFA-NAVAL</h1>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         try:
             # Tenta desenhar a imagem normalmente
             if logo_path: 
@@ -1040,14 +1050,13 @@ if not st.session_state.logged_in:
 elif st.session_state.modulo_ativo is None:
     col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
     with col_l2:
-        try:
-            if os.path.exists(caminho_logo): 
-                st.image(caminho_logo, use_container_width=True)
-        except Exception:
-            # BLINDAGEM: Se o arquivo existir mas estiver corrompido, exibe apenas a âncora e não derruba o app
-            st.markdown("<h2 style='text-align: center;'>⚓</h2>", unsafe_allow_html=True)
+        if os.path.exists(caminho_logo):
+            with open(caminho_logo, "rb") as f:
+                data_logo = base64.b64encode(f.read()).decode()
+            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{data_logo}" style="max-width: 100%; height: auto;"></div>', unsafe_allow_html=True)
+        else:
+            st.markdown("<h2 style='text-align: center;'>⚓ SISAFA-NAVAL</h2>", unsafe_allow_html=True)
     
-    st.markdown(f"<h1 style='text-align: center; color: #2e6b54;'>⚓ Olá, {st.session_state.user_full_name}</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
     
     # Cria os botões de SECOM, AUDITORIA, etc., baseado no cadastro do usuário
@@ -6758,6 +6767,13 @@ Cordialmente,
                     st.markdown("#### 📈 Evolução da Eficiência (liquidação e pagamento)")
                     
                     if not evol_t1.empty and not evol_t2.empty:
+                        # 🚨 VACINA DO GRÁFICO LOUCO: Ordena por data real antes de desenhar
+                        evol_t1['dt_temp'] = pd.to_datetime(evol_t1['mes_str'], format='%m/%Y', errors='coerce')
+                        evol_t1 = evol_t1.sort_values('dt_temp').drop(columns=['dt_temp'])
+
+                        evol_t2['dt_temp'] = pd.to_datetime(evol_t2['mes_str'], format='%m/%Y', errors='coerce')
+                        evol_t2 = evol_t2.sort_values('dt_temp').drop(columns=['dt_temp'])
+
                         # Gráfico Evolução T1
                         fig_evol_t1 = px.line(
                             evol_t1, x='mes_str', y='pct', color='cat_T1', markers=True,
@@ -6791,7 +6807,7 @@ Cordialmente,
             except Exception as e:
                 st.error(f"Erro na análise microprocessual: {e}")
 
-            #
+            
             # =================================================================
             # --- 3️⃣ RANKING DE GESTORES (Fase 6 - Liquidação) ---
             # =================================================================
