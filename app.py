@@ -6563,7 +6563,7 @@ Cordialmente,
                                 
                                 dfg, sa, ea = pm4py.discover_dfg(event_log)
                                 pm4py.save_vis_dfg(dfg, sa, ea, "mapa_prod.png")
-                                st.image("mapa_prod.png", caption=f"Fluxo Minerado - {mes_sel}", use_container_width=True)
+                                st.image("mapa_prod.png", caption=f"Fluxo Minerado - {mes_sel}", use_column_width=True)
                             except Exception as e_vis:
                                 st.error(f"🚨 Motivo da falha no mapa: {e_vis}")
 
@@ -6745,26 +6745,30 @@ Cordialmente,
                     st.plotly_chart(fig_pag, use_container_width=True)
 
                     # =================================================================
+                    # =================================================================
                     # 📈 NOVO: GRÁFICOS DE EVOLUÇÃO (LINHA DO TEMPO)
                     # =================================================================
                     st.divider()
                     st.markdown("#### 📈 Evolução da Eficiência (liquidação e pagamento)")
                     
                     if not evol_t1.empty and not evol_t2.empty:
-                        # 🚨 VACINA DO GRÁFICO LOUCO: Ordena por data real antes de desenhar
-                        evol_t1['dt_temp'] = pd.to_datetime(evol_t1['mes_str'], format='%m/%Y', errors='coerce')
-                        evol_t1 = evol_t1.sort_values('dt_temp').drop(columns=['dt_temp'])
+                        # 🚨 A VERDADEIRA VACINA: Ordena pela coluna de data 'mes_dt' que já existe e é precisa
+                        evol_t1 = evol_t1.sort_values(['mes_dt', 'cat_T1'])
+                        evol_t2 = evol_t2.sort_values(['mes_dt', 'cat_T2'])
+                        
+                        # Extrai a ordem exata dos meses para o Plotly não tentar organizar por ordem alfabética
+                        ordem_meses_t1 = evol_t1['mes_str'].unique()
+                        ordem_meses_t2 = evol_t2['mes_str'].unique()
 
-                        evol_t2['dt_temp'] = pd.to_datetime(evol_t2['mes_str'], format='%m/%Y', errors='coerce')
-                        evol_t2 = evol_t2.sort_values('dt_temp').drop(columns=['dt_temp'])
-
-                        # Gráfico Evolução T1
+                        # --- Gráfico Evolução T1 ---
                         fig_evol_t1 = px.line(
                             evol_t1, x='mes_str', y='pct', color='cat_T1', markers=True,
                             title="Evolução Temporal (da entrega da NE aos fiscais à liquidação ⏳)",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T1': ['Ideal', 'Atenção', 'Crítico']}
                         )
+                        # O comando abaixo TRAVA o eixo X na ordem cronológica!
+                        fig_evol_t1.update_xaxes(categoryorder='array', categoryarray=ordem_meses_t1)
                         fig_evol_t1.update_traces(line_shape='spline', line_width=3, marker_size=8)
                         fig_evol_t1.update_layout(yaxis_title="Percentual (%)", xaxis_title="Mês de Conclusão",
                                                   hovermode='x unified', yaxis_ticksuffix="%",
@@ -6772,13 +6776,15 @@ Cordialmente,
                         
                         st.plotly_chart(fig_evol_t1, use_container_width=True)
 
-                        # Gráfico Evolução T2
+                        # --- Gráfico Evolução T2 ---
                         fig_evol_t2 = px.line(
                             evol_t2, x='mes_str', y='pct', color='cat_T2', markers=True,
                             title="Evolução Temporal (da liquidação ao pagamento⏳)",
                             color_discrete_map=mapa_cores_grafico,
                             category_orders={'cat_T2': ['Ideal', 'Atenção', 'Crítico']}
                         )
+                        # O comando abaixo TRAVA o eixo X na ordem cronológica!
+                        fig_evol_t2.update_xaxes(categoryorder='array', categoryarray=ordem_meses_t2)
                         fig_evol_t2.update_traces(line_shape='spline', line_width=3, marker_size=8)
                         fig_evol_t2.update_layout(yaxis_title="Percentual (%)", xaxis_title="Mês de Conclusão",
                                                   hovermode='x unified', yaxis_ticksuffix="%",
