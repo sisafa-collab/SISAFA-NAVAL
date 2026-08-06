@@ -6605,8 +6605,7 @@ Cordialmente,
                 df_civis = df_civis.dropna(subset=['timestamp'])
 
                 # =========================================================================
-                # ⚙️ MOTOR PARALELO (CRIADOR DO EVOL_T1 E EVOL_T2)
-                # Deve rodar antes do filtro de mês para pegar a linha do tempo completa
+                # ⚙️ MOTOR PARALELO (CRIADOR DO EVOL_T1 E EVOL_T2 - BLINDADO)
                 # =========================================================================
                 evol_t1 = pd.DataFrame()
                 evol_t2 = pd.DataFrame()
@@ -6627,24 +6626,41 @@ Cordialmente,
                     df_9 = df_full_evol[df_full_evol['status_destino'] == '9'].drop_duplicates('nup', keep='last')
                     meses_pt = {1:'JAN', 2:'FEV', 3:'MAR', 4:'ABR', 5:'MAI', 6:'JUN', 7:'JUL', 8:'AGO', 9:'SET', 10:'OUT', 11:'NOV', 12:'DEZ'}
                     df_9['mes_dt'] = df_9['timestamp'].dt.to_period('M').dt.to_timestamp()
-                    df_9['mes_str'] = df_9['timestamp'].dt.month.map(meses_pt) + df_9['timestamp'].dt.year.astype(str)
+                    df_9['mes_str'] = df_9['timestamp'].dt.month.map(meses_pt) + '/' + df_9['timestamp'].dt.year.astype(str)
 
                     df_pivot_full = df_pivot_full.merge(df_9[['nup', 'mes_dt', 'mes_str']], on='nup', how='inner')
 
-                    # Categorização blindada para os gráficos de linha
+                    # Categorização blindada
                     cats = ['Ideal', 'Atenção', 'Crítico']
                     df_pivot_full['cat_T1'] = pd.Categorical(pd.cut(df_pivot_full['tempo_liquidacao'], bins=[-1, 20, 30, float('inf')], labels=cats), categories=cats, ordered=True)
                     df_pivot_full['cat_T2'] = pd.Categorical(pd.cut(df_pivot_full['8'], bins=[-1, 3, 10, float('inf')], labels=cats), categories=cats, ordered=True)
 
-                    # Agrupamento Percentual
-                    evol_t1 = df_pivot_full.groupby(['mes_dt', 'mes_str', 'cat_T1'], observed=False).size().reset_index(name='qtd')
-                    evol_t1['pct'] = evol_t1.groupby(['mes_dt', 'mes_str'], observed=False)['qtd'].transform(lambda x: (x / x.sum()) * 100).fillna(0)
-                    evol_t1 = evol_t1.sort_values('mes_dt')
+                    if not df_pivot_full.empty:
+                        # Extrai todos os meses únicos reais ordenados
+                        meses_unicos = df_pivot_full[['mes_dt', 'mes_str']].drop_duplicates().sort_values('mes_dt')
 
-                    evol_t2 = df_pivot_full.groupby(['mes_dt', 'mes_str', 'cat_T2'], observed=False).size().reset_index(name='qtd')
-                    evol_t2['pct'] = evol_t2.groupby(['mes_dt', 'mes_str'], observed=False)['qtd'].transform(lambda x: (x / x.sum()) * 100).fillna(0)
-                    evol_t2 = evol_t2.sort_values('mes_dt')
-                # =========================================================================
+                        # --- GERAÇÃO BLINDADA T1 ---
+                        idx_full_t1 = pd.MultiIndex.from_product([meses_unicos['mes_dt'], cats], names=['mes_dt', 'cat_T1'])
+                        raw_t1 = df_pivot_full.groupby(['mes_dt', 'cat_T1'], observed=False).size().reset_index(name='qtd')
+                        evol_t1 = raw_t1.set_index(['mes_dt', 'cat_T1']).reindex(idx_full_t1, fill_value=0).reset_index()
+                        
+                        mapa_str = meses_unicos.set_index('mes_dt')['mes_str'].to_dict()
+                        evol_t1['mes_str'] = evol_t1['mes_dt'].map(mapa_str)
+                        
+                        total_mes_t1 = evol_t1.groupby('mes_dt', observed=False)['qtd'].transform('sum')
+                        evol_t1['pct'] = (evol_t1['qtd'] / total_mes_t1.replace(0, 1)) * 100
+                        evol_t1 = evol_t1.sort_values('mes_dt')
+
+                        # --- GERAÇÃO BLINDADA T2 ---
+                        idx_full_t2 = pd.MultiIndex.from_product([meses_unicos['mes_dt'], cats], names=['mes_dt', 'cat_T2'])
+                        raw_t2 = df_pivot_full.groupby(['mes_dt', 'cat_T2'], observed=False).size().reset_index(name='qtd')
+                        evol_t2 = raw_t2.set_index(['mes_dt', 'cat_T2']).reindex(idx_full_t2, fill_value=0).reset_index()
+                        
+                        evol_t2['mes_str'] = evol_t2['mes_dt'].map(mapa_str)
+                        
+                        total_mes_t2 = evol_t2.groupby('mes_dt', observed=False)['qtd'].transform('sum')
+                        evol_t2['pct'] = (evol_t2['qtd'] / total_mes_t2.replace(0, 1)) * 100
+                        evol_t2 = evol_t2.sort_values('mes_dt')
 
                 # 4. VOLTA AO FLUXO NORMAL (Filtro para a Pizza e Métricas)
                 df_civis['mes_ano'] = df_civis['timestamp'].dt.strftime('%m/%Y')
