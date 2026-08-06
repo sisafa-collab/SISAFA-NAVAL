@@ -22,6 +22,8 @@ import json
 import tempfile
 import kaleido
 
+
+st.cache_data.clear()
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
 # =================================================================
