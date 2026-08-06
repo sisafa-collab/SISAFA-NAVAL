@@ -22,6 +22,12 @@ import json
 import tempfile
 import kaleido
 
+st.set_page_config(
+    page_title="SISAFA NAVAL ⚓", 
+    layout="centered", 
+    page_icon=icone,
+    initial_sidebar_state="expanded" 
+)
 # =================================================================
 # CONFIGURAÇÃO DO MOTOR GRÁFICO (GRAPHVIZ)
 # =================================================================
@@ -67,13 +73,6 @@ caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
 caminho_escudo_dsm = os.path.join(pasta_projeto, "Simbolo-DSM_SISAFA.png")
 
 icone = Image.open(caminho_favicon)
-
-st.set_page_config(
-    page_title="SISAFA NAVAL ⚓", 
-    layout="centered", 
-    page_icon=icone,
-    initial_sidebar_state="expanded" 
-)
 
 # --- ESTILIZAÇÃO CSS  ---
 
@@ -959,13 +958,6 @@ if 'nups_para_receber' not in st.session_state:
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # O MASCOTE agora está preso aqui dentro. Só aparece se NÃO estiver logado.
-    mascote_path = carregar_imagem(caminho_mascote)
-    if mascote_path:
-        with open(mascote_path, "rb") as f:
-            data = base64.b64encode(f.read()).decode()
-            st.markdown(f'<img src="data:image/png;base64,{data}" style="position: fixed; bottom: 20px; right: 20px; width: 180px; z-index:999;">', unsafe_allow_html=True)
-
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         logo_path = carregar_imagem(caminho_logo)
@@ -1048,6 +1040,12 @@ if not st.session_state.logged_in:
 
 # --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
 elif st.session_state.modulo_ativo is None:
+
+    nome_operador = st.session_state.get('user_id', 'Comandante')
+    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}!</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
+
+
     col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
     with col_l2:
         if os.path.exists(caminho_logo):
