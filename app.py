@@ -1029,11 +1029,6 @@ if not st.session_state.logged_in:
 # --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
 elif st.session_state.modulo_ativo is None:
 
-    nome_operador = st.session_state.get('user_id', 'Comandante')
-    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}!</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
-
-
     col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
     with col_l2:
         if os.path.exists(caminho_logo):
@@ -1043,7 +1038,10 @@ elif st.session_state.modulo_ativo is None:
         else:
             st.markdown("<h2 style='text-align: center;'>⚓ SISAFA-NAVAL</h2>", unsafe_allow_html=True)
     
+    nome_operador = st.session_state.get('user_full_name', 'Comandante')
+    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}!</h3>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
+
     
     # Cria os botões de SECOM, AUDITORIA, etc., baseado no cadastro do usuário
     perfis = [p.strip().upper() for p in st.session_state.user_perfil.split(',')]
