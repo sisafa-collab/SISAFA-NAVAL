@@ -868,6 +868,47 @@ def registrar_historico_lote(lista_de_linhas):
     # Envia 10, 20 ou 100 linhas em UMA ÚNICA chamada à API do Google! Custa apenas 1 requisição.
     worksheet_historico.append_rows(lista_de_linhas)
 
+# =================================================================
+# 🚀 FUNÇÕES DE LOTE (BATCH UPDATE) - ECONOMIA DE COTA GOOGLE
+# =================================================================
+
+def registrar_acao_lote(lista_de_acoes):
+    """Grava as ações do sistema em massa"""
+    # ⚠️ ATENÇÃO: Substitua 'worksheet_acoes' pela variável real da sua aba de ações
+    if lista_de_acoes:
+        worksheet_acoes.append_rows(lista_de_acoes)
+
+
+def mover_status_lote(nups_selecionados, novo_status, auditor_nip):
+    """Localiza os NUPs espalhados na planilha e atualiza o status de todos de uma vez"""
+    
+    # 1. Puxar a coluna inteira de NUPs para a memória (Custa apenas 1 requisição)
+    # ⚠️ ATENÇÃO: Substitua 'worksheet' pela variável da sua aba principal de processos.
+    # O número '1' significa Coluna A (onde ficam os NUPs). Se for na Coluna B, mude para 2.
+    todos_nups = worksheet.col_values(1) 
+    
+    celulas_lote = []
+    
+    # 2. Achar as linhas na memória local (Custo zero de cota)
+    for nup in nups_selecionados:
+        nup_str = str(nup).strip()
+        
+        if nup_str in todos_nups:
+            # Encontra a linha. (+1 porque Python começa no 0 e a planilha começa na linha 1)
+            linha_real = todos_nups.index(nup_str) + 1 
+            
+            # PREPARA CÉLULA DO STATUS
+            # ⚠️ ATENÇÃO: Substitua '2' pelo número real da coluna de STATUS no seu Sheets (Ex: B=2, C=3, J=10)
+            celulas_lote.append(gspread.Cell(row=linha_real, col=2, value=novo_status))
+            
+            # (OPCIONAL) Se quiser carimbar o NIP do auditor em alguma coluna da aba principal
+            # ⚠️ ATENÇÃO: Substitua '15' pela coluna do NIP do Auditor. Se não usar, basta apagar essa linha.
+            # celulas_lote.append(gspread.Cell(row=linha_real, col=15, value=auditor_nip))
+            
+    # 3. Disparo Único Múltiplo! (Custa apenas 1 requisição para alterar 10, 50 ou 100 linhas)
+    if celulas_lote:
+        worksheet.update_cells(celulas_lote)
+
 @st.cache_data(ttl=3600)
 def obter_tabela_referencia_glosa():
     """Lê a tabela de referência do Google apenas 1 vez por hora."""
