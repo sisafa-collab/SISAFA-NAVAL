@@ -864,6 +864,9 @@ def carregar_rascunho(nup):
     except:
         return None
 
+def registrar_historico_lote(lista_de_linhas):
+    # Envia 10, 20 ou 100 linhas em UMA ÚNICA chamada à API do Google! Custa apenas 1 requisição.
+    worksheet_historico.append_rows(lista_de_linhas)
 
 @st.cache_data(ttl=3600)
 def obter_tabela_referencia_glosa():
@@ -1270,38 +1273,41 @@ else:
                 
                 if st.button("📥 RECEBER PROCESSOS SELECIONADOS", use_container_width=True):
                     if nups_sel:
-                        with st.spinner("Movimentando para auditagem..."):
+                        with st.spinner("Movimentando para auditagem de forma otimizada..."):
                             try:
+                                # 1. CRIAMOS LISTAS VAZIAS (AS "CAIXAS") PARA JUNTAR OS DADOS
+                                lote_acoes = []
+                                lote_historicos = []
+                                auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+
                                 for n in nups_sel:
-                                    # 1. Move fisicamente o status na planilha de processos
-                                    mover_status(n, 2, auditor_nip=st.session_state.user_id)
-                                    
-                                    # 2. Captura cirúrgica dos dados da fatura para evitar NameError
+                                    # Captura cirúrgica dos dados da fatura na memória (Custo 0)
                                     linha_fatura = df[df['nup'] == n].iloc[0]
                                     fat_n = str(linha_fatura['Numero_da_fatura'])
                                     v_apres = limpar_valor(linha_fatura['valor_apresentado'])
-                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
                                     
-                                    # 3. Log rápido na memória de ações
-                                    registrar_acao(n, fat_n, "RECEBIMENTO", f"Auditor {auditor_nip} recebeu o processo.")
+                                    # Em vez de mandar pro Google agora, apenas guardamos na lista local!
+                                    lote_acoes.append([n, fat_n, "RECEBIMENTO", f"Auditor {auditor_nip} recebeu o processo."])
                                     
-                                    # 4. IMPLEMENTAÇÃO DA SUA FUNÇÃO NATIVA DE HISTÓRICO
-                                    # Parâmetros: nup, fatura, origem (1), destino (2), valor, observação
-                                    registrar_historico(
-                                        nup=str(n),
-                                        fatura=fat_n,
-                                        origem="1",
-                                        destino="2",
-                                        valor=v_apres,
-                                        obs=f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
-                                    )
+                                    lote_historicos.append([
+                                        str(n), fat_n, "1", "2", v_apres, 
+                                        f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
+                                    ])
+
+                                # =================================================================
+                                # 🚀 MANOBRA DE LOTE (BATCH UPDATE) - FORA DO LOOP
+                                # =================================================================
+                                # Aqui fazemos UMA única requisição para a API do Google por função!
                                 
-                                # 🛡️ MANOBRA 2: Freio tático anti-bloqueio (Google Write Quota)
-                                    # 1 segundo de pausa entre os processos salva a sua cota de estourar por requisições massivas.
-                                    time.sleep(1)
+                                # Adapte as suas funções no backend para aceitarem listas (lotes) em vez de itens únicos:
+                                mover_status_lote(nups_sel, 2, auditor_nip=auditor_nip) 
+                                registrar_acao_lote(lote_acoes)
+                                registrar_historico_lote(lote_historicos)
                                 
-                                st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
-                                time.sleep(1)
+                                # Removido o time.sleep(1) pois agora fazemos pouquíssimas chamadas.
+
+                                st.toast("Sucesso! Processos movidos para 'Em Auditagem' em Lote.", icon="✅")
+                                time.sleep(1) # Pausa apenas para o usuário ler o Toast antes do rerun
                                 st.rerun()
                                 
                             except Exception as e:
