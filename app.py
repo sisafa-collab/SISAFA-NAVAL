@@ -1259,6 +1259,7 @@ else:
                 st.info("Não há faturas na fila no momento.")
             else:
                 # Exibição da Tabela
+                df_fila['ano_competencia'] = df_fila['ano_competencia'].astype(str)
                 st.dataframe(
                     df_fila[['nup', 'ose', 'valor_apresentado', 'mes_sigla', 'ano_competencia', 'dias_fila']], 
                     use_container_width=True
@@ -1295,8 +1296,9 @@ else:
                                         obs=f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
                                     )
                                 
-                                # 5. Limpeza estratégica de cache para atualizar a fila e os KPIs na hora
-                                st.cache_data.clear()
+                                # 🛡️ MANOBRA 2: Freio tático anti-bloqueio (Google Write Quota)
+                                    # 1 segundo de pausa entre os processos salva a sua cota de estourar por requisições massivas.
+                                    time.sleep(1)
                                 
                                 st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
                                 time.sleep(1)
