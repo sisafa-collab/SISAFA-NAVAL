@@ -66,8 +66,10 @@ ABA_RASCUNHO = "SISAFA-NAVAL-Rascunhos"
 # Localiza a pasta do projeto
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_outubro_rosa.png")
 caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
 caminho_escudo_dsm = os.path.join(pasta_projeto, "Simbolo-DSM_SISAFA.png")
@@ -923,8 +925,8 @@ def obter_tabela_referencia_glosa():
 
 # --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
-caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
-caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_outubro_rosa.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
 
 # Função para carregar imagem sem quebrar o app
 def carregar_imagem(caminho):
@@ -1006,7 +1008,7 @@ if not st.session_state.logged_in:
     # =========================================================================
     # 🎨 IMAGEM FIXA NO CANTO INFERIOR DIREITO (Mascote/Apresentação)
     # =========================================================================
-    caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+    caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
     if os.path.exists(caminho_mascote):
         with open(caminho_mascote, "rb") as f:
             data_mascote = base64.b64encode(f.read()).decode()
@@ -1097,7 +1099,7 @@ if not st.session_state.logged_in:
                 # 2. ALARME CRÍTICO: Avisa se o sistema baixou uma tabela de usuários vazia!
                 st.error("🚨 ERRO GRAVE: A tabela de usuários não foi carregada ou está completamente vazia. Verifique a conexão com o Google Sheets.")
 
-# --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) ---
+# --- 2. TELA DE SELEÇÃO DE MÓDULO (ISSO CURA A TELA BRANCA) --- Verde da apresentação: #2e6b54
 elif st.session_state.modulo_ativo is None:
 
     col_l1, col_l2, col_l3 = st.columns([1.2, 1, 1.2])
@@ -1111,7 +1113,7 @@ elif st.session_state.modulo_ativo is None:
     
     nome_operador = st.session_state.get('user_full_name', 'Comandante')
     st.markdown(
-    f"<h3 style='text-align: center; color: #2e6b54; text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.4); font-weight: bold;'>Olá, {nome_operador}</h3>", 
+    f"<h3 style='text-align: center; color: #ff66c4; text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.4); font-weight: bold;'>Olá, {nome_operador}</h3>", 
     unsafe_allow_html=True
     )
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
