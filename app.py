@@ -1083,7 +1083,10 @@ elif st.session_state.modulo_ativo is None:
             st.markdown("<h2 style='text-align: center;'>⚓ SISAFA-NAVAL</h2>", unsafe_allow_html=True)
     
     nome_operador = st.session_state.get('user_full_name', 'Comandante')
-    st.markdown(f"<h3 style='text-align: center;'>Olá, {nome_operador}</h3>", unsafe_allow_html=True)
+    st.markdown(
+    f"<h3 style='text-align: center; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.4); font-weight: bold;'>Olá, {nome_operador}</h3>", 
+    unsafe_allow_html=True
+    )
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
 
     
