@@ -1002,6 +1002,33 @@ if 'nups_para_receber' not in st.session_state:
 
 # --- 1. TELA DE LOGIN ---
 if not st.session_state.logged_in:
+
+    # =========================================================================
+    # 🎨 IMAGEM FIXA NO CANTO INFERIOR DIREITO (Mascote/Apresentação)
+    # =========================================================================
+    caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
+    if os.path.exists(caminho_mascote):
+        with open(caminho_mascote, "rb") as f:
+            data_mascote = base64.b64encode(f.read()).decode()
+            
+        # O CSS 'position: fixed; bottom: 20px; right: 20px;' trava a imagem no canto.
+        # 'z-index: 1000' garante que ela fique por cima do fundo.
+        # 'pointer-events: none' garante que ela não bloqueie cliques acidentais na tela.
+        st.markdown(
+            f'''
+            <img src="data:image/png;base64,{data_mascote}" 
+                 style="position: fixed; 
+                        bottom: 20px; 
+                        right: 20px; 
+                        max-width: 250px; /* Ajuste o tamanho máximo aqui se precisar */
+                        height: auto; 
+                        z-index: 1000; 
+                        opacity: 0.9;
+                        pointer-events: none;">
+            ''', 
+            unsafe_allow_html=True
+        )
+    # =========================================================================    
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         logo_path = carregar_imagem(caminho_logo)
