@@ -5227,10 +5227,10 @@ Cordialmente,
                             pdf.set_font('Times', '', 9)
                             pdf.cell(140, 4, "", border=0, ln=2)  # Espaço para o visto da capitã
                             pdf.cell(140, 4, "______________________________________________________", border=0, ln=2, align='C')
-                            pdf.cell(140, 4, "DIANA MARQUES FERNANDES", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "LUCIANA BASTOS MACIEL", border=0, ln=2, align='C')
                             pdf.cell(140, 4, "Capitão de Mar e Guerra (Md)", border=0, ln=2, align='C')
                             pdf.set_font('Times', 'I', 8.5)
-                            pdf.cell(140, 4, "CPF: 964.533.386-53", border=0, ln=2, align='C')
+                            pdf.cell(140, 4, "CPF: 034.914.877-57", border=0, ln=2, align='C')
 
                             # Empurra o cursor do PDF de forma correta para a tabela de considerações que vem logo abaixo
                             pdf.set_y(y_atual + altura_ass + 5)
