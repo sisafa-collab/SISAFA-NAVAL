@@ -1165,7 +1165,7 @@ else:
     st.markdown(f'<div class="welcome-box">⚓ SISAFA-NAVAL: {st.session_state.modulo_ativo}</div>', unsafe_allow_html=True)
     
     # --- DESENVOLVIMENTO DOS MÓDULOS ESPECÍFICOS ---
-
+    
     if st.session_state.modulo_ativo == "SECOM":
         st.header("📥 Cadastro de Faturas (SECOM)")
         aba_a = sh.worksheet(ABA_TABELA_A)
@@ -1271,9 +1271,9 @@ else:
         })
 
         # Criação das 6 abas solicitadas
-        t_fila, t_mesa, t_auditadas, t_busca, t_stats, t_rel = st.tabs([
+        t_fila, t_mesa, t_auditadas, t_busca, t_stats, t_rel, t_carefy = st.tabs([
             "📥 Fila de Espera", "🩺 Em Auditagem", "✅ Auditadas", 
-            "🔍 Consultas", "📊 Produtividade", "💬 Relacionamento"
+            "🔍 Consultas", "📊 Produtividade", "💬 Relacionamento", "💻 Carefy"
         ])
 
         # --- MAPEAMENTO DE MESES PARA EXIBIÇÃO ---
@@ -3098,7 +3098,7 @@ else:
 
 
 
-    # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
+        # --- 6. ABA: RELACIONAMENTO (Módulo Auditoria) ---
         with t_rel:
             st.subheader("💬 Central de Relacionamento")
             
@@ -3193,6 +3193,103 @@ else:
             except Exception as e:
                 st.error(f"Erro ao carregar Central de Relacionamento: {e}")    
 
+        # --- ABA CAREFY ---
+        with t_carefy:
+            st.header("💻 Cadastro de Faturas Digitais (CAREFY)")
+            
+            # Busca a lista de OSEs na Tabela A (mesma lógica da SECOM)
+            aba_a = sh.worksheet(ABA_TABELA_A)
+            oses = {r[0].strip(): r[1].strip() for r in aba_a.get_all_values()[1:] if r[0]}
+            
+            # 1. Código no lugar do NUP (Apenas 12 dígitos numéricos)
+            codigo_carefy = st.text_input("Código da Fatura (12 dígitos)", placeholder="Ex: 123456789101", max_chars=12)
+            
+            c1, c2 = st.columns(2)
+            sel_cnpj = c1.selectbox("Selecione o CNPJ da OSE (Carefy)", [""] + sorted(list(oses.keys())))
+            empresa_nome = oses.get(sel_cnpj, "")
+            c2.text_input("Empresa (OSE) - Carefy", value=empresa_nome, disabled=True)
+            
+            # 2. Seleção do Tipo de Serviço
+            tipos_permitidos = ["", "Consulta", "SADT", "Internação", "Exames laboratoriais", "Exames de imagem"]
+            tipo_selecionado = st.selectbox("Tipo de Fatura", tipos_permitidos)
+            
+            v_ap = st.number_input("Valor Apresentado Carefy (R$)", min_value=0.0, format="%.2f")
+        
+            # 3. Montagem automática do Número da Fatura
+            if codigo_carefy and tipo_selecionado:
+                num_fatura = f"{codigo_carefy} - CAREFY - [{tipo_selecionado}]"
+                st.info(f"**Número da Fatura gerado:** {num_fatura}")
+            else:
+                num_fatura = ""
+        
+            # --- NOVA LÓGICA DE VALIDAÇÃO (CAREFY) ---
+            padrao_carefy = r"^\d{12}$" # Valida exatamente 12 números
+        
+            if st.button("CADASTRAR FATURA CAREFY", use_container_width=True):
+                # 1. Checagem de campos vazios (Exige a seleção do tipo)
+                if not (codigo_carefy and sel_cnpj and tipo_selecionado and v_ap > 0):
+                    st.warning("⚠️ Preencha todos os campos obrigatórios (incluindo o Tipo) antes de cadastrar.")
+                
+                # 2. Validação rigorosa dos 12 dígitos
+                elif not re.match(padrao_carefy, codigo_carefy):
+                    st.error("❌ Formato incorreto! O código Carefy deve conter exatamente 12 dígitos numéricos.")
+                
+                # 3. Checagem de duplicidade (Na mesma coluna do NUP no df local)
+                elif codigo_carefy in df['nup'].astype(str).values:
+                    st.error(f"🚫 Opa! Nobre {st.session_state.user_full_name}, o código {codigo_carefy} já foi cadastrado por outro (a) usuário (a)! 🚫")
+                
+                else:
+                    st.session_state.confirmar_carefy = True
+        
+            # --- CAIXA DE CONFIRMAÇÃO ---
+            if st.session_state.get("confirmar_carefy", False):
+                st.markdown("---")
+                st.warning(f"**⚠️ CONFIRMAÇÃO:** Tem certeza de que os dados da fatura **{num_fatura}** estão corretos?")
+                col_sim, col_nao = st.columns(2)
+                
+                if col_sim.button("✅ SIM, confirmar dados", use_container_width=True, key="btn_sim_carefy"):
+                    with st.spinner("Efetuando registro..."):
+                        try:
+                            # 1. Conexão com a planilha de processos
+                            aba_proc = sh.worksheet("SISAFA-NAVAL-processos")
+                            
+                            # --- 🛡️ BLINDAGEM ANTI-DUPLICIDADE EM TEMPO REAL ---
+                            nups_na_planilha = aba_proc.col_values(2) 
+                            if codigo_carefy in nups_na_planilha:
+                                st.error(f"🚫 Opa! Nobre {st.session_state.user_full_name}, o código {codigo_carefy} já foi cadastrado por outro usuário! 🚫")
+                                st.session_state.confirmar_carefy = False
+                                time.sleep(2)
+                                st.rerun()
+        
+                            dt_hoje = datetime.now().strftime("%d/%m/%Y")
+                            
+                            # 2. Prepara e Grava a Linha de Processo
+                            # O codigo_carefy entra exatamente na coluna 2, substituindo o formato antigo de NUP
+                            nova_linha = [
+                                str(datetime.now().timestamp()), codigo_carefy, sel_cnpj, empresa_nome, 
+                                num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
+                                1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
+                            ]
+                            aba_proc.append_row(nova_linha)
+                            
+                            # 3. Alimenta aba HISTORICO e LOGS
+                            registrar_historico(codigo_carefy, num_fatura, "0", "1", v_ap, f"Entrada via CAREFY - {tipo_selecionado}")
+                            registrar_acao(codigo_carefy, num_fatura, "CADASTRO_INICIAL", f"Fatura CAREFY cadastrada por {st.session_state.user_full_name}")
+                            
+                            # --- 🚀 RESET DOS CAMPOS ---
+                            st.session_state.confirmar_carefy = False
+                            
+                            st.success(f"🎉 Sucesso! Fatura {num_fatura} inserida. Obrigado, {st.session_state.user_full_name}! 🚀")
+                            time.sleep(1) 
+                            st.rerun()
+        
+                        except Exception as e:
+                            st.error(f"Erro ao conectar com a planilha: {e}")
+                            st.stop()
+        
+                if col_nao.button("❌ NÃO, voltar e corrigir", use_container_width=True, key="btn_nao_carefy"):
+                    st.session_state.confirmar_carefy = False
+                    st.rerun()
 
     elif "EXECUÇÃO" in st.session_state.modulo_ativo:
         st.header("💰 Execução Financeira")
