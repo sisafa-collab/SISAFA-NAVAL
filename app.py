@@ -67,9 +67,11 @@ ABA_RASCUNHO = "SISAFA-NAVAL-Rascunhos"
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL.png")
 caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_outubro_rosa.png")
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_novembro_azul.png")
 caminho_logo_relatorio = os.path.join(pasta_projeto, "SISAFA-NAVAL-relatorio.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao.png")
 caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_novembro_azul.png")
 caminho_mapeamento = os.path.join(pasta_projeto, "mapeamento-de-processo.png")
 caminho_favicon = os.path.join(pasta_projeto, "Favicon-SISAFA-NAVAL.png")
 caminho_escudo_dsm = os.path.join(pasta_projeto, "Simbolo-DSM_SISAFA.png")
@@ -925,8 +927,8 @@ def obter_tabela_referencia_glosa():
 
 # --- CONFIGURAÇÕES DE IMAGEM SEGURAS ---
 pasta_projeto = os.path.dirname(os.path.abspath(__file__))
-caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_outubro_rosa.png")
-caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
+caminho_logo = os.path.join(pasta_projeto, "LOGO-SISAFA-NAVAL_novembro_azul.png")
+caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_novembro_azul.png")
 
 # Função para carregar imagem sem quebrar o app
 def carregar_imagem(caminho):
@@ -1008,7 +1010,7 @@ if not st.session_state.logged_in:
     # =========================================================================
     # 🎨 IMAGEM FIXA NO CANTO INFERIOR DIREITO (Mascote/Apresentação)
     # =========================================================================
-    caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_outubro_rosa.png")
+    caminho_mascote = os.path.join(pasta_projeto, "canto_inferior_direito_da_tela_de_apresentacao_novembro_azul.png")
     if os.path.exists(caminho_mascote):
         with open(caminho_mascote, "rb") as f:
             data_mascote = base64.b64encode(f.read()).decode()
@@ -3266,15 +3268,15 @@ else:
                             # 2. Prepara e Grava a Linha de Processo
                             # O codigo_carefy entra exatamente na coluna 2, substituindo o formato antigo de NUP
                             nova_linha = [
-                                str(datetime.now().timestamp()), codigo_carefy, sel_cnpj, empresa_nome, 
+                                str(datetime.now().timestamp()), num_fatura, sel_cnpj, empresa_nome, 
                                 num_fatura, v_ap, 0, v_ap, datetime.now().month, datetime.now().year, 
                                 1, st.session_state.user_id, dt_hoje, dt_hoje, "", "", "", ""
                             ]
                             aba_proc.append_row(nova_linha)
                             
                             # 3. Alimenta aba HISTORICO e LOGS
-                            registrar_historico(codigo_carefy, num_fatura, "0", "1", v_ap, f"Entrada via CAREFY - {tipo_selecionado}")
-                            registrar_acao(codigo_carefy, num_fatura, "CADASTRO_INICIAL", f"Fatura CAREFY cadastrada por {st.session_state.user_full_name}")
+                            registrar_historico(num_fatura, num_fatura, "0", "1", v_ap, f"Entrada via CAREFY - {tipo_selecionado}")
+                            registrar_acao(num_fatura, num_fatura, "CADASTRO_INICIAL", f"Fatura CAREFY cadastrada por {st.session_state.user_full_name}")
                             
                             # --- 🚀 RESET DOS CAMPOS ---
                             st.session_state.confirmar_carefy = False
