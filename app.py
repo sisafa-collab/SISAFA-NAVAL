@@ -913,7 +913,7 @@ def mover_status_lote(nups_selecionados, novo_status, auditor_nip):
     if celulas_lote:
         worksheet.update_cells(celulas_lote)
 
-@st.cache_data(ttl=3600)
+(ttl=3600)
 def obter_tabela_referencia_glosa():
     """Lê a tabela de referência do Google apenas 1 vez por hora."""
     if sh is None: 
@@ -1115,7 +1115,7 @@ elif st.session_state.modulo_ativo is None:
     
     nome_operador = st.session_state.get('user_full_name', 'Comandante')
     st.markdown(
-    f"<h3 style='text-align: center; color: #ff66c4; text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.4); font-weight: bold;'>Olá, {nome_operador}</h3>", 
+    f"<h3 style='text-align: center; color: #1e317b; text-shadow: 0 0 10px rgba(0, 230, 118, 0.6), 0 0 20px rgba(0, 230, 118, 0.4); font-weight: bold;'>Olá, {nome_operador}</h3>", 
     unsafe_allow_html=True
     )
     st.markdown("<p style='text-align: center; font-size: 20px;'>Selecione o setor de trabalho:</p><br>", unsafe_allow_html=True)
@@ -1155,7 +1155,7 @@ else:
         # Botões de Ação
         if st.button("🔄 Trocar de Setor", use_container_width=True):
             st.session_state.modulo_ativo = None
-            st.cache_data.clear() # Limpa o cache ao trocar para evitar lixo de outro setor
+            carregar_dados_cache.clear() # Limpa o cache ao trocar para evitar lixo de outro setor
             st.rerun()
             
         if st.button("❌ Sair", use_container_width=True, type="secondary"):
@@ -1348,35 +1348,29 @@ else:
                 
                 if st.button("📥 RECEBER PROCESSOS SELECIONADOS", use_container_width=True):
                     if nups_sel:
-                        with st.spinner("Movimentando para auditagem..."):
+                        with st.spinner("Movimentando lote para auditagem..."):
                             try:
+                                auditor_nip = str(st.session_state.get('user_id', 'N/A'))
+                                lista_historico = []
+                                
+                                # 1. LOOP NA MEMÓRIA LOCAL (Rápido e não gasta cota da API)
                                 for n in nups_sel:
-                                    # 1. Move fisicamente o status na planilha de processos
-                                    mover_status(n, 2, auditor_nip=st.session_state.user_id)
-                                    
-                                    # 2. Captura cirúrgica dos dados da fatura para evitar NameError
                                     linha_fatura = df[df['nup'] == n].iloc[0]
                                     fat_n = str(linha_fatura['Numero_da_fatura'])
                                     v_apres = limpar_valor(linha_fatura['valor_apresentado'])
-                                    auditor_nip = str(st.session_state.get('user_id', 'N/A'))
                                     
-                                    # 3. Log rápido na memória de ações
+                                    # Log rápido na memória de ações
                                     registrar_acao(n, fat_n, "RECEBIMENTO", f"Auditor {auditor_nip} recebeu o processo.")
                                     
-                                    # 4. IMPLEMENTAÇÃO DA SUA FUNÇÃO NATIVA DE HISTÓRICO
-                                    # Parâmetros: nup, fatura, origem (1), destino (2), valor, observação
-                                    registrar_historico(
-                                        nup=str(n),
-                                        fatura=fat_n,
-                                        origem="1",
-                                        destino="2",
-                                        valor=v_apres,
-                                        obs=f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
-                                    )
+                                    # Acumula os dados para enviar ao histórico em uma única viagem
+                                    lista_historico.append([
+                                        str(datetime.now().timestamp()), str(n), fat_n, "1", "2", v_apres, 
+                                        f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
+                                    ])
                                 
-                                # 🛡️ MANOBRA 2: Freio tático anti-bloqueio (Google Write Quota)
-                                    # 1 segundo de pausa entre os processos salva a sua cota de estourar por requisições massivas.
-                                    time.sleep(1)
+                                # 2. ATAQUE EM LOTE (Apenas 2 requisições ao Google Sheets no total)
+                                mover_status_lote(nups_sel, 2, auditor_nip=auditor_nip)
+                                registrar_historico_lote(lista_historico)
                                 
                                 st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
                                 time.sleep(1)
@@ -1386,7 +1380,6 @@ else:
                                 st.error(f"Erro ao processar recebimento na Auditoria: {e}")
                     else:
                         st.warning("⚠️ Selecione ao menos um NUP.")
-
                 st.divider()
 
                 # --- FERRAMENTA DE CORREÇÃO (ERRO HUMANO) ---
@@ -1440,7 +1433,7 @@ else:
                                     registrar_acao(novo_nup, nova_fat, "CORREÇÃO", f"Corrigido por {st.session_state.user_id}")
                                     
                                     st.success("✅ Dados da fatura e da empresa atualizados com sucesso no SISAFA!")
-                                    st.cache_data.clear() 
+                                    carregar_dados_cache.clear() 
                                     time.sleep(1)
                                     st.rerun()
                             except Exception as e:
@@ -2091,7 +2084,7 @@ else:
                                         aba_hist.append_row([agora, nup_audit, num_fat, 2, 3, auditor_nip, v_apres, just_glosa])
                                         
                                         registrar_acao(nup_audit, num_fat, "FATURA_AUDITADA", f"Auditada por {auditor_atual}")
-                                        st.cache_data.clear()
+                                        carregar_dados_cache.clear()
                                         st.success(f"✅ Auditagem do NUP {nup_audit} finalizada! Obrigado pela paciência, {auditor_atual}!😅")
                                         time.sleep(1)
                                         st.rerun()
@@ -3378,7 +3371,7 @@ else:
                                         )
                                     
                                     # 5. Limpa o cache para atualizar o Painel Tático no mesmo instante
-                                    st.cache_data.clear()
+                                    carregar_dados_cache.clear()
                                     
                                     st.success(f"✅ {len(nups_aud_sel)} faturas recebidas com sucesso!")
                                     time.sleep(1)
@@ -3434,7 +3427,7 @@ else:
                                         ])
                                     
                                     # Limpa o cache para atualizar as estatísticas na hora
-                                    st.cache_data.clear()
+                                    carregar_dados_cache.clear()
                                     
                                     st.warning(f"⏪ {len(nups_aud_sel)} faturas devolvidas para a Auditoria!")
                                     time.sleep(1)
@@ -3528,7 +3521,7 @@ else:
                                         registrar_acao(novo_nup, nova_fat, "CORRECAO_DADOS", f"CNPJ alterado para {novo_cnpj} ({novo_nome_ose}) | Justificativa: {nova_obs}")
                                         
                                         # Limpa o cache do dataframe de processos para a alteração refletir na tela imediatamente
-                                        st.cache_data.clear()
+                                        carregar_dados_cache.clear()
                                         
                                         st.success("✅ Processo e OSE vinculada atualizados com sucesso!")
                                         st.session_state['modo_correcao'] = None
@@ -3611,7 +3604,7 @@ else:
                                     )
                                 
                                 # 5. Limpeza estratégica de cache para acender o painel tático na hora
-                                st.cache_data.clear()
+                                carregar_dados_cache.clear()
                                 
                                 st.success(f"✅ {len(nfs_sel)} Notas Fiscais aceitas! Processos movidos para liquidação.")
                                 time.sleep(1.5)
