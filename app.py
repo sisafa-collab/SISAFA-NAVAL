@@ -913,7 +913,6 @@ def mover_status_lote(nups_selecionados, novo_status, auditor_nip):
     if celulas_lote:
         worksheet.update_cells(celulas_lote)
 
-(ttl=3600)
 def obter_tabela_referencia_glosa():
     """Lê a tabela de referência do Google apenas 1 vez por hora."""
     if sh is None: 
