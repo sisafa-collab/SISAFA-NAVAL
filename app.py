@@ -1366,15 +1366,26 @@ else:
                                     # Log rápido na memória de ações
                                     registrar_acao(n, fat_n, "RECEBIMENTO", f"Auditor {auditor_nip} recebeu o processo.")
                                     
-                                    # Acumula os dados para enviar ao histórico em uma única viagem
+                                    # Acumula os dados para enviar ao histórico em uma única viagem (8 COLUNAS)
+                                    agora_fmt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     lista_historico.append([
-                                        str(datetime.now().timestamp()), str(n), fat_n, "1", "2", v_apres, 
+                                        agora_fmt, 
+                                        str(n), 
+                                        fat_n, 
+                                        "1", 
+                                        "2", 
+                                        str(auditor_nip), 
+                                        v_apres, 
                                         f"Processo recebido pelo Auditor NIP {auditor_nip}. Início da análise técnica da fatura."
                                     ])
                                 
                                 # 2. ATAQUE EM LOTE (Apenas 2 requisições ao Google Sheets no total)
                                 mover_status_lote(nups_sel, 2, auditor_nip=auditor_nip)
                                 registrar_historico_lote(lista_historico)
+
+                                # --- O FREIO DE CACHE TÁTICO (SISAFA) ---
+                                # Chama a limpeza SOMENTE da função que carrega a aba principal
+                                carregar_dados_cache.clear()
                                 
                                 st.toast("Sucesso! Processos movidos para 'Em Auditagem'.", icon="✅")
                                 time.sleep(1)
