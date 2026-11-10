@@ -3378,6 +3378,9 @@ else:
                                             valor=v_apres, 
                                             obs="Fatura aceita e recebida pelo setor de Execução Financeira."
                                         )
+
+                                        # Salva a sua cota de estourar por requisições massivas.
+                                        time.sleep(1.2)
                                     
                                     # 5. Limpa o cache para atualizar o Painel Tático no mesmo instante
                                     carregar_dados_cache.clear()
