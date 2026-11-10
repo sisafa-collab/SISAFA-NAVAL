@@ -950,7 +950,7 @@ COLUNAS_MESTRE = [
 # ==========================================
 # ENCAIXE DA FUNÇÃO DE LEITURA AQUI
 # ==========================================
-@st.cache_data(ttl=70)
+@st.cache_data(ttl=360)
 def carregar_dados_cache(nome_aba):
     """Lê a planilha e já entrega o DF blindado com todas as colunas mestre."""
     try:
@@ -1554,12 +1554,6 @@ else:
                     st.session_state["valores_detalhados_ativo"] = valores_detalhados
                     st.session_state["just_glosa_ativo"] = just_glosa 
                     
-                    try:
-                        lista_tabela_a = carregar_dados_cache(ABA_TABELA_A)
-                    except Exception as e:
-                        st.error(f"Erro ao acessar a Tabela A: {e}")
-                        lista_tabela_a = []
-
 
                     # --- CARREGAMENTO AUTOMÁTICO DE RASCUNHO ---
                     key_glosas = f"relatorio_glosa_{nup_audit}"
