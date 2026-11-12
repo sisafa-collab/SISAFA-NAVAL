@@ -1962,12 +1962,11 @@ else:
                     dados_ose_contrato = {}
 
                     # 1. Verifica se é DataFrame e não está vazio
-                    if isinstance(lista_tabela_a, pd.DataFrame) and not lista_tabela_a.empty:
+                    if isinstance(df_ose, pd.DataFrame) and not df_ose.empty:
                         
                         # 2. Converte a coluna CNPJ para string e filtra usando o cnpj_busca
-                        # Isso é muito mais rápido e seguro que um loop 'for'
-                        mask = lista_tabela_a['CNPJ'].astype(str).str.startswith(cnpj_busca)
-                        df_filtrado = lista_tabela_a[mask]
+                        mask = df_ose['CNPJ'].astype(str).str.startswith(cnpj_busca)
+                        df_filtrado = df_ose[mask]
                         
                         # 3. Se encontrar algo, pega a primeira linha e transforma em dicionário
                         if not df_filtrado.empty:
